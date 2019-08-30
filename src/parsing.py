@@ -6,8 +6,8 @@ serv --h
 
 class ArgumentParser:
 
-	def __init__(self, handler: list = None):
-		self._handler = handler if not (handler is None) and handler is dict else {}
+	def __init__(self, handler: dict = None):
+		self._handler = handler
 		self._parsedArgs = None
 
 	def _initParse(self, args: list = None):
@@ -68,7 +68,7 @@ class ArgumentParser:
 			if arg[0] == "cmd": onlyCmd = True
 		if onlyCmd: self._parsedArgs = [["cmd", args[0][1]]]
 		self._parsedArgs = args
-		print(self._parsedArgs)
+		print("Args:", self._parsedArgs)
 
 	def execute(self):
 		parsed = lambda index: self._parsedArgs[index]
@@ -82,10 +82,11 @@ class ArgumentParser:
 				if item is str and item.lower() == _str: return True
 			return False
 		def getHandlerCmd(cmd: str = ""):
-			for kvp in self._handler.values():
+			for key in self._handler:
 				cmds = None
-				if (kvp.key is list and withinList(kvp.key, "cmds")) or (kvp.key is str and kvp.key.lower() == "cmds"): cmds = self._handler[kvp.key]
+				if (key is str and key.lower() == "cmds") and (key is list and withinList(key, "cmds")): cmds = self._hander[key]
 				else: continue
+				print(self._handler[key])
 				if cmds is None: continue
 				print(cmds is dict)
 				print(cmd[2:])
@@ -97,7 +98,7 @@ class ArgumentParser:
 		pairIndex = 0
 		remaining = lambda: len(self._parsedArgs) - pairIndex
 		while pairIndex < len(self._parsedArgs):
-			if pairIndex == 0 and not (getHandlerCmd(val01(pairIndex)) is None):
+			if pairIndex == 0 and not (getHandlerCmd(val02(pairIndex)) is None):
 				getHandlerCmd(val01(pairIndex))()
 				break
 			else: break
