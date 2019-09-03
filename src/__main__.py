@@ -3,12 +3,14 @@
 from __future__ import annotations
 from parsing import ArgumentParser
 from error import Codes, Error
+from networking import Request
 #from networking import Service, Client
 from crypt import AES, RSA
 from Crypto.Random import get_random_bytes
 import sys
 
 def main():
+	'''
 	args = sys.argv[1:]
 	argParser = ArgumentParser(None, {
 		"vars": {
@@ -23,6 +25,7 @@ def main():
 	})
 	argParser.parse(args)
 	response = argParser.execute()
+	'''
 	#if response == 1:
 		#print(argParser)
 		#print("Reading Variables")
@@ -38,6 +41,11 @@ def main():
 		#	c = Client(ip, port + 1)
 		#	c.connectToServer(ip)
 	#else: print("Got", response, "as a response!")
+	initRequest = Request(1)
+	genRequest = Request.new(initRequest.getRequestString())
+	print(initRequest)
+	print(genRequest)
+	'''
 	B = ""
 	while len(B) < 128:
 		try:
@@ -74,6 +82,7 @@ def main():
 	print("\nDecrypted Message From AES:", clientDecryptedServerMessageEncryptedWithAES)
 
 	print("\nMessage Match?:", clientDecryptedServerMessageEncryptedWithAES == initialMessageServerWantsToSend)
+	'''
 	'''
 	aes = AES("my special key that noone knows, in the entire world!")
 	msg = "my secret message that should be kept secret"
