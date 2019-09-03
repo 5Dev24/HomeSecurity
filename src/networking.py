@@ -1,3 +1,97 @@
+import socket
+import threading
+from error import Error, Codes
+
+class Server:
+
+	def __init__(self, port: int = 25565):
+		self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self._sock.bind(("localhost", port))
+		self._sock.listen(25)
+
+	def _listeningThread(self):
+		while True: pass
+			#sock, addr = self._sock.accept()
+			#addr = ":".join(addr)
+			#Protocol()
+
+"""
+AA BB CCCC (D) EEEE (F) GGGG (H)
+
+No space would actually be pressent, it's just easier to read
+
+A = request code
+B = how many pieces of data are present, default to 0, maxd is 100 but that should never occur
+C, E, G = length of the next piece of data,
+	note that a piece of data cannot exceed length 10000 as the
+	value goes from 1 to 10000 instead of 0 to 9999 because no
+	piece of data would be 0 in length
+D, F, G = the data itself
+
+"""
+
+class Request:
+
+	ERROR = 0
+	NULL = 1
+	CLIENT_CONNECT = 2
+	CLIENT_RECIEVED = 3
+	CLIENT_DISCONNECT = 4
+	SERVER_CONNECT = 5
+	SERVER_RECIEVED = 6
+	SERVER_DISCONNECT = 7
+	QUERY_DATA = 8
+	QUERY_RESPONSE = 9
+
+	@staticmethod
+	def new(requestString: str = None):
+		if requestString is None: return None
+		if type(requestString) == bytes: requestString = requestString.decode("utf-8")
+		method = int(requestString[:2])
+		dataPoints = int(requestString[2:4])
+		proto = Request(method)
+		currentOffset = 0
+		while dataPoints > 0:
+			dataPointLength = int(requestString[4 + currentOffset:6 + currentOffset])
+			dataPointValue = requestString[6 + currentOffset:dataPointLength + currentOffset]
+			print("Data Length:", dataPointLength)
+			print("Data Value: \"", dataPointValue, '"', sep = '')
+			proto.addData(dataPointValue)
+			dataPoints -= 1
+		return proto
+
+
+	def __init__(self, method: int = 0):
+		if method < 0 or method > 9: method = -1
+		self._mtd = method
+		self.data = None
+
+	def __str__(self):
+		return self.getRequestString()
+
+	def addData(self, data: str = None):
+		if data is None or len(data) == 0: return False
+		if self._mtd >= 8:
+			if type(data) == bytes: data = data.decode("utf-8")
+			if self.data is None: self.data = [data]
+			elif type(self.data) == list: self.data.append(data)
+			else: return False
+			return True
+		return False
+
+	def getRequestString(self):
+		opt = lambda val, length: "0" * (length - len(str(val))) + str(val)
+		request = opt(self._mtd, 2)
+		if self.data is None: return request
+		for data in self.data:
+			request += opt(len(data), 4) + data
+		return request
+
+	def sendData(self, sock: socket.socket = None):
+		if sock is None: return
+		sock.send(bytes(self.getRequestString(), "utf-8"))
+		sock.close()
+
 """import socket
 import threading
 from error import Error, Codes
