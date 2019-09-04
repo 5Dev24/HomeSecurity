@@ -45,7 +45,8 @@ class Request:
 
 	@staticmethod
 	def new(requestString: str = None):
-		if requestString is None: return None
+		print("Req: \"", requestString, '"', sep='')
+		if requestString is None or len(requestString) < 4: return None
 		if type(requestString) == bytes: requestString = requestString.decode("utf-8")
 		method = int(requestString[:2])
 		dataPoints = int(requestString[2:4])
@@ -81,7 +82,7 @@ class Request:
 
 	def getRequestString(self):
 		opt = lambda val, length: "0" * (length - len(str(val))) + str(val)
-		request = opt(self._mtd, 2)
+		request = opt(self._mtd, 2) + opt(0 if self.data is None else len(self.data), 2)
 		if self.data is None: return request
 		for data in self.data:
 			request += opt(len(data), 4) + data
