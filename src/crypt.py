@@ -1,9 +1,9 @@
-
+from __future__ import annotations
 from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES as _AES
+from Crypto.Cipher import AES as _AESc
 from Crypto.Cipher import PKCS1_OAEP as _PKCS
 from Crypto.PublicKey import RSA as _RSA
-from Crypto.PublicKey.pubkey import getPrime
+from Crypto.Util.number import getPrime
 from Crypto.Hash import SHA256 as _SHA256
 from hashlib import sha256
 import hashlib
