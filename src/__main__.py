@@ -3,14 +3,15 @@
 from __future__ import annotations
 from parsing import ArgumentParser
 from error import Codes, Error
-from networking import Request
-#from networking import Service, Client
+from networking import Server, Request
 from crypt import AES, RSA
 from Crypto.Random import get_random_bytes
 import sys
 
 def main():
 	'''
+	Argument Parsing Example
+
 	args = sys.argv[1:]
 	argParser = ArgumentParser(None, {
 		"vars": {
@@ -25,27 +26,48 @@ def main():
 	})
 	argParser.parse(args)
 	response = argParser.execute()
+
+	if response == 1:
+		print(argParser)
+		print("Reading Variables")
+		print("IP:   \"", argParser.readVariable("ip"), '"', sep = '')
+		print("Port: \"", argParser.readVariable("port"), '"', sep = '')
+		print("Server: \"", argParser.readVariable("server"), '"', sep = '')
+		ip = argParser.readVariable("ip")
+		port = argParser.readVariable("port")
+		isServer = argParser.readVariable("server")
+		if isServer:
+			Service(ip, port, isServer)
+		else:
+			c = Client(ip, port + 1)
+			c.connectToServer(ip)
+	else: print("Got", response, "as a response!")
 	'''
-	#if response == 1:
-		#print(argParser)
-		#print("Reading Variables")
-		#print("IP:   \"", argParser.readVariable("ip"), '"', sep = '')
-		#print("Port: \"", argParser.readVariable("port"), '"', sep = '')
-		#print("Server: \"", argParser.readVariable("server"), '"', sep = '')
-		#ip = argParser.readVariable("ip")
-		#port = argParser.readVariable("port")
-		#isServer = argParser.readVariable("server")
-		#if isServer:
-		#	Service(ip, port, isServer)
-		#else:
-		#	c = Client(ip, port + 1)
-		#	c.connectToServer(ip)
-	#else: print("Got", response, "as a response!")
-	initRequest = Request(1)
+
+
+
+	'''
+	Network Request Testing
+
+	initRequest = Request(Request.methodFromString("QUERY_DATA"))
+	initRequest.addData("$test")
 	genRequest = Request.new(initRequest.getRequestString())
-	print(initRequest)
+	print(initRequest.toPrint())
 	print(genRequest)
 	'''
+
+
+	'''
+	Network Broadcasting Testing
+	'''
+	server = Server()
+	client = Client()
+
+
+
+	'''
+	Proof That AES Key Exchange Can Occur Using RSA
+
 	B = ""
 	while len(B) < 128:
 		try:
@@ -83,7 +105,12 @@ def main():
 
 	print("\nMessage Match?:", clientDecryptedServerMessageEncryptedWithAES == initialMessageServerWantsToSend)
 	'''
+
+
+
 	'''
+	Testing AES and RSA
+
 	aes = AES("my special key that noone knows, in the entire world!")
 	msg = "my secret message that should be kept secret"
 	enc = aes.encrypt(msg)
@@ -94,9 +121,10 @@ def main():
 	print("PubKey 2:", rsa2.pubKey())
 	print(rsa1 == rsa2)
 	print(rsa1.pubKey() == rsa2.pubKey())
+
+	print("Original Message:", msg)
+	print("Encrypted Message:", enc)
+	print("Decrypted Message:", dec)
 	'''
-	#print("Original Message:", msg)
-	#print("Encrypted Message:", enc)
-	#print("Decrypted Message:", dec)
 
 if __name__ == "__main__": main()
