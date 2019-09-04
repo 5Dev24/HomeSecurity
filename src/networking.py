@@ -61,6 +61,28 @@ D, F, G = the data itself
 
 """
 
+class Protocol:
+
+	@staticmethod
+	def _generateClassList():
+		classes = {}
+		for _class in Protocol.__subclasses__():
+			classes[_class.__name__] = _class
+		return classes
+
+	def __init__(self, isServer: bool = False):
+		self._isServer = isServer
+
+	def execute(self): raise NotImplementedError()
+
+class IP_BROADCAST(Protocol): pass
+
+class DOOR_STATE_CHANGE(Protocol): pass
+
+class DOOR_SENSOR_LOW_BATTERY(Protocol): pass
+
+class DOOR_STATE_SYNC(Protocol): pass
+
 class Request:
 
 	Methods = [
