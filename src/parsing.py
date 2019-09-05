@@ -48,7 +48,7 @@ class ArgumentParser:
 			"""
 			if argType.count("|") > 0: # If there is a '|' in the type string
 				for newArgType in argType.split("|"): # Loop over the string by splits of '|' as newArgType
-					out = defaultArgTypeValue(newArgType) # Try to get a default argument value
+					out = self._getDefaultValueForA(newArgType) # Try to get a default argument value
 					if out != None: return newArgType # If the generated argument type isn't None, return it
 			if argType != None: return argType # If argument type isn't None, return the argument type as it doesn't need spliting
 			else: return None # If argument can't be split and is None, return None
