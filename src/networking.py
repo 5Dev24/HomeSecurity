@@ -70,10 +70,18 @@ class Client:
 			#Packet(addr[0], Packet.methodFromString("CLIENT_CONFIRM"), DOOR_STATE_CHANGE, False).sendData()
 			self._stopBroadcast = True
 
+class ProtocolHandler:
+
+	def __init__(self): pass
+
+	def incommingPacket(self, packet: str = None):
+		if packet is None or len(packet) == 0: return
+
+
 class Protocol:
 
 	@staticmethod
-	def allProtocols(): return Protocol.__subclasses__()
+	def allProtocols(): return [_class.__name__.upper() for _class in Protocol.__subclasses__()]
 
 	@staticmethod
 	def protocolClassFromID(id: int = 0):
@@ -92,7 +100,7 @@ class Protocol:
 
 	def step(self, toSendTo: socket.socket = None): raise NotImplementedError
 
-class Setup(Protocol):
+class Key_Exchange(Protocol):
 
 	def __init__(self, step: int = 0): super().__init__(step)
 
@@ -143,6 +151,7 @@ class Setup(Protocol):
 		elif S == 10: # Server
 			# Verfy that the unique id sent by the client matches one in the database (local file)
 			# If True
+			# Client is now trusted
 			Packet("AGREE", N, S, toSendTo).build().send()
 			# Generate new unique id to be used for next communication
 			Packet("DATA", N, nS, toSendTo).addData("Client's new unique id").build().send()
@@ -161,7 +170,9 @@ class Setup(Protocol):
 			# Packet("DISAGREE", N, 11, toSendTo).addData("Client's new unique id").build().send()
 		elif S == 13: # Client
 			# Save new key to file
-			Packet("CONFIRM")
+			Packet("CONFIRM", N, nS, toSendTo).build().send()
+		elif S == 14: # Server
+			toSendTo.close()
 
 	def isServersTurn(self):
 		return self._step % 2 == 0
@@ -194,6 +205,21 @@ class Packet:
 			if val == mtdID: return key
 		return "ERROR"
 
+	@staticmethod
+	def fromString(packet: str = None):
+		if packet is None or len(packet) < 8: return None
+		mtd = int(packet[:2])
+		protoID = int(packet[2:4])
+		step = int(packet[4:6])
+		numberOfDataPoints = int(packet[6:8])
+		packet = Packet(mtd, Protocol.protocolClassFromID(protoID), step, None)
+		offset = 0
+		for i in range(numberOfDataPoints - 1):
+			del i
+			dataLength = int(packet[8 + offset: 12 + offset])
+			packet.addData(packet[12 + offset: 12 + offset + dataLength])
+		return packet
+
 	def __init__(self, method: str = None, protocolName: str = None, step: int = 0, sock: socket.socket = None):
 		# Step is the step that the recieving service should do in the protocol
 		self._method = method
@@ -210,7 +236,7 @@ class Packet:
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value)))
-		data = opt(2, self._method) + opt(2, Protocol.idFromProtocolName(self._protocol)), + opt(2, self._step) + opt(2, len(self._data)))
+		data = opt(2, self._method) + opt(2, Protocol.idFromProtocolName(self._protocol)), + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			data += opt(4, len(dataPoint)) + dataPoint
 		self._packetString = data
