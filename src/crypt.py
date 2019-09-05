@@ -1,18 +1,18 @@
 from __future__ import annotations
 from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES as _AESc
+from Crypto.Cipher import AES as _AES
 from Crypto.Cipher import PKCS1_OAEP as _PKCS
 from Crypto.PublicKey import RSA as _RSA
 from Crypto.Util.number import getPrime
 from Crypto.Hash import SHA256 as _SHA256
 from hashlib import sha256
 import hashlib
-from error import Error, Codes
+from .error import Error, Codes
 
 CONSTS = {
-	"SALT_LENGTH": 2**16,
+	"SALT_LENGTH": 2**24,
 	"AES_KEY_SIZE": 144,
-	"KEY_ITERNATIONS": 2**16
+	"KEY_ITERNATIONS": 2**24
 }
 
 class AES:
