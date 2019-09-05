@@ -81,6 +81,11 @@ class Protocol:
 		if id < 0 or id > len(protos): return None
 		return protos[id]
 
+	@staticmethod
+	def idFromProtocolName(name: str = None):
+		if name is None or not (name in Protocol.allProtocols()): return -1
+		return Protocol.allProtocols().index(name) - 1
+
 	def __init__(self, step: int = 0): self._step = step
 
 	def isServersTurn(self): raise NotImplementedError
@@ -92,13 +97,74 @@ class Setup(Protocol):
 	def __init__(self, step: int = 0): super().__init__(step)
 
 	def step(self, toSendTo: socket.socket = None):
-		S = self._step
-		N = self.__class__.__name__
-		if S == 1:
-			Packet("QUERY_DATA", N, S + 1, toSendTo).build().send()
+		S = self._step # Step
+		N = self.__class__.__name__.upper() # Name of protocol
+		nS = S + 1 # Next step
+		if S == 1: # Client
+			Packet("QUERY_DATA", N, nS, toSendTo).addData("RSA_KEY").build().send()
+		elif S == 2: # Server
+			# Get server's public rsa key
+			Packet("QUERY_RESPONSE", N, nS, toSendTo).addData("Fake key").build().send()
+		elif S == 3: # Client
+			# Use server's rsa key to encrypt client rsa key
+			Packet("DATA", N, nS, toSendTo).addData("Their key encrypted with the server's RSA key").build().send()
+		elif S == 4: # Server
+			# Decrypt client's rsa key using server's private key
+			# Use client's rsa key to encrypt a random message
+			Packet("DATA", N, nS, toSendTo).addData("Random string encrypted with the clients RSA key").build().send()
+		elif S == 5: # Client
+			# Decrypt the random message sent by the server
+			# Send back the message
+			Packet("CONFIRM", N, nS, toSendTo).addData("Decrypted random string sent originally by server").build().send()
+		elif S == 6: # Server
+			# Server checks if they match
+			# If True
+			Packet("AGREE", N, S, toSendTo).build().send()
+			# Generate new, random, AES key and encrypt it with the client's rsa key
+			# Generate a random message and encrypt it with the AES key
+			Packet("DATA", N, nS, toSendTo).addData("Encrypted AES key").addData("Message encrypted with AES").build().send()
+			# If False
+			#Packet("DISAGREE", N, 1, toSendTo).build().send()
+		elif S == 7: # Client
+			# Decrypts the AES key using their private key
+			# Decrypts message encrypted with AES
+			Packet("CONFIRM", N, nS, toSendTo).addData("Decrypted message").build().send()
+		elif S == 8: # Server
+			# Verifies that the messages match
+			# If True
+			Packet("AGREE", N, nS, toSendTo).build().send()
+			# If False
+			#Packet("DISAGREE", N, 6, toSendTo).build().send()
+			#self._step = 6
+			#self.step(toSendTo)
+		elif S == 9: # Client
+			# Gets the previously sent unique ID for communication
+			Packet("DATA", N, nS, toSendTo).addData("The client's unique id").build().send()
+		elif S == 10: # Server
+			# Verfy that the unique id sent by the client matches one in the database (local file)
+			# If True
+			Packet("AGREE", N, S, toSendTo).build().send()
+			# Generate new unique id to be used for next communication
+			Packet("DATA", N, nS, toSendTo).addData("Client's new unique id").build().send()
+			# If False
+			# Decrease number of remaining tries, if tries <= 0: halt communications (Default number of tries = 3)
+			# Packet("DISAGREE", N, 9, toSendTo).build().send()
+		elif S == 11: # Client
+			# Client gets id and save it, then sends it back to verify they have the same unique id
+			Packet("CONFIRM", N, nS, toSendTo).addData("The Client's new unique id, checking").build().send()
+		elif S == 12: # Server
+			# Verify that the new ids match
+			# If True
+			Packet("AGREE", N, nS, toSendTo).build().send()
+			# Save unique id to database for next communication
+			# If False
+			# Packet("DISAGREE", N, 11, toSendTo).addData("Client's new unique id").build().send()
+		elif S == 13: # Client
+			# Save new key to file
+			Packet("CONFIRM")
 
 	def isServersTurn(self):
-		return self._step in (2,4)
+		return self._step % 2 == 0
 
 class Packet:
 
@@ -112,7 +178,8 @@ class Packet:
 		"DISCONNECT":     5,
 		"BROADCAST_IP":   6,
 		"QUERY_DATA":     7,
-		"QUERY_RESPONSE": 8
+		"QUERY_RESPONSE": 8,
+		"DATA":           9
 	}
 
 	@staticmethod
@@ -128,6 +195,7 @@ class Packet:
 		return "ERROR"
 
 	def __init__(self, method: str = None, protocolName: str = None, step: int = 0, sock: socket.socket = None):
+		# Step is the step that the recieving service should do in the protocol
 		self._method = method
 		self._protocol = protocolName
 		self._step = step
@@ -142,11 +210,14 @@ class Packet:
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value)))
-		data = opt(2, self._method) + opt(2, )
+		data = opt(2, self._method) + opt(2, Protocol.idFromProtocolName(self._protocol)), + opt(2, self._step) + opt(2, len(self._data)))
+		for dataPoint in self._data:
+			data += opt(4, len(dataPoint)) + dataPoint
+		self._packetString = data
 		return self
 
 	def send(self):
-		if self._sock is None: return
+		if self._sock is None or self._packetString is None or len(self._packetString) == 0: return
 		self._sock.send(bytes(self._packetString, "utf-8"))
 		self._sock.close()
 		self._sock = None
