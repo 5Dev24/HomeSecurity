@@ -56,7 +56,7 @@ class Client:
 		self._broadcastSock.bind(("", Ports.SERVER_BROADCAST))
 		self._stopBroadcast = False
 		Thread(target=self._broadcastIPListener).start()
-		Setup(5).isServersTurn()
+		#Setup(5).isServersTurn()
 
 	def _broadcastIPListener(self):
 		while not self._stopBroadcast:
