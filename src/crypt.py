@@ -1,4 +1,5 @@
 from __future__ import annotations
+from Crypto import Random as _Ran
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES as _AES
 from Crypto.Cipher import PKCS1_OAEP as _PKCS
@@ -10,9 +11,9 @@ import hashlib
 from .error import Error, Codes
 
 CONSTS = {
-	"SALT_LENGTH": 2**24,
-	"AES_KEY_SIZE": 144,
-	"KEY_ITERNATIONS": 2**24
+	"SALT_LENGTH": 2**24, # Length of salt
+	"AES_KEY_SIZE": 144, # Length of AES keys
+	"KEY_ITERNATIONS": 2**24 # Times to use SHA256 on key
 }
 
 class AES:
@@ -23,62 +24,128 @@ class AES:
 	"""
 
 	def __init__(self, key: str = None):
-		if key is None: Error(TypeError(), Codes.KILL, "No key for AES was sent (1)")
-		self._key = bytes(key, "utf-8")
+		"""
+		Init
 
-	def _generateKey(self, key: bytes = None, salt: bytes = None):
-		if key is None: Error(TypeError(), Codes.KILL, "No key for AES was sent (2)")
-		if salt is None: Error(TypeError(), Codes.KILL, "No salt for AES was sent")
-		key += salt
-		for i in range(CONSTS["KEY_ITERNATIONS"]): key = sha256(key).digest()
-		return [key, salt]
+		:param key str: AES key to use
+
+		:returns self: Instance
+		"""
+		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (1)") # Make sure key something and that it's atleast 32 charcters long, else throw error
+		self._key = bytes(key, "utf-8") # Save key as byte list
+
+	def _generateCrypt(self, key: bytes = None, salt: bytes = None):
+		"""
+		Generates the key and salt for encryption/decrpyion
+
+		:param key bytes: Key to use
+		:param salt bytes: Salt to use
+
+		:returns list: The key and salt
+		"""
+		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (2)") # If key is empty or isn't atleast 32 characters long, throw error
+		if salt is None: Error(TypeError(), Codes.KILL, "No salt for AES was sent") # If salt is empty, throw error
+		key += salt # Add the salt to the key
+		for i in range(CONSTS["KEY_ITERNATIONS"]): key = sha256(key).digest() # Push the key through sha256 x number of times
+		return [key, salt] # Return key salted and the salt used
 
 	def _addPadding(self, msg: str = None):
-		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message as passed for AES padding addition")
-		paddingBytes = len(msg) % CONSTS["AES_KEY_SIZE"]
-		paddingSize = CONSTS["AES_KEY_SIZE"] - paddingBytes
-		msg += chr(paddingSize) * paddingSize
-		return msg
+		"""
+		Adds padding to a message before encryption
+
+		:param msg str: The message to pad
+
+		:returns str: The padded message
+		"""
+		if msg is None or not len(msg): Error(TypeError(), Codes.KILL, "No message as passed for AES padding addition") # If message is None or empty, throw error
+		paddingBytes = len(msg) % CONSTS["AES_KEY_SIZE"] # Get number of bytes to pad
+		paddingSize = CONSTS["AES_KEY_SIZE"] - paddingBytes # Get length of padding
+		msg += chr(paddingSize) * paddingSize # Pad using the character representation of the padding size, the padding size number of times
+		return msg # Return the now padded message
 
 	def _removePadding(self, msg: bytes = None):
-		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "No message as passed for AES padding removal")
-		return msg[:-msg[-1]]
+		"""
+		Removes padding from a decrypted message
+
+		:param msg bytes: The message, still in byte form
+
+		:returns bytes: The message, minus the padding
+		"""
+		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "No message as passed for AES padding removal") # If message is none or length is less than expected padding, throw error
+		return msg[:-msg[-1]] # Remove padding and return message
 
 	def encrypt(self, msg: str = None):
-		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "Empty message as passed for AES encryption")
-		key, salt = self._generateKey(self._key, get_random_bytes(CONSTS["SALT_LENGTH"]))
-		aes = _AES.new(key, _AES.MODE_ECB)
-		encryptedText = aes.encrypt(self._addPadding(msg))
-		return salt + encryptedText
+		"""
+		Encrypts a message using the key
+
+		:param msg str: The message to encrypt
+
+		:returns bytes: The encrypted message
+		"""
+		if msg is None or not len(msg): Error(TypeError(), Codes.KILL, "Empty message as passed for AES encryption") # If message is None or it's empty, throw error
+		key, salt = self._generateCrypt(self._key, get_random_bytes(CONSTS["SALT_LENGTH"])) # Generate key from a random salt
+		aes = _AES.new(key, _AES.MODE_ECB) # Create a new instance of AES from pycryptodome
+		encryptedText = aes.encrypt(self._addPadding(msg)) # Add padding to message and then encrypt it
+		return salt + encryptedText # Add salt to front of encrypted message to be able to decrypt later
 
 	def decrypt(self, msg: str = None):
-		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "Empty message as passed for AES decryption")
-		key, salt = self._generateKey(self._key, msg[:CONSTS["SALT_LENGTH"]])
-		aes = _AES.new(key, _AES.MODE_ECB)
-		return self._removePadding(aes.decrypt(msg[CONSTS["SALT_LENGTH"]:])).decode("utf-8")
+		"""
+		Decrypts a message using the key
 
-'''
-a = _RSA.generate(256*16, e=getPrime(2^64 - 1))
-b = _PK.new(a, hashAlgo=_SHA)
-msg = 'test'
-c = b.encrypt(bytes(msg, "utf-8"))
-d = b.decrypt(c)
-'''
+		:param msg str: The message to decrypt
+
+		:returns str: The decrypted message
+		"""
+		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "Empty message as passed for AES decryption") # If message is empty of less than the salt length, throw error
+		key = self._generateCrypt(self._key, msg[:CONSTS["SALT_LENGTH"]])[0] # Get key for decryption
+		aes = _AES.new(key, _AES.MODE_ECB) # Create a new instance of AES from pycryptodome
+		return self._removePadding(aes.decrypt(msg[CONSTS["SALT_LENGTH"]:])).decode("utf-8") # Decrypt the message, remove the padding, then decode to string in format utf-8
 
 class RSA:
+	"""
+	Handles all RSA encryption
+
+	All errors or problems will end with the program dying as if encryption fails, the program should die
+	"""
 
 	@staticmethod
-	def new(isClient: bool = False, pubKeyOpenSSH: str = None):
-		return RSA(isClient, _RSA.importKey(pubKeyOpenSSH, passphrase=None if not (pubKeyOpenSSH is None) else RSA()))
+	def new(isClients: bool = False, pubKeyOpenSSH: str = None):
+		"""
+		Generate new RSA instance from a public key
 
-	def __init__(self, isClient: bool = False, rsa: object = None):
-		if rsa is None: self._rsa = _RSA.generate(256*(8 if isClient else 16), e=getPrime(2^64 - 1))
-		else: self._rsa = rsa
-		self._pkcs = _PKCS.new(self._rsa, hashAlgo=_SHA256)
+		:param isClients bool: If this is from a client
+		:param pubKeyOpenSSH str: The public key in open ssh format
 
-	def pubKey(self): return self._rsa.exportKey(format="OpenSSH", passphrase=None, pkcs=1)
+		:returns RSA: New instance spawned from the public key
+		"""
+		return RSA(isClients, _RSA.importKey(pubKeyOpenSSH, passphrase=None)) # Create key 
 
-	def verifyPubSame(self, pubKeyOpenSSH: str = None): return self.pubKey() == pubKeyOpenSSH
+	def __init__(self, isClients: bool = False, rsa: object = None):
+		"""
+		Init
+
+		:param isClients bool: If this is from a client
+		:param rsa RSA: A rsa instance from pycryptodome, not required
+
+		:returns self: Instance
+		"""
+		if rsa is None: self._rsa = _RSA.generate(256*(8 if isClients else 16), e=getPrime(2^64 - 1)) # If no rsa was passed, generate new one
+		else: self._rsa = rsa # Save rsa if it was already created
+		self._pkcs = _PKCS.new(self._rsa, hashAlgo=_SHA256) # Save PKCS for RSA using SHA256
+
+	def pubKey(self):
+		"""
+		Gets the public key in open ssh format
+
+		:returns str: The public key
+		"""
+		return self._rsa.exportKey(format="OpenSSH", passphrase=None, pkcs=1) # Get the public key in open ssh format
+
+	def verifyPubSame(self, pubKeyOpenSSH: str = None):
+		"""
+		Checks if the input public key is the same as the one in this instance
+		"""
+		return self.pubKey() == pubKeyOpenSSH
 
 	def encrypt(self, msg: str = None):
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption")
@@ -87,15 +154,3 @@ class RSA:
 	def decrypt(self, msg: bytes = None):
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption")
 		return self._pkcs.decrypt(msg).decode("utf-8")
-
-'''
-Client requests Servers Public Key
-Client encypts their Public Key with Server Public Key
-Client sends server back there encrypted Client Public Key 
-Server decrypts Clients RSA Public Key using Server Private Key
-Server uses Client Public Key to encrypt AES Key
-Server sends encrypted AES Key to Client
-Client decrypts AES Key using Client Private Key
-Client encrypts the message "Key Recieved" and sends it to the server
-Server decrypts the message and should recieve "Key Recieved" if not, repeat process until AES Key is properly exchanged
-'''
