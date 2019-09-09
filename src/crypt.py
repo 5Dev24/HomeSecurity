@@ -29,6 +29,8 @@ class AES:
 
 		:param key str: AES key to use
 
+		:raises: TypeError if the key is none or the length is less than 32
+
 		:returns self: Instance
 		"""
 		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (1)") # Make sure key something and that it's atleast 32 charcters long, else throw error
@@ -40,6 +42,8 @@ class AES:
 
 		:param key bytes: Key to use
 		:param salt bytes: Salt to use
+
+		:raises: TypeError if the key is none or length is less than 32 or the salt is none
 
 		:returns list: The key and salt
 		"""
@@ -55,6 +59,8 @@ class AES:
 
 		:param msg str: The message to pad
 
+		:raises: TypeError if the message is none or the length is zero
+
 		:returns str: The padded message
 		"""
 		if msg is None or not len(msg): Error(TypeError(), Codes.KILL, "No message as passed for AES padding addition") # If message is None or empty, throw error
@@ -69,6 +75,8 @@ class AES:
 
 		:param msg bytes: The message, still in byte form
 
+		:raises: TypeError if the message is none or the length is zero
+
 		:returns bytes: The message, minus the padding
 		"""
 		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "No message as passed for AES padding removal") # If message is none or length is less than expected padding, throw error
@@ -79,6 +87,8 @@ class AES:
 		Encrypts a message using the key
 
 		:param msg str: The message to encrypt
+
+		:raises: TypeError if the message is none or the length is zero
 
 		:returns bytes: The encrypted message
 		"""
@@ -93,6 +103,8 @@ class AES:
 		Decrypts a message using the key
 
 		:param msg str: The message to decrypt
+
+		:raises: TypeError if the message is none or the length is less than the salt
 
 		:returns str: The decrypted message
 		"""
@@ -144,13 +156,35 @@ class RSA:
 	def verifyPubSame(self, pubKeyOpenSSH: str = None):
 		"""
 		Checks if the input public key is the same as the one in this instance
+
+		:param pubKeyOpenSSH str: 
+
+		:returns bool: If they are the same key
 		"""
-		return self.pubKey() == pubKeyOpenSSH
+		return self.pubKey() == pubKeyOpenSSH # Compare the keys
 
 	def encrypt(self, msg: str = None):
-		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption")
-		return self._pkcs.encrypt(msg)
+		"""
+		Encrypts a string
 
-	def decrypt(self, msg: bytes = None):
+		:param msg str: The message to encrypt
+
+		:raises: TypeError if the msg is none or the length is 0
+
+		:returns str: The encrypted message
+		"""
+		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption") # If message is empty, throw error
+		return self._pkcs.encrypt(msg).decode("utf-8")
+
+	def decrypt(self, msg: str = None):
+		"""
+		Decrypts a string
+
+		:param msg bytes: The message to decrypt
+
+		:raises: TypeError if the msg is none or the length is 0
+
+		:returns str: The decrypted message
+		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption")
 		return self._pkcs.decrypt(msg).decode("utf-8")
