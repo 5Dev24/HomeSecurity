@@ -52,29 +52,43 @@ class Error:
 		:param originalError BaseException: The exception thrown
 		:param method int: The method for handling the error
 		:param additionalInfo str: Additional information about the error
+
+		:returns self: Instance
 		"""
 		if additionalInfo is None: additionalInfo = "" # If additional info is none, make it an empty string
-		self._info = additionalInfo
+		self._info = additionalInfo # Save addition information
 		if method < Codes.KILL: method = Codes.KILL # Make sure method is within range
 		elif method > Codes.CONTINUE: method = Codes.CONTINUE # Make sure method is withing range
-		self._method = method
-		if originalError is None or not (BaseException in originalError.__class__.__mro__): # The exception was None or wasn't an exception
-			Error(TypeError(), self._method, "An Excepton wasn't passed to error handler constructor\n\t\t\t" + self._info).handle() # Close the program, don't pause, and say what happened
+		self._method = method # Save method
+		if originalError is None or (not (BaseException in originalError.__class__.__mro__) and not (type(originalError) == str)): # The exception was None or wasn't an exception
+			Error(TypeError(), self._method, "An Excepton or String wasn't passed to error handler constructor\n\t\t\t" + self._info).handle() # Close the program, don't pause, and say what happened
 		else:
-			try:
+			if type(originalError) is str: # If the error is a string
 				self._orgError = [
-					originalError.__class__.__mro__[0],
-					originalError,
-					originalError.strerror
-				]
-			except AttributeError:
-				self._orgError = [
-					originalError.__class__.__mro__[0],
+					None,
+					None,
 					originalError
-				]
+				] # Save error data
+			else: # Based on process of elimination, the error is a base exception
+				try:
+					self._orgError = [
+						originalError.__class__.__mro__[0],
+						originalError,
+						originalError.strerror
+					] # Save error data
+				except AttributeError:
+					self._orgError = [
+						originalError.__class__.__mro__[0],
+						originalError
+					] # Save error data
 
 	def handle(self):
-		out = "Error Details:\n\tError Class: " + self._orgError[0].__name__ + ("\n\tError Msg: " + self._orgError[2] if len(self._orgError) > 2 else "") + "\n\tAdditional Information: \n\t\t" + self._info
-		if self._method == -1: kill(out)
-		elif self._method == 0: close(False, out)
-		else: print("An error has occured but the program can sustain this error\n", out, sep = '')
+		"""
+		Handles an error after being created
+
+		:returns: None
+		"""
+		out = "Error Details:\n\tError Class: " + self._orgError[0].__name__ + ("\n\tError Msg: " + self._orgError[2] if len(self._orgError) > 2 else "") + "\n\tAdditional Information: \n\t\t" + self._info # Create message
+		if self._method == -1: kill(out) # If we should kill, kill
+		elif self._method == 0: close(False, out) # If we should instead close, close
+		else: print("An error has occured but the program can sustain this error\n", out, sep = '') # If the program can sustain it, log it
