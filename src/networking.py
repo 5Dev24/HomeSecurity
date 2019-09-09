@@ -46,7 +46,6 @@ class Server:
 			data = sock.recv(1024).decode("utf-8")
 			if len(data) == 0: continue
 			print("S: Recieved " + data + " from " + ":".join(addr))
-			#Packet(addr[0], Packet.methodFromString("SERVER_RECIEVED"), DOOR_STATE_CHANGE, True).sendData()
 
 class Client:
 
@@ -56,7 +55,6 @@ class Client:
 		self._broadcastSock.bind(("", Ports.SERVER_BROADCAST))
 		self._stopBroadcast = False
 		Thread(target=self._broadcastIPListener).start()
-		#Setup(5).isServersTurn()
 
 	def _broadcastIPListener(self):
 		while not self._stopBroadcast:
@@ -67,7 +65,6 @@ class Client:
 			print("C: Sending response!")
 			addr = ""
 			print(addr if addr != "" else "")
-			#Packet(addr[0], Packet.methodFromString("CLIENT_CONFIRM"), DOOR_STATE_CHANGE, False).sendData()
 			self._stopBroadcast = True
 
 class ProtocolHandler:
@@ -172,7 +169,7 @@ class Key_Exchange(Protocol):
 			# Save new key to file
 			Packet("CONFIRM", N, nS, toSendTo).build().send()
 		elif S == 14: # Server
-			toSendTo.close()
+			toSendTo.close() # Close connection
 
 	def isServersTurn(self):
 		return self._step % 2 == 0
@@ -295,8 +292,8 @@ This method prevents against client side impersenation but not server, so maybe 
 15. (C) Client sends back the decrypted message
 16. (L) Server verifies messages match, if not: restart from step 11
 > Crypto has been sync'd
-17. (C) Client sends previous unique id from the last communication from server
-18. (L) Server verifies that that id was the last one, if it isn't: decrease number of remaining tries, if it hits zero, refuse communication (Default tries is 3). Go back to step 17
+# DEAD 17. (C) Client sends previous unique id from the last communication from server
+# DEAD 18. (L) Server verifies that that id was the last one, if it isn't: decrease number of remaining tries, if it hits zero, refuse communication (Default tries is 3). Go back to step 17
 > Client is now trusted
 19. (L) Server generates new unique id for next communication
 20. (C) Server sends new id
@@ -315,11 +312,11 @@ The number of current and new devices to add is known
 
 1. (C) Broadcasts IP until it gets responses from the number of current devices + new devices
 2. (C) All client respond that they got the IP
-3. (L) For each unique device, the server generates a new id | For each old devices, they follow Key Exchange and get new ids
-4. (C) Server sends out new ids to the new devices
-5. (C) Client sends back id to verify
-6. (L) Server matches the ids, repeat 3 to 6 until they match or timeout after 10 tries
-7. (C) Server says that they ids match
+# DEAD 3. (L) For each unique device, the server generates a new id | For each old devices, they follow Key Exchange and get new ids
+# DEAD 4. (C) Server sends out new ids to the new devices
+# DEAD 5. (C) Client sends back id to verify
+# DEAD 6. (L) Server matches the ids, repeat 3 to 6 until they match or timeout after 10 tries
+# DEAD 7. (C) Server says that they ids match
 8. (L) Server saves id
 9. (L) Client saves id
 -> Now door naming setting up work occur
