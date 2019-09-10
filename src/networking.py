@@ -2,7 +2,7 @@ from __future__ import annotations
 import socket
 from threading import Thread, Timer
 from .error import Error, Codes
-
+import time
 
 class Ports:
 
@@ -14,66 +14,11 @@ class Ports:
 
 class Server:
 
-	def __init__(self):
-		self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		self._sock.bind((socket.gethostbyname(socket.gethostname()), Ports.SERVER_SEND_RECIEVE))
-		self._sock.listen(25)
-		self._broadcastSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self._broadcastSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self._stopBroadcast = False
-		self._clientThreads = []
-
-	def _broadcastIP(self):
-		self._broadcastSock.sendto(socket.gethostbyname(socket.gethostname()).encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
-		Thread(target=self._broadcastIPResponseHandler).start()
-		Timer(60.0, self._stopBroadcasting).start()
-
-	def _stopBroadcasting(self): self._stopBroadcast = True
-
-	def _broadcastIPResponseHandler(self):
-		while not self._stopBroadcast:
-			resp, addr = self._broadcastSock.recvfrom(Ports.SERVER_BROADCAST)
-			if not len(resp): continue
-			print("Broadcast Response " + addr[0] + ":" + addr[1] + " => \"" + resp + '"')
-
-	def _listeningThread(self):
-		while True:
-			sock, addr = self._sock.accept()
-			Thread(target=self._clientThread, args=[sock, addr])
-
-	def _clientThread(self, sock: socket.socket = None, addr: str = None):
-		while True:
-			data = sock.recv(1024).decode("utf-8")
-			if len(data) == 0: continue
-			print("S: Recieved " + data + " from " + ":".join(addr))
+	def __init__(self): pass
 
 class Client:
 
-	def __init__(self):
-		self._broadcastSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self._broadcastSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self._broadcastSock.bind(("", Ports.SERVER_BROADCAST))
-		self._stopBroadcast = False
-		Thread(target=self._broadcastIPListener).start()
-
-	def _broadcastIPListener(self):
-		while not self._stopBroadcast:
-			data, addr = self._broadcastSock.recvfrom(1024)
-			data = data.decode("utf-8")
-			if not len(data): continue
-			print("C: Got", data, "from server!")
-			print("C: Sending response!")
-			addr = ""
-			print(addr if addr != "" else "")
-			self._stopBroadcast = True
-
-class ProtocolHandler:
-
 	def __init__(self): pass
-
-	def incommingPacket(self, packet: str = None):
-		if packet is None or len(packet) == 0: return
-
 
 class Protocol:
 
@@ -91,11 +36,70 @@ class Protocol:
 		if name is None or not (name in Protocol.allProtocols()): return -1
 		return Protocol.allProtocols().index(name) - 1
 
-	def __init__(self, step: int = 0): self._step = step
+	def __init__(self, expectedPacketIDs: tuple = None, step: int = 0):
+		self._expectedPacketIDs = () if expectedPacketIDs is None else expectedPacketIDs
+		self._step = step
 
 	def isServersTurn(self): raise NotImplementedError
 
 	def step(self, toSendTo: socket.socket = None): raise NotImplementedError
+
+	def incommingPacket(self, packet: str = None): raise NotImplementedError
+
+class Broadcast_IP(Protocol):
+
+	def __init__(self, step: int = 0, exceptedClients: int = 1):
+		super().__init__(step)
+		self._broadcastSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._clientSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._broadcastSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		self._clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		self._clientSock.bind(("", Ports.SERVER_BROADCAST))
+		if self.isServersTurn():
+			self._expectedClients = exceptedClients
+			self._broadcastThread = Thread(target = self._broadcast)
+			self._responseThread = Thread(target = self._broadcastResponseListener)
+			self._clients = 0
+		else:
+			self._listeningThread = Thread(target = self._broadcastListening)
+			self._listeningThread.start()
+			Timer(60.0, self.stop, args=[2]).start()
+		self._stop = [0, 0, 0]
+		self._possibleIPs = []
+
+	def stop(self, toStop: int = 0): self._stop[toStop] = 1
+
+	def step(self, toSendTo: socket.socket = None):
+		S = self._step
+		N = self.__class__.__name__.upper()
+		nS = S + 1
+		if S == 1: # Server
+			self._responseThread.start()
+			self._broadcastThread.start()
+			Timer(60.0, self.stop, args=[0]).start()
+			Timer(70.0, self.stop, args=[1]).start()
+		elif S == 2: # Client
+			self._possibleIPs.append(toSendTo.getsockname())
+			Packet("CONFIRM", N, nS, self._broadcastSock).addData(toSendTo.getsockname()).build().send()
+			print("All ips:", self._possibleIPs)
+		elif S == 3: # Server
+			pass
+
+	def _broadcast(self):
+		while not self._stop[0] and not self._expectedClients < len(self._clients):
+			self._broadcastSock.sendto(socket.gethostbyname(socket.gethostname()).encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
+			time.sleep(2)
+
+	def _broadcastResponseListener(self):
+		while not self._stop[1] and self._expectedClients < len(self._clients):
+			continue
+
+	def _broadcastListening(self):
+		while not self._stop[2]:
+			continue
+
+	def isServersTurn(self):
+		return self._step % 2 == 1
 
 class Key_Exchange(Protocol):
 
