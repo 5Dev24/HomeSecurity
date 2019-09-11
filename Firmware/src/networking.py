@@ -1,8 +1,11 @@
 from __future__ import annotations
 import socket
+from .crypt import AES, RSA
 from threading import Thread, Timer
 from .error import Error, Codes
 import time
+import random
+import string
 
 class Ports:
 
@@ -81,9 +84,9 @@ class Broadcast_IP(Protocol):
 		elif S == 2: # Client
 			self._possibleIPs.append(toSendTo.getsockname())
 			Packet("CONFIRM", N, nS, self._broadcastSock).addData(toSendTo.getsockname()).build().send()
-			print("All ips:", self._possibleIPs)
 		elif S == 3: # Server
-			pass
+			while not self._stop[1]: continue
+			print("S: Got", self._clients, "in total")
 
 	def _broadcast(self):
 		while not self._stop[0] and not self._expectedClients < len(self._clients):
@@ -92,7 +95,8 @@ class Broadcast_IP(Protocol):
 
 	def _broadcastResponseListener(self):
 		while not self._stop[1] and self._expectedClients < len(self._clients):
-			continue
+			data, addr = self._broadcastSock.recvfrom(2**16)
+			print("S: Got response from", addr, ", Got \"", data, '"')
 
 	def _broadcastListening(self):
 		while not self._stop[2]:
@@ -103,17 +107,35 @@ class Broadcast_IP(Protocol):
 
 class Key_Exchange(Protocol):
 
-	def __init__(self, step: int = 0): super().__init__(step)
+	def __init__(self, step: int = 0, clientKey: str = None, serverKey: str = None):
+		self.keys = (clientKey, serverKey)
+		super().__init__(step)
+
+	def _generateAESFromKeys(self):
+		longKey = "".join(self.keys) # Merges both keys together
+		pseudoRandomNumber = "".join([ord(c) for c in longKey]) # Get the unicode code point for each character and put them together
+		random.seed(pseudoRandomNumber) # Set the random see to be the pseudo random number
+		split = [] # Empty split
+		split[:] = pseudoRandomNumber # Split the pseudo random number into each number
+		ranLength = len(longKey) * 2 # The random length is the length of the keys multiplied by 2
+		ran = random.randint(int("1" + ("0" * (ranLength - 1)), int("9" * int(ranLength))), 2) # Generate a new random seed from the pseudo random number
+		random.seed(ran) # Set the new seed
+		newKey = [] # Empty new key
+		newKey[:] = " " * len(longKey) # Create an empty list of empty characters
+		characters = string.punctuation + string.digits + longKey + string.ascii_letters # Make a new list of characters
+		while newKey.count(" "): # While the new key still has an empty index that can be written to
+			newKey[newKey.index(" ")] = characters[random.randint(0, len(longKey) - 1)] # Set the next empty index to be a random character from the character list
+		return AES("".join(newKey)) # Create a new AES object using the newly made pseudo random key
 
 	def step(self, toSendTo: socket.socket = None):
 		S = self._step # Step
 		N = self.__class__.__name__.upper() # Name of protocol
 		nS = S + 1 # Next step
 		if S == 1: # Client
-			Packet("QUERY_DATA", N, nS, toSendTo).addData("RSA_KEY").build().send()
+			Packet("QUERY_DATA", N, nS, toSendTo).addData("SERVER_RSA_KEY").build().send()
 		elif S == 2: # Server
 			# Get server's public rsa key
-			Packet("QUERY_RESPONSE", N, nS, toSendTo).addData("Fake key").build().send()
+			Packet("QUERY_RESPONSE", N, nS, toSendTo).addData("Server's RSA key").build().send()
 		elif S == 3: # Client
 			# Use server's rsa key to encrypt client rsa key
 			Packet("DATA", N, nS, toSendTo).addData("Their key encrypted with the server's RSA key").build().send()
@@ -148,17 +170,19 @@ class Key_Exchange(Protocol):
 			#self.step(toSendTo)
 		elif S == 9: # Client
 			# Gets the previously sent unique ID for communication
-			Packet("DATA", N, nS, toSendTo).addData("The client's unique id").build().send()
+			# DEAD Packet("DATA", N, nS, toSendTo).addData("The client's unique id").build().send()
+			pass
 		elif S == 10: # Server
 			# Verfy that the unique id sent by the client matches one in the database (local file)
 			# If True
 			# Client is now trusted
-			Packet("AGREE", N, S, toSendTo).build().send()
+			# DEAD Packet("AGREE", N, S, toSendTo).build().send()
 			# Generate new unique id to be used for next communication
-			Packet("DATA", N, nS, toSendTo).addData("Client's new unique id").build().send()
+			# DEAD Packet("DATA", N, nS, toSendTo).addData("Client's new unique id").build().send()
 			# If False
 			# Decrease number of remaining tries, if tries <= 0: halt communications (Default number of tries = 3)
 			# Packet("DISAGREE", N, 9, toSendTo).build().send()
+			pass
 		elif S == 11: # Client
 			# Client gets id and save it, then sends it back to verify they have the same unique id
 			Packet("CONFIRM", N, nS, toSendTo).addData("The Client's new unique id, checking").build().send()
@@ -237,7 +261,7 @@ class Packet:
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value)))
-		data = opt(2, self._method) + opt(2, Protocol.idFromProtocolName(self._protocol)), + opt(2, self._step) + opt(2, len(self._data))
+		data = opt(2, self._method) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			data += opt(4, len(dataPoint)) + dataPoint
 		self._packetString = data
@@ -296,6 +320,8 @@ This method prevents against client side impersenation but not server, so maybe 
 15. (C) Client sends back the decrypted message
 16. (L) Server verifies messages match, if not: restart from step 11
 > Crypto has been sync'd
+17. (L) Client generates a new AES key from the client + server key, see Algorithm 1
+18. (L) Server generates a new AES key from the client + server key, see Algorithm 1
 # DEAD 17. (C) Client sends previous unique id from the last communication from server
 # DEAD 18. (L) Server verifies that that id was the last one, if it isn't: decrease number of remaining tries, if it hits zero, refuse communication (Default tries is 3). Go back to step 17
 > Client is now trusted
