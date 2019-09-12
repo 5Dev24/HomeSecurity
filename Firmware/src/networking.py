@@ -21,6 +21,18 @@ class Ports:
 		s.connect((addr, port))
 		return s
 
+class Networkingable:
+
+	def __init__(self, isServer: bool = False):
+		self._broadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		self._directSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._clientSock.bind(("", Ports.SERVER_SEND_RECIEVE if isServer else Ports.CLIENT_SEND_RECIEVE))
+		self._isServer = isServer
+
+	def sendBroadcast(self):
+		
+
 class Server:
 
 	def __init__(self):
