@@ -15,13 +15,21 @@ class Ports:
 	CLIENT_SEND_RECIEVE =           40006
 	CLIENT_ENCRYPTED_SEND_RECIEVE = 40008
 
+	@staticmethod
+	def fastSocket(addr: str = "", port: int = 0):
+		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		s.connect((addr, port))
+		return s
+
 class Server:
 
-	def __init__(self): pass
+	def __init__(self):
+		Broadcast_IP(0, 1).step()
 
 class Client:
 
-	def __init__(self): pass
+	def __init__(self):
+		Broadcast_IP(1, -1)
 
 class Protocol:
 
@@ -53,22 +61,23 @@ class Broadcast_IP(Protocol):
 
 	def __init__(self, step: int = 0, exceptedClients: int = 1):
 		super().__init__(step)
-		self._broadcastSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self._clientSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self._broadcastSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self._clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self._clientSock.bind(("", Ports.SERVER_BROADCAST))
+		self._stop = [0, 0, 0]
+		self._possibleIPs = []
 		if self.isServersTurn():
+			self._broadcastSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+			self._broadcastSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 			self._expectedClients = exceptedClients
 			self._broadcastThread = Thread(target = self._broadcast)
 			self._responseThread = Thread(target = self._broadcastResponseListener)
 			self._clients = 0
 		else:
+			self._clientSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+			self._clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			self._clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+			self._clientSock.bind(("", Ports.SERVER_BROADCAST))
 			self._listeningThread = Thread(target = self._broadcastListening)
 			self._listeningThread.start()
 			Timer(60.0, self.stop, args=[2]).start()
-		self._stop = [0, 0, 0]
-		self._possibleIPs = []
 
 	def stop(self, toStop: int = 0): self._stop[toStop] = 1
 
@@ -81,26 +90,38 @@ class Broadcast_IP(Protocol):
 			self._broadcastThread.start()
 			Timer(60.0, self.stop, args=[0]).start()
 			Timer(70.0, self.stop, args=[1]).start()
+			print("S: Began broadcasting")
 		elif S == 2: # Client
+			print("C: I've been broadcasted to")
 			self._possibleIPs.append(toSendTo.getsockname())
 			Packet("CONFIRM", N, nS, self._broadcastSock).addData(toSendTo.getsockname()).build().send()
 		elif S == 3: # Server
+			print("S: Still broadacsting")
 			while not self._stop[1]: continue
+			print("S: Done broadcasting")
 			print("S: Got", self._clients, "in total")
 
 	def _broadcast(self):
 		while not self._stop[0] and not self._expectedClients < len(self._clients):
 			self._broadcastSock.sendto(socket.gethostbyname(socket.gethostname()).encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
 			time.sleep(2)
+		self.stop(0)
 
 	def _broadcastResponseListener(self):
 		while not self._stop[1] and self._expectedClients < len(self._clients):
 			data, addr = self._broadcastSock.recvfrom(2**16)
-			print("S: Got response from", addr, ", Got \"", data, '"')
+			print("S: Got response from \"", addr, "\", Got \"", data, '"', sep = '')
+			self._step(Ports.fastSocket(addr[0], addr[1]))
+		self.stop(1)
 
 	def _broadcastListening(self):
 		while not self._stop[2]:
-			continue
+			data, addr = self._clientSock.recvfrom(2**16)
+			data = data.decode("utf-8")
+			if len(data) == 0: continue
+			print("C: Got \"", data, "\" from the server at \"", addr, '"', sep = '')
+			self._step(Ports.fastSocket(addr[0], addr[1]))
+		self.stop(2)
 
 	def isServersTurn(self):
 		return self._step % 2 == 1
@@ -320,18 +341,18 @@ This method prevents against client side impersenation but not server, so maybe 
 15. (C) Client sends back the decrypted message
 16. (L) Server verifies messages match, if not: restart from step 11
 > Crypto has been sync'd
-17. (L) Client generates a new AES key from the client + server key, see Algorithm 1
-18. (L) Server generates a new AES key from the client + server key, see Algorithm 1
-# DEAD 17. (C) Client sends previous unique id from the last communication from server
-# DEAD 18. (L) Server verifies that that id was the last one, if it isn't: decrease number of remaining tries, if it hits zero, refuse communication (Default tries is 3). Go back to step 17
+17. (L) Both generate a new AES key from the client + server key, see Algorithm 1
+18. (C) Both send a random message that uses the new AES key to encrypt it
+19. (L) Both decrypt and verify
+20. (C) Either can object to further communication and restart at 17, else they have been verified
 > Client is now trusted
-19. (L) Server generates new unique id for next communication
-20. (C) Server sends new id
-21. (C) Client sends back id to confirm
-22. (L) Server confirms or denies, if it denies, restart from step 19
-23. (L) Server saves new id
-24. (C) Server says id matches and is good
-25. (L) Client saves id
+21. (L) Server generates new unique id for next communication
+22. (C) Server sends new id
+23. (C) Client sends back id to confirm
+24. (L) Server confirms or denies, if it denies, restart from step 19
+25. (L) Server saves new id
+26. (C) Server says id matches and is good
+27. (L) Client saves id
 > ID for next communication saved
 """
 
@@ -342,15 +363,13 @@ The number of current and new devices to add is known
 
 1. (C) Broadcasts IP until it gets responses from the number of current devices + new devices
 2. (C) All client respond that they got the IP
-# DEAD 3. (L) For each unique device, the server generates a new id | For each old devices, they follow Key Exchange and get new ids
-# DEAD 4. (C) Server sends out new ids to the new devices
-# DEAD 5. (C) Client sends back id to verify
-# DEAD 6. (L) Server matches the ids, repeat 3 to 6 until they match or timeout after 10 tries
-# DEAD 7. (C) Server says that they ids match
-8. (L) Server saves id
-9. (L) Client saves id
+3. (L) For each unique device, the server generates a new client id, for old clients: follow Key Excahnge and get new ids
+4. (C) Server sends new client id
+5. (L) Client saves new client id
+6. (C) Client sends new server id
+7. (L) Server saves new server id
 -> Now door naming setting up work occur
-10. Done
+8. Done
 """
 
 """
