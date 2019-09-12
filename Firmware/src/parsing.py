@@ -402,6 +402,8 @@ class ArgumentParser:
 		Reads a value, required or optional
 
 		:param var str: The variable to read
+
+		:returns obj: The varaibles value
 		"""
 		if not (var in self._vars["all"]): return None # If the variable isn't in the all variables list, then return None
 		else: return self._vars["all"][var][1] # Return the value of the varaible if it exists
