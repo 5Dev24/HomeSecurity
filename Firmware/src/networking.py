@@ -21,24 +21,45 @@ class Ports:
 		s.connect((addr, port))
 		return s
 
-class Networkingable:
+class Networkable:
 
 	def __init__(self, isServer: bool = False):
 		self._broadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 		self._directSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self._clientSock.bind(("", Ports.SERVER_SEND_RECIEVE if isServer else Ports.CLIENT_SEND_RECIEVE))
+		self._directSocket.bind(("", Ports.SERVER_SEND_RECIEVE if isServer else Ports.CLIENT_SEND_RECIEVE))
+		self._directSocket.send("".encode('utf-8'))
 		self._isServer = isServer
+		self._threads = {}
 
-	def sendBroadcast(self):
-		
+	def _sendDataOn(self, data: str = None, sock: socket.socket = None): sock.send(data.encode("utf-8"))
 
-class Server:
+	def _broadcastData(self, data: str = None): 
+		self._broadcastSocket.sendto(socket.gethostbyname(socket.gethostname()).encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
+
+	def _listenOn(self, name: str = None, sock: socket.socket = None):
+		listenThread = Thread(target = self._listenThread, args=[name, sock])
+		listenThread.start()
+		self._threads[name] = [True, listenThread]
+
+	def _listenThread(self, name: str = None, sock: socket.socket = None):
+		sock.listen(5)
+		while name in self._threads and self._threads[name][0]:
+			data, addr = sock.recv(2**16)
+			data = data.decode("utf-8")
+			if not len(data): continue
+			print("Recieved data from ", addr, ", it was \"", data, '"', sep = '')
+		if name in self._threads:
+			self._threads[name][0] = False
+			self._threads[name][1]._stop()
+			del self._threads[name]
+
+class Server(Networkable):
 
 	def __init__(self):
 		Broadcast_IP(0, 1).step()
 
-class Client:
+class Client(Networkable):
 
 	def __init__(self):
 		Broadcast_IP(1, -1)
