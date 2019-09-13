@@ -32,15 +32,26 @@ class Networkable:
 		self._isServer = isServer
 		self._threads = {}
 
-	def _sendDataOn(self, data: str = None, sock: socket.socket = None): sock.send(data.encode("utf-8"))
+	def sendDataOn(self, data: str = None, sock: socket.socket = None): sock.send(data.encode("utf-8"))
 
-	def _broadcastData(self, data: str = None): 
-		self._broadcastSocket.sendto(socket.gethostbyname(socket.gethostname()).encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
+	def broadcastData(self, data: str = None):
+		self._broadcastSocket.sendto(data.encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
 
-	def _listenOn(self, name: str = None, sock: socket.socket = None):
+	def listenOn(self, name: str = None, sock: socket.socket = None):
 		listenThread = Thread(target = self._listenThread, args=[name, sock])
 		listenThread.start()
 		self._threads[name] = [True, listenThread]
+
+	def broadcastOn(self, name: str = None):
+		broadcastThread = Thread(target = self._broadcastThread, args=[name])
+		broadcastThread.start()
+		self._threads[name] = [True, broadcastThread]
+
+	def _broadcastThread(self, name: str = None):
+		while name in self._threads and self._threads[name][0]:
+			self.broadcastData(socket.gethostbyname(socket.gethostname()))
+			time.sleep(5)
+		self.closeThread(name)
 
 	def _listenThread(self, name: str = None, sock: socket.socket = None):
 		sock.listen(5)
@@ -49,6 +60,9 @@ class Networkable:
 			data = data.decode("utf-8")
 			if not len(data): continue
 			print("Recieved data from ", addr, ", it was \"", data, '"', sep = '')
+		self.closeThread(name)
+
+	def closeThread(self, name: str = None):
 		if name in self._threads:
 			self._threads[name][0] = False
 			self._threads[name][1]._stop()
@@ -57,12 +71,12 @@ class Networkable:
 class Server(Networkable):
 
 	def __init__(self):
-		Broadcast_IP(0, 1).step()
+		super.__init__(True)
 
 class Client(Networkable):
 
 	def __init__(self):
-		Broadcast_IP(1, -1)
+		super.__init__(False)
 
 class Protocol:
 
@@ -94,23 +108,7 @@ class Broadcast_IP(Protocol):
 
 	def __init__(self, step: int = 0, exceptedClients: int = 1):
 		super().__init__(step)
-		self._stop = [0, 0, 0]
 		self._possibleIPs = []
-		if self.isServersTurn():
-			self._broadcastSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-			self._broadcastSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-			self._expectedClients = exceptedClients
-			self._broadcastThread = Thread(target = self._broadcast)
-			self._responseThread = Thread(target = self._broadcastResponseListener)
-			self._clients = 0
-		else:
-			self._clientSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-			self._clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-			self._clientSock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-			self._clientSock.bind(("", Ports.SERVER_BROADCAST))
-			self._listeningThread = Thread(target = self._broadcastListening)
-			self._listeningThread.start()
-			Timer(60.0, self.stop, args=[2]).start()
 
 	def stop(self, toStop: int = 0): self._stop[toStop] = 1
 
@@ -118,43 +116,7 @@ class Broadcast_IP(Protocol):
 		S = self._step
 		N = self.__class__.__name__.upper()
 		nS = S + 1
-		if S == 1: # Server
-			self._responseThread.start()
-			self._broadcastThread.start()
-			Timer(60.0, self.stop, args=[0]).start()
-			Timer(70.0, self.stop, args=[1]).start()
-			print("S: Began broadcasting")
-		elif S == 2: # Client
-			print("C: I've been broadcasted to")
-			self._possibleIPs.append(toSendTo.getsockname())
-			Packet("CONFIRM", N, nS, self._broadcastSock).addData(toSendTo.getsockname()).build().send()
-		elif S == 3: # Server
-			print("S: Still broadacsting")
-			while not self._stop[1]: continue
-			print("S: Done broadcasting")
-			print("S: Got", self._clients, "in total")
-
-	def _broadcast(self):
-		while not self._stop[0] and not self._expectedClients < len(self._clients):
-			self._broadcastSock.sendto(socket.gethostbyname(socket.gethostname()).encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
-			time.sleep(2)
-		self.stop(0)
-
-	def _broadcastResponseListener(self):
-		while not self._stop[1] and self._expectedClients < len(self._clients):
-			data, addr = self._broadcastSock.recvfrom(2**16)
-			print("S: Got response from \"", addr, "\", Got \"", data, '"', sep = '')
-			self._step(Ports.fastSocket(addr[0], addr[1]))
-		self.stop(1)
-
-	def _broadcastListening(self):
-		while not self._stop[2]:
-			data, addr = self._clientSock.recvfrom(2**16)
-			data = data.decode("utf-8")
-			if len(data) == 0: continue
-			print("C: Got \"", data, "\" from the server at \"", addr, '"', sep = '')
-			self._step(Ports.fastSocket(addr[0], addr[1]))
-		self.stop(2)
+		pass
 
 	def isServersTurn(self):
 		return self._step % 2 == 1
