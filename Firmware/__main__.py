@@ -9,9 +9,13 @@ def main():
 	parser = ArgumentParser(False, { "vars": { "required": { "server": "boolean" } } })
 	parser.parse(sys.argv[1:])
 	response = parser.execute()
+	print("Response:", response)
 	if response == 1:
-		if parser.readVariable("server"): Server()
-		else: Client()
+		if parser.readVariable("server"):
+			ser = Server()
+			ser.beginBroadcast()
+		else:
+			cli = Client()
 
 
 if __name__ == "__main__": main()
