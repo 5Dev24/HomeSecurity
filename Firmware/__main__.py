@@ -12,7 +12,7 @@ def main():
 	print("Response:", response)
 	if response == 1:
 		if parser.readVariable("server"):
-			ser = Server()
+			ser = Server(1)
 			ser.beginBroadcast()
 		else:
 			cli = Client()
