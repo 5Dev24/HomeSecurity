@@ -25,14 +25,18 @@ class Networkable:
 
 	def __init__(self, isServer: bool = False):
 		self._broadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		self._broadcastSocket.settimeout(60)
+		self._broadcastSocket.bind(("0.0.0.0", Ports.SERVER_BROADCAST))
 		self._directSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self._directSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 		self._directSocket.bind(("", Ports.SERVER_SEND_RECIEVE if isServer else Ports.CLIENT_SEND_RECIEVE))
 		self._isServer = isServer
 		self._threads = {}
 		print("Starting To Listen!")
-		self.listenOn("direct", self._directSocket)
-		self.listenOn("broadcast", self._broadcastSocket)
+		if not isServer: self.listenOn("direct", self._directSocket)
+		print("Direct Thread Started!")
 
 	def sendDataOn(self, data: str = None, sock: socket.socket = None): sock.send(data.encode("utf-8"))
 
@@ -41,20 +45,16 @@ class Networkable:
 
 	def listenOn(self, name: str = None, sock: socket.socket = None):
 		name += "-THREAD"
-		listenThread = Thread(target = self._listenThread, args=[name, sock])
+		listenThread = Thread(target = self._listenThread, args=(name, sock))
 		listenThread.start()
 		self._threads[name] = [True, listenThread]
 
 	def _listenThread(self, name: str = None, sock: socket.socket = None):
-		try: sock.listen(5)
-		except OSError: print("Unable to listen")
+		print("SOCKET OBJECT:", sock)
+		sock.listen(5)
 		while name in self._threads and self._threads[name][0]:
 			print("Listening!")
-			data, addr = None, None
-			try:
-				data, addr = sock.recv(1024)
-			except:
-				data, addr = sock.recvfrom(1024)
+			data, addr = sock.recv(1024)
 			data = data.decode("utf-8")
 			if not len(data): continue
 			print("Recieved data from ", addr, ", it was \"", data, '"', sep = '')
@@ -76,11 +76,21 @@ class Networkable:
 
 class Server(Networkable):
 
-	def __init__(self):
+	def __init__(self, expectedClients: int = 0):
 		super().__init__(True)
+		self._broadcastThreadInst = None
+		self._expectedClient = expectedClients
 
 	def beginBroadcast(self):
-		Broadcast_IP(1, 1).step(self._broadcastSocket)
+		self._broadcastThreadInst = Thread(target = self._broadcastThread)
+		self._broadcastThreadInst.start()
+		#Broadcast_IP(1, 1).step(self._broadcastSocket)
+
+	def _broadcastThread(self):
+		foundClients = 0
+		while foundClients < self._expectedClient:
+			print("Broadcasting! Found", foundClients, "clients!")
+			Broadcast_IP(1).step(self._broadcastSocket, "")
 
 	def onPacketRecieved(self, pkt: Packet = None, pktFrom: socket.socket = None):
 		proto = Protocol.protocolClassFromID(pkt._protocol)
@@ -152,11 +162,11 @@ class Broadcast_IP(Protocol):
 		N = self.__class__.__name__.upper()
 		nS = S + 1
 		if S == 1:
-			Packet("BROADCAST_IP", N, nS, reciever).build().send(sender)
+			sender.sendto(bytes(Packet("BROADCAST_IP", N, nS, reciever).build()._packetString, "utf-8"), ('<broadcast>', Ports.SERVER_BROADCAST))
 		elif S == 2:
-			Packet("CONFIRM", N, nS, reciever).build().send(sender)
+			Packet("CONFIRM", N, nS, sender).build().send()
 		elif S == 3:
-			Packet("AGREE", N, nS, reciever).build().send(sender)
+			Packet("AGREE", N, nS, sender).build().send()
 
 	def isServersTurn(self):
 		return self._step % 2 == 1
@@ -323,10 +333,7 @@ class Packet:
 		self._packetString = data
 		return self
 
-	def send(self, creator: socket.socket = None):
+	def send(self):
 		if self._sock is None or self._packetString is None or len(self._packetString) == 0: return
-		try:
-			self._sock.send(bytes(self._packetString, "utf-8"))
-		except OSError:
-			creator.sendto(bytes(self._packetString, "utf-8"), self._sock.getsockname())
+		self._sock.send(bytes(self._packetString, "utf-8"))
 		del self
