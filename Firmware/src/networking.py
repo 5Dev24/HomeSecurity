@@ -9,11 +9,9 @@ import string
 
 class Ports:
 
-	SERVER_SEND_RECIEVE =           40000
-	SERVER_ENCRYPTED_SEND_RECIEVE = 40002
-	SERVER_BROADCAST =              40004
-	CLIENT_SEND_RECIEVE =           40006
-	CLIENT_ENCRYPTED_SEND_RECIEVE = 40008
+	SEND_RECIEVE =           8082
+	ENCRYPTED_SEND_RECIEVE = 8084
+	SERVER_BROADCAST =       8086
 
 	@staticmethod
 	def fastSocket(addr: str = "", port: int = 0):
@@ -24,14 +22,15 @@ class Ports:
 class Networkable:
 
 	def __init__(self, isServer: bool = False):
-		self._broadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self._broadcastSocket.settimeout(60)
-		self._broadcastSocket.bind(("0.0.0.0", Ports.SERVER_BROADCAST))
+		if isServer:
+			self._broadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+			self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+			self._broadcastSocket.settimeout(60)
+			self._broadcastSocket.bind(("", Ports.SERVER_BROADCAST))
 		self._directSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 		self._directSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self._directSocket.bind(("", Ports.SERVER_SEND_RECIEVE if isServer else Ports.CLIENT_SEND_RECIEVE))
+		self._directSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+		self._directSocket.bind(("", Ports.SERVER_BROADCAST))
 		self._isServer = isServer
 		self._threads = {}
 		print("Starting To Listen!")
