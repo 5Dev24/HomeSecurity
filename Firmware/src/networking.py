@@ -1,11 +1,120 @@
 from __future__ import annotations
 import socket
 from .crypt import AES, RSA
-from threading import Thread, Timer
+from threading import Thread, Timer, Event
 from .error import Error, Codes
 import time
 import random
 import string
+
+# T at the beginning of each class means theoretical
+
+class TPorts:
+
+	SEND_RECIEVE = 2
+	ENCRYPTED_SEND_RECIEVE = 4
+	SERVER_BROADCAST = 6
+
+class TAddress:
+
+	allAddresses = []
+
+	@staticmethod
+	def isRegisteredAddress(addr: str = "", port: int = 0):
+		for addr in TAddress.allAddresses:
+			if addr.addr == addr and addr.port == port: return True
+		return False
+
+	def __init__(self, addr: str = "", port: int = 0):
+		self.addr = (addr, port)
+		TAddress.allAddresses.append(self)
+
+	def free(self):
+		TAddress.allAddresses.remove(self)
+		del self
+
+class TData:
+
+	def __init__(self, data: str = ""):
+		self.data = data
+		self._read = False
+
+	def get(self):
+		self._read = True
+		return self.data
+
+class TSocket:
+
+	allSockets = []
+
+	@staticmethod
+	def getSocketFromAddr(addr: str = "", port: int = 0):
+		if TAddress.isRegisteredAddress(addr, port):
+			for sock in TSocket.allSockets:
+				if sock._addr.addr == addr and sock._addr.port == port: return sock
+		return None
+
+	def __init__(self, addr: str = "", port: int = 0):
+		self._addr = TAddress(addr, port)
+		self._dataHistroy = []
+		self._lastDataRecieved = None
+		self._recieveEvent = Event()
+		self._recievers = 0
+
+	def recieve(self, data: TData = None):
+		if type(data) != TData: return
+		self._dataHistroy.append(data)
+		self._lastDataRecieved = data
+		while self._recieveEvent.is_set(): continue
+		self._recieveEvent.set()
+
+	def recieveData(self):
+		if self._recievers > 1:
+			print("2 Threads Listening For Data!")
+			return None
+		got = None
+		self._recievers += 1
+		while got is None:
+			self._recieveEvent.wait()
+			got = self._lastDataRecieved
+		self._lastDataRecieved = None
+		self._recieveEvent.clear()
+		self._recievers -= 1
+		return got
+
+	def send(self, reciever: TAddress = None, data: TData = None):
+		if type(reciever) != TSocket: return
+		if type(data) != TData: return
+		self.sendData(reciever, data)
+
+	def sendData(self, reciever: object = None, data: TData = None):
+		Thread(target=reciever.recieve, args=(data)).start()
+
+class TNetworkable:
+
+	def __init__(self, isServer: bool = False):
+		self._isServer = isServer
+		self._broadcastSocket = TSocket("<broadcast>", TPorts.SERVER_BROADCAST)
+
+class TServer(TNetworkable):
+
+	def __init__(self):
+		super().__init__(True)
+
+	def onBroadcastListeningThread(self):
+		pass
+
+	def _communicationThread(self, addr: TAddress = None):
+		senderSock = TSocket(addr.addr, addr.port)
+		while True:
+			data = senderSock.recieveData()
+			print("Got Data: \"" + data + '"')
+
+'''
+Unable to continue use of code due to not being able to starts ports on machine
+
+Theoretical sockets will be used with 100% accurate data transformation 
+'''
 
 class Ports:
 
