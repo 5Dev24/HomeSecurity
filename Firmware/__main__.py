@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 from src.parsing import ArgumentParser
-from src.networking import Server, Client
+from src.networking import TServer, TClient
 import sys
 
 def main():
+	serv = TServer()
+	cli = TClient()
+	serv.startBroadcastingIP()
+	cli.waitForServerIP()
+	'''
+	Non Theorectical Solution
+
 	parser = ArgumentParser(False, { "vars": { "required": { "server": "boolean" } } })
 	parser.parse(sys.argv[1:])
 	response = parser.execute()
@@ -16,6 +23,7 @@ def main():
 			ser.beginBroadcast()
 		else:
 			cli = Client()
+	'''
 
 
 if __name__ == "__main__": main()

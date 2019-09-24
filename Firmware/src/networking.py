@@ -22,14 +22,19 @@ class TAddress:
 	@staticmethod
 	def isRegisteredAddress(addr: str = "", port: int = 0):
 		for addr in TAddress.allAddresses:
-			if addr.addr == addr and addr.port == port: return True
+			if addr[0] == addr and addr[1] == port and addr.registered: return True
 		return False
 
 	def __init__(self, addr: str = "", port: int = 0):
 		self.addr = (addr, port)
+		self.registered = True
 		TAddress.allAddresses.append(self)
 
+	def __str__(self):
+		return str(self.addr[0] + ":" + self.addr[1])
+
 	def free(self):
+		self.registered = False
 		TAddress.allAddresses.remove(self)
 		del self
 
@@ -48,10 +53,16 @@ class TSocket:
 	allSockets = []
 
 	@staticmethod
-	def getSocketFromAddr(addr: str = "", port: int = 0):
-		if TAddress.isRegisteredAddress(addr, port):
+	def getSocketFromAddr(addr: str = "", port: int = 0, id: int = -1):
+		if addr == "<broadcast>":
+			socks = []
 			for sock in TSocket.allSockets:
-				if sock._addr.addr == addr and sock._addr.port == port: return sock
+				if sock.registered and sock._id != id: socks.append(sock)
+			return socks
+		else:
+			if TAddress.isRegisteredAddress(addr, port):
+				for sock in TSocket.allSockets:
+					if sock._addr[0] == addr and sock._addr[1] == port and sock.registered and sock._id != id: return sock
 		return None
 
 	def __init__(self, addr: str = "", port: int = 0):
@@ -60,11 +71,12 @@ class TSocket:
 		self._lastDataRecieved = None
 		self._recieveEvent = Event()
 		self._recievers = 0
+		self._id = random.randint(0, 2**32 - 1)
 
-	def recieve(self, data: TData = None):
+	def recieve(self, addr: TAddress = None, data: TData = None):
 		if type(data) != TData: return
-		self._dataHistroy.append(data)
-		self._lastDataRecieved = data
+		self._dataHistroy.append([addr, data])
+		self._lastDataRecieved = [addr, data]
 		while self._recieveEvent.is_set(): continue
 		self._recieveEvent.set()
 
@@ -82,33 +94,93 @@ class TSocket:
 		self._recievers -= 1
 		return got
 
-	def send(self, reciever: TAddress = None, data: TData = None):
-		if type(reciever) != TSocket: return
-		if type(data) != TData: return
-		self.sendData(reciever, data)
+	def sendData(self, reciever: TAddress = None, data: TData = None):
+		if reciever is None or type(reciever) == str:
+			try:
+				recieverSock = TSocket.getSocketFromAddr(reciever.addr[0], reciever.addr[1], self._id)
+				Thread(target=recieverSock.recieve, args=(recieverSock._addr, data)).start()
+			except AttributeError: pass
+		if recieverSock is None and reciever.addr[0] == "<broadcast>":
+			recieverSocks = TSocket.getSocketFromAddr(self._addr.addr[0], self._addr.addr[1], self._id)
+			if recieverSocks is None:
+				print("No sockets found to broadcast to!")
+				return
+			for sock in recieverSocks:
+				sock.recieve(self._addr, data)
 
-	def sendData(self, reciever: object = None, data: TData = None):
-		Thread(target=reciever.recieve, args=(data)).start()
+
+class TThread:
+
+	def __init__(self, target = None, args = (), kwargs = None):
+		self._internalThread = Thread(target=self._internal)
+		self._target = target
+		self._args = args
+		self._kwargs = {} if kwargs is None else kwargs
+		self._stop = False
+
+	def stop(self):
+		self._stop = True
+
+	def _internal(self):
+		while not self._stop:
+			try: self._target(*self._args, **self._kwargs)
+			except BaseException as err:
+				print("Theoretical Thread threw an error, closing thread\n" + str(err))
+				break
+		del self._internalThread, self._target, self._args, self._kwargs
+
+	def start(self):
+		self._internalThread.start()
 
 class TNetworkable:
 
-	def __init__(self, isServer: bool = False):
+	def __init__(self, isServer: bool = False, fakeRealIP: str = None):
 		self._isServer = isServer
+		self._ip = fakeRealIP
 		self._broadcastSocket = TSocket("<broadcast>", TPorts.SERVER_BROADCAST)
+		self._networkingThreads = {}
 
 class TServer(TNetworkable):
 
 	def __init__(self):
-		super().__init__(True)
+		super().__init__(True, "192.168.6.60")
 
-	def onBroadcastListeningThread(self):
-		pass
+	def startBroadcastingIP(self):
+		T = TThread(self._broadcastingIPThread)
+		T.start()
+		try: self._networkingThreads["Broadcasting"].stop()
+		except KeyError: pass
+		self._networkingThreads["Broadcasting"] = T
+
+	def _broadcastingIPThread(self):
+		while True:
+			print("Server 0: Broadcasting IP Address")
+			self._broadcastSocket.sendData(" ")
+			time.sleep(3)
 
 	def _communicationThread(self, addr: TAddress = None):
 		senderSock = TSocket(addr.addr, addr.port)
 		while True:
-			data = senderSock.recieveData()
-			print("Got Data: \"" + data + '"')
+			data, addr = senderSock.recieveData()
+			if data is None or not len(data):
+				print("Server 1: No data or invalid data was gotten from recieveData function")
+				continue
+			print("Server 1: Got Data: \"" + data + "\" from \"" + str(addr) + '"')
+			break
+
+class TClient(TNetworkable):
+
+	def __init__(self):
+		super().__init__(False, "192.168.6.62")
+
+	def waitForServerIP(self):
+		while True:
+			data, addr = self._broadcastSocket.recieveData()
+			if data is None or not len(data):
+				print("Client 0: No data or invalid data was gotten from recieveData function")
+				continue
+			print("Client 0: Got Data: \"" + data + "\" from \"" + str(addr) + '"')
+			break
 
 '''
 Unable to continue use of code due to not being able to starts ports on machine
