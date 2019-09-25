@@ -6,9 +6,13 @@ from src.networking import TServer, TClient
 import sys
 
 def main():
+	print("Creating Instance Of Server")
 	serv = TServer()
+	print("Creating Instance Of Client")
 	cli = TClient()
+	print("Starting Server IP Broadcasting")
 	serv.startBroadcastingIP()
+	print("Start Client Waiting For Server IP")
 	cli.waitForServerIP()
 	'''
 	Non Theorectical Solution
