@@ -6,6 +6,7 @@ from .error import Error, Codes
 import time
 import random
 import string
+import re
 
 # T at the beginning of each class means theoretical
 
@@ -31,7 +32,7 @@ class TAddress:
 		TAddress.allAddresses.append(self)
 
 	def __str__(self):
-		return str(self.addr[0] + ":" + self.addr[1])
+		return self.addr[0] + ":" + str(self.addr[1])
 
 	def free(self):
 		self.registered = False
@@ -40,30 +41,31 @@ class TAddress:
 
 class TData:
 
-	def __init__(self, data: str = ""):
+	def __init__(self, data: str = "", isBroadcast: bool = False):
 		self.data = data
 		self._read = False
+		self._isBroadcast = isBroadcast
+
+	def __len__(self):
+		return len(self.data) if (not self._read) or self._isBroadcast else 0
 
 	def get(self):
-		self._read = True
-		return self.data
+		if self._read == False or self._isBroadcast:
+			self._read = True
+			return self.data
+		return None
 
 class TSocket:
 
 	allSockets = []
 
 	@staticmethod
-	def getSocketFromAddr(addr: str = "", port: int = 0, id: int = -1):
-		if addr == "<broadcast>":
-			socks = []
-			for sock in TSocket.allSockets:
-				if sock.registered and sock._id != id: socks.append(sock)
-			return socks
-		else:
-			if TAddress.isRegisteredAddress(addr, port):
-				for sock in TSocket.allSockets:
-					if sock._addr[0] == addr and sock._addr[1] == port and sock.registered and sock._id != id: return sock
-		return None
+	def sendDataProtected(sender: TAddress = None, reciever: TAddress = None, data: str = None):
+		for sock in TSocket.allSockets:
+			if sock._addr == reciever: # In a real situation, any socket could recieve this message but we're assuming that a socket only accepts messages for itself
+				TThread(target=sock.recieve, args=(sender, TData(data, False))).start()
+				return True
+		return False
 
 	def __init__(self, addr: str = "", port: int = 0):
 		self._addr = TAddress(addr, port)
@@ -72,18 +74,25 @@ class TSocket:
 		self._recieveEvent = Event()
 		self._recievers = 0
 		self._id = random.randint(0, 2**32 - 1)
+		TSocket.allSockets.append(self)
 
 	def recieve(self, addr: TAddress = None, data: TData = None):
-		if type(data) != TData: return
+		if not (type(data) is TData): return
+		data = data.get()
+		if data is None:
+			print("Data was already read before we recieved it, was this a broadcasted message?")
+			return
 		self._dataHistroy.append([addr, data])
 		self._lastDataRecieved = [addr, data]
-		while self._recieveEvent.is_set(): continue
+		while self._recieveEvent.is_set():
+			time.sleep(.5)
+			continue
 		self._recieveEvent.set()
 
 	def recieveData(self):
 		if self._recievers > 1:
 			print("2 Threads Listening For Data!")
-			return None
+			return [None, None]
 		got = None
 		self._recievers += 1
 		while got is None:
@@ -94,20 +103,16 @@ class TSocket:
 		self._recievers -= 1
 		return got
 
-	def sendData(self, reciever: TAddress = None, data: TData = None):
-		if reciever is None or type(reciever) == str:
-			try:
-				recieverSock = TSocket.getSocketFromAddr(reciever.addr[0], reciever.addr[1], self._id)
-				Thread(target=recieverSock.recieve, args=(recieverSock._addr, data)).start()
-			except AttributeError: pass
-		if recieverSock is None and reciever.addr[0] == "<broadcast>":
-			recieverSocks = TSocket.getSocketFromAddr(self._addr.addr[0], self._addr.addr[1], self._id)
-			if recieverSocks is None:
-				print("No sockets found to broadcast to!")
-				return
-			for sock in recieverSocks:
-				sock.recieve(self._addr, data)
-
+	def sendData(self, reciever: TAddress = None, data: str = None):
+		if type(reciever) is str:
+			data = reciever
+			reciever = self._addr
+		if not (reciever is None) and reciever.addr[0] != "<broadcast>":
+			return TSocket.sendDataProtected(reciever, data)
+		if type(reciever) is TAddress and reciever.addr[0] == "<broadcast>":
+			for sock in TSocket.allSockets:
+				if sock._addr != self._addr and sock._addr.addr[0] == self._addr.addr[0]:
+					sock.recieve(self._addr, TData(data, "<broadcast>"))
 
 class TThread:
 
@@ -117,12 +122,14 @@ class TThread:
 		self._args = args
 		self._kwargs = {} if kwargs is None else kwargs
 		self._stop = False
+		self._running = True
 
 	def stop(self):
 		self._stop = True
+		self._running = False
 
 	def _internal(self):
-		while not self._stop:
+		while not self._stop and self._running:
 			try: self._target(*self._args, **self._kwargs)
 			except BaseException as err:
 				print("Theoretical Thread threw an error, closing thread\n" + str(err))
@@ -131,6 +138,7 @@ class TThread:
 
 	def start(self):
 		self._internalThread.start()
+		self._running = True
 
 class TNetworkable:
 
@@ -139,6 +147,10 @@ class TNetworkable:
 		self._ip = fakeRealIP
 		self._broadcastSocket = TSocket("<broadcast>", TPorts.SERVER_BROADCAST)
 		self._networkingThreads = {}
+
+	def isIP(self, ipaddr: str = None):
+		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False
+		return re.match("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}", ipaddr)
 
 class TServer(TNetworkable):
 
@@ -155,13 +167,13 @@ class TServer(TNetworkable):
 	def _broadcastingIPThread(self):
 		while True:
 			print("Server 0: Broadcasting IP Address")
-			self._broadcastSocket.sendData(" ")
+			self._broadcastSocket.sendData(self._ip)
 			time.sleep(3)
 
 	def _communicationThread(self, addr: TAddress = None):
 		senderSock = TSocket(addr.addr, addr.port)
 		while True:
-			data, addr = senderSock.recieveData()
+			addr, data = senderSock.recieveData()
 			if data is None or not len(data):
 				print("Server 1: No data or invalid data was gotten from recieveData function")
 				continue
@@ -175,12 +187,15 @@ class TClient(TNetworkable):
 
 	def waitForServerIP(self):
 		while True:
-			data, addr = self._broadcastSocket.recieveData()
+			addr, data = self._broadcastSocket.recieveData()
 			if data is None or not len(data):
 				print("Client 0: No data or invalid data was gotten from recieveData function")
 				continue
 			print("Client 0: Got Data: \"" + data + "\" from \"" + str(addr) + '"')
-			break
+			if super().isIP(data):
+				print("Client 0: Got servers ip address, its " + data)
+				print("Client 0: Sending response to tell server that I exist and that I got the IP Address")
+				break
 
 '''
 Unable to continue use of code due to not being able to starts ports on machine
