@@ -67,14 +67,20 @@ class TSocket:
 				return True
 		return False
 
-	def __init__(self, addr: str = "", port: int = 0):
-		self._addr = TAddress(addr, port)
+	@staticmethod
+	def getSocket(addr: TAddress):
+		for sock in TSocket.allSockets:
+			if sock._addr == addr:
+				return sock
+		return TSocket(addr)
+
+	def __init__(self, addr: TAddress = None):
+		self._addr = addr
 		self._dataHistroy = []
 		self._lastDataRecieved = None
 		self._recieveEvent = Event()
 		self._recievers = 0
 		self._id = random.randint(0, 2**32 - 1)
-		TSocket.allSockets.append(self)
 
 	def recieve(self, addr: TAddress = None, data: TData = None):
 		if not (type(data) is TData): return
@@ -116,11 +122,12 @@ class TSocket:
 
 class TThread:
 
-	def __init__(self, target = None, args = (), kwargs = None):
+	def __init__(self, target = None, loop: bool = False, args = (), kwargs = None):
 		self._internalThread = Thread(target=self._internal)
 		self._target = target
 		self._args = args
 		self._kwargs = {} if kwargs is None else kwargs
+		self._loop = loop
 		self._stop = False
 		self._running = True
 
@@ -129,11 +136,17 @@ class TThread:
 		self._running = False
 
 	def _internal(self):
-		while not self._stop and self._running:
+		if self._loop:
+			while not self._stop and self._running:
+				try: self._target(*self._args, **self._kwargs)
+				except BaseException as err:
+					print("Theoretical Thread threw an error, closing thread\n" + str(err))
+					break
+		else:
 			try: self._target(*self._args, **self._kwargs)
 			except BaseException as err:
 				print("Theoretical Thread threw an error, closing thread\n" + str(err))
-				break
+		self.stop()
 		del self._internalThread, self._target, self._args, self._kwargs
 
 	def start(self):
@@ -145,39 +158,58 @@ class TNetworkable:
 	def __init__(self, isServer: bool = False, fakeRealIP: str = None):
 		self._isServer = isServer
 		self._ip = fakeRealIP
-		self._broadcastSocket = TSocket("<broadcast>", TPorts.SERVER_BROADCAST)
+		self._broadcastSocket = TSocket(TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
 		self._networkingThreads = {}
 
 	def isIP(self, ipaddr: str = None):
 		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False
 		return re.match("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}", ipaddr)
 
+	def spawnThread(self, threadName: str = None, threadTarget = None, args = (), kwargs = None):
+		self.closeThread(threadName)
+		T = TThread(threadTarget, *args, **kwargs)
+		self._networkingThreads[threadName] = T
+		return T
+
+	def closeThread(self, threadName: str = None):
+		try:
+			self._networkingThreads[threadName].stop()
+			del self._networkingThreads[threadName]
+			return True
+		except KeyError: return False
+
 class TServer(TNetworkable):
 
 	def __init__(self):
 		super().__init__(True, "192.168.6.60")
 
-	def startBroadcastingIP(self):
-		T = TThread(self._broadcastingIPThread)
-		T.start()
-		try: self._networkingThreads["BroadcastingIP"].stop()
-		except KeyError: pass
-		self._networkingThreads["BroadcastingIP"] = T
+	def startBroadcasting(self):
+		super().spawnThread("Broadcasting", self._broadcastOutThread).start()
 
-	def _broadcastingIPThread(self):
+	def _broadcastOutThread(self):
 		while True:
 			print("Server 0: Broadcasting IP Address")
 			self._broadcastSocket.sendData(self._ip)
 			time.sleep(3)
 
-	def _communicationThread(self, addr: TAddress = None):
-		senderSock = TSocket(addr.addr, addr.port)
+	def _broadcastInThread(self):
+		while True:
+			print("Server 2: Listening For Broadcast Responses")
+			addr, data = self._broadcastSocket.recieveData()
+			if data is None or not len(data):
+				print("Server 2: No data or invalid data was gotten from recieveData function")
+				continue
+
+
+	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
+		senderSock = TSocket.getSocket(addr)
 		while True:
 			addr, data = senderSock.recieveData()
 			if data is None or not len(data):
 				print("Server 1: No data or invalid data was gotten from recieveData function")
 				continue
 			print("Server 1: Got Data: \"" + data + "\" from \"" + str(addr) + '"')
+			super().closeThread(thrdName)
 			break
 
 class TClient(TNetworkable):
@@ -185,14 +217,14 @@ class TClient(TNetworkable):
 	def __init__(self):
 		super().__init__(False, "192.168.6.62")
 
-	def waitForServerIP(self):
-		T = TThread(self._waitingForServerIPThread)
+	def waitForServer(self):
+		T = TThread(self._waitingForServerThread)
 		T.start()
-		try: self._networkingThreads["ServerIPListening"].stop()
+		try: self._networkingThreads["ServerListening"].stop()
 		except KeyError: pass
-		self._networkingThreads["ServerIPListening"] = T
+		self._networkingThreads["ServerListening"] = T
 
-	def _waitingForServerIPThread(self):
+	def _waitingForServerThread(self):
 		while True:
 			addr, data = self._broadcastSocket.recieveData()
 			if data is None or not len(data):
@@ -202,6 +234,7 @@ class TClient(TNetworkable):
 			if super().isIP(data):
 				print("Client 0: Got servers ip address, its " + data)
 				print("Client 0: Sending response to tell server that I exist and that I got the IP Address")
+				super().closeThread("ServerListening")
 				break
 
 '''
@@ -501,17 +534,23 @@ class Packet:
 	@staticmethod
 	def fromString(packet: str = None):
 		if packet is None or len(packet) < 8: return None
-		mtd = int(packet[:2])
-		protoID = int(packet[2:4])
-		step = int(packet[4:6])
-		numberOfDataPoints = int(packet[6:8])
-		packet = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step, None)
-		offset = 0
-		for i in range(numberOfDataPoints - 1):
-			del i
-			dataLength = int(packet[8 + offset: 12 + offset])
-			packet.addData(packet[12 + offset: 12 + offset + dataLength])
-		return packet
+		try:
+			mtd = int(packet[:2])
+			protoID = int(packet[2:4])
+			step = int(packet[4:6])
+			numberOfDataPoints = int(packet[6:8])
+			packet = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step, None)
+			offset = 0
+			for i in range(numberOfDataPoints - 1):
+				del i
+				dataLength = int(packet[8 + offset: 12 + offset])
+				packet.addData(packet[12 + offset: 12 + offset + dataLength])
+			return packet
+		except ValueError: return None
+
+	@staticmethod
+	def isValidPacket(packet: str = None):
+		return Packet.fromString(packet) != None
 
 	def __init__(self, method: str = None, protocolName: str = None, step: int = 0, sock: socket.socket = None):
 		# Step is the step that the recieving service should do in the protocol

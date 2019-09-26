@@ -10,10 +10,11 @@ def main():
 	serv = TServer()
 	print("Creating Instance Of Client")
 	cli = TClient()
-	print("Starting Server IP Broadcasting")
-	serv.startBroadcastingIP()
 	print("Start Client Waiting For Server IP")
-	cli.waitForServerIP()
+	cli.waitForServer()
+	input("Press enter to start server broadcasting")
+	print("Starting Server IP Broadcasting")
+	serv.startBroadcasting()
 	'''
 	Non Theorectical Solution
 
