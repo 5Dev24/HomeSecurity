@@ -160,9 +160,9 @@ class TServer(TNetworkable):
 	def startBroadcastingIP(self):
 		T = TThread(self._broadcastingIPThread)
 		T.start()
-		try: self._networkingThreads["Broadcasting"].stop()
+		try: self._networkingThreads["BroadcastingIP"].stop()
 		except KeyError: pass
-		self._networkingThreads["Broadcasting"] = T
+		self._networkingThreads["BroadcastingIP"] = T
 
 	def _broadcastingIPThread(self):
 		while True:
@@ -186,6 +186,13 @@ class TClient(TNetworkable):
 		super().__init__(False, "192.168.6.62")
 
 	def waitForServerIP(self):
+		T = TThread(self._waitingForServerIPThread)
+		T.start()
+		try: self._networkingThreads["ServerIPListening"].stop()
+		except KeyError: pass
+		self._networkingThreads["ServerIPListening"] = T
+
+	def _waitingForServerIPThread(self):
 		while True:
 			addr, data = self._broadcastSocket.recieveData()
 			if data is None or not len(data):
