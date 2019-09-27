@@ -118,7 +118,7 @@ class TSocket:
 		if type(reciever) is TAddress and reciever.addr[0] == "<broadcast>":
 			for sock in TSocket.allSockets:
 				if sock._addr != self._addr and sock._addr.addr[0] == self._addr.addr[0]:
-					sock.recieve(self._addr, TData(data, "<broadcast>"))
+					sock.recieve(self._addr, TData(data, True))
 
 class TThread:
 
@@ -160,6 +160,18 @@ class TNetworkable:
 		self._ip = fakeRealIP
 		self._broadcastSocket = TSocket(TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
 		self._networkingThreads = {}
+		self._activeProtocols = {}
+		'''
+		{
+			TAddress: [
+				Protocol,
+				Protocol
+			],
+			TAddress: [
+				Protocol
+			]
+		}
+		'''
 
 	def isIP(self, ipaddr: str = None):
 		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False
@@ -178,18 +190,30 @@ class TNetworkable:
 			return True
 		except KeyError: return False
 
+	def spawnProtocol(self, recipient: TAddress = None, protocolClass = None, args = (), kwargs = None):
+		proto = protocolClass(*args, **kwargs)
+		self._activeProtocols[recipient].append(proto)
+		return proto
+
+	def hasProtocolSpawned(self, recipient: TAddress = None, protocolClass = None):
+		for spawnedProtocol in self._activeProtocols[recipient]:
+			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__class__.__name__.uper():
+				return [True, spawnedProtocol]
+		return [False, None]
+
 class TServer(TNetworkable):
 
 	def __init__(self):
 		super().__init__(True, "192.168.6.60")
 
 	def startBroadcasting(self):
-		super().spawnThread("Broadcasting", self._broadcastOutThread).start()
+		super().spawnThread("Broadcasting", self._broadcastOutThread, False).start()
 
 	def _broadcastOutThread(self):
+		broad = Broadcast_IP(0, 1)
 		while True:
 			print("Server 0: Broadcasting IP Address")
-			self._broadcastSocket.sendData(self._ip)
+			broad.step()
 			time.sleep(3)
 
 	def _broadcastInThread(self):
@@ -199,7 +223,9 @@ class TServer(TNetworkable):
 			if data is None or not len(data):
 				print("Server 2: No data or invalid data was gotten from recieveData function")
 				continue
-
+			sock = TSocket.getSocket(addr)
+			if Packet.isValidPacket(data):
+			else: sock.sendDataProtected(super()._broadcastSocket, )
 
 	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
 		senderSock = TSocket.getSocket(addr)
@@ -220,9 +246,9 @@ class TClient(TNetworkable):
 	def waitForServer(self):
 		T = TThread(self._waitingForServerThread)
 		T.start()
-		try: self._networkingThreads["ServerListening"].stop()
+		try: super()._networkingThreads["ServerListening"].stop()
 		except KeyError: pass
-		self._networkingThreads["ServerListening"] = T
+		super()._networkingThreads["ServerListening"] = T
 
 	def _waitingForServerThread(self):
 		while True:
@@ -392,16 +418,18 @@ class Broadcast_IP(Protocol):
 		self._possibleIPs = []
 		self._expectedClients = exceptedClients
 
-	def step(self, sender: socket.socket = None, reciever: socket.socket = None):
+	def step(self, sender: TSocket = None, reciever: TAddress = None):
 		S = self._step
 		N = self.__class__.__name__.upper()
 		nS = S + 1
+		print(str(sender._addr) + ": Doing step " + str(S) + ", sending to " + str(reciever))
 		if S == 1:
-			sender.sendto(bytes(Packet("BROADCAST_IP", N, nS, reciever).build()._packetString, "utf-8"), ('<broadcast>', Ports.SERVER_BROADCAST))
+			sender.sendDataProtected(reciever, Packet("BROADCAST_IP", N, nS, reciever).build()._packetString)
 		elif S == 2:
-			Packet("CONFIRM", N, nS, sender).build().send()
+			sender.sendDataProtected(reciever, Packet("CONFIRM", N, nS, sender).build()._packetString)
 		elif S == 3:
-			Packet("AGREE", N, nS, sender).build().send()
+			sender.sendDataProtected(reciever, Packet("AGREE", N, nS, sender).build()._packetString)
+		else: return
 
 	def isServersTurn(self):
 		return self._step % 2 == 1
@@ -552,13 +580,14 @@ class Packet:
 	def isValidPacket(packet: str = None):
 		return Packet.fromString(packet) != None
 
-	def __init__(self, method: str = None, protocolName: str = None, step: int = 0, sock: socket.socket = None):
+	def __init__(self, method: str = None, protocolName: str = None, step: int = 0, sender: TSocket = None, reciever: TAddress = None):
 		# Step is the step that the recieving service should do in the protocol
 		self._method = method
 		self._protocol = Protocol.idFromProtocolName(protocolName)
 		self._step = step
 		self._packetString = ""
-		self._sock = sock
+		self._sender = sender
+		self._reciever = reciever
 		self._data = []
 
 	def addData(self, data: str = None):
@@ -576,5 +605,5 @@ class Packet:
 
 	def send(self):
 		if self._sock is None or self._packetString is None or len(self._packetString) == 0: return
-		self._sock.send(bytes(self._packetString, "utf-8"))
+		self._sender.sendDataProtected(self._reciever, self._packetString)
 		del self
