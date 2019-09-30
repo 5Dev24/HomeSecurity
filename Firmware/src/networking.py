@@ -7,6 +7,7 @@ import time
 import random
 import string
 import re
+import traceback
 
 # T at the beginning of each class means theoretical
 
@@ -122,7 +123,7 @@ class TSocket:
 
 class TThread:
 
-	def __init__(self, target = None, loop: bool = False, args = (), kwargs = None):
+	def __init__(self, target = None, loop: bool = False, args = (), kwargs = {}):
 		self._internalThread = Thread(target=self._internal)
 		self._target = target
 		self._args = args
@@ -139,13 +140,13 @@ class TThread:
 		if self._loop:
 			while not self._stop and self._running:
 				try: self._target(*self._args, **self._kwargs)
-				except BaseException as err:
-					print("Theoretical Thread threw an error, closing thread\n" + str(err))
+				except BaseException:
+					print("Theoretical Thread threw an error (1), closing thread\n" + traceback.format_exc())
 					break
 		else:
 			try: self._target(*self._args, **self._kwargs)
-			except BaseException as err:
-				print("Theoretical Thread threw an error, closing thread\n" + str(err))
+			except BaseException:
+				print("Theoretical Thread threw an error (2), closing thread\n" + traceback.format_exc())
 		self.stop()
 		del self._internalThread, self._target, self._args, self._kwargs
 
@@ -177,9 +178,9 @@ class TNetworkable:
 		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False
 		return re.match("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}", ipaddr)
 
-	def spawnThread(self, threadName: str = None, threadTarget = None, args = (), kwargs = None):
+	def spawnThread(self, threadName: str = None, threadTarget = None, loop: bool = False, args = (), kwargs = {}):
 		self.closeThread(threadName)
-		T = TThread(threadTarget, *args, **kwargs)
+		T = TThread(threadTarget, loop = loop, *args, **kwargs)
 		self._networkingThreads[threadName] = T
 		return T
 
@@ -190,16 +191,24 @@ class TNetworkable:
 			return True
 		except KeyError: return False
 
-	def spawnProtocol(self, recipient: TAddress = None, protocolClass = None, args = (), kwargs = None):
+	def spawnProtocol(self, recipient: TAddress = None, timeout = None, protocolClass = None, args = (), kwargs = {}):
 		proto = protocolClass(*args, **kwargs)
-		self._activeProtocols[recipient].append(proto)
-		return proto
+		try: self._activeProtocols[recipient].append(proto)
+		except KeyError: self._activeProtocols[recipient] = [proto]
+		index = len(self._activeProtocols[recipient]) - 1
+		if type(timeout) is int: TThread(target = self._threadTimeout, loop = False, args=(recipient, index, timeout)).start()
+		return [proto, index]
 
 	def hasProtocolSpawned(self, recipient: TAddress = None, protocolClass = None):
 		for spawnedProtocol in self._activeProtocols[recipient]:
 			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__class__.__name__.uper():
 				return [True, spawnedProtocol]
 		return [False, None]
+
+	def _threadTimeout(self, recipient: TAddress = None, protoIndex: int = 0, timeout: float = 5):
+		time.sleep(timeout)
+		self._activeProtocols[recipient][protoIndex].destroy()
+		self._activeProtocols[recipient][protoIndex] = None
 
 class TServer(TNetworkable):
 
@@ -210,10 +219,9 @@ class TServer(TNetworkable):
 		super().spawnThread("Broadcasting", self._broadcastOutThread, False).start()
 
 	def _broadcastOutThread(self):
-		broad = Broadcast_IP(0, 1)
 		while True:
 			print("Server 0: Broadcasting IP Address")
-			broad.step()
+			super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args= (0, 1))
 			time.sleep(3)
 
 	def _broadcastInThread(self):
@@ -225,7 +233,8 @@ class TServer(TNetworkable):
 				continue
 			sock = TSocket.getSocket(addr)
 			if Packet.isValidPacket(data):
-			else: sock.sendDataProtected(super()._broadcastSocket, )
+				packet = Packet.fromString(data)
+			else: sock.sendDataProtected(self._broadcastSocket, "!")
 
 	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
 		senderSock = TSocket.getSocket(addr)
@@ -246,9 +255,9 @@ class TClient(TNetworkable):
 	def waitForServer(self):
 		T = TThread(self._waitingForServerThread)
 		T.start()
-		try: super()._networkingThreads["ServerListening"].stop()
+		try: self._networkingThreads["ServerListening"].stop()
 		except KeyError: pass
-		super()._networkingThreads["ServerListening"] = T
+		self._networkingThreads["ServerListening"] = T
 
 	def _waitingForServerThread(self):
 		while True:
@@ -263,126 +272,29 @@ class TClient(TNetworkable):
 				super().closeThread("ServerListening")
 				break
 
-'''
-Unable to continue use of code due to not being able to starts ports on machine
-
-Theoretical sockets will be used with 100% accurate data transformation 
-'''
-
-class Ports:
-
-	SEND_RECIEVE =           8082
-	ENCRYPTED_SEND_RECIEVE = 8084
-	SERVER_BROADCAST =       8086
-
-	@staticmethod
-	def fastSocket(addr: str = "", port: int = 0):
-		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		s.connect((addr, port))
-		return s
-
-class Networkable:
-
-	def __init__(self, isServer: bool = False):
-		if isServer:
-			self._broadcastSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-			self._broadcastSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-			self._broadcastSocket.settimeout(60)
-			self._broadcastSocket.bind(("", Ports.SERVER_BROADCAST))
-		self._directSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self._directSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		self._directSocket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-		self._directSocket.bind(("", Ports.SERVER_BROADCAST))
-		self._isServer = isServer
-		self._threads = {}
-		print("Starting To Listen!")
-		if not isServer: self.listenOn("direct", self._directSocket)
-		print("Direct Thread Started!")
-
-	def sendDataOn(self, data: str = None, sock: socket.socket = None): sock.send(data.encode("utf-8"))
-
-	def broadcastData(self, data: str = None):
-		self._broadcastSocket.sendto(data.encode("utf-8"), ("<broadcast>", Ports.SERVER_BROADCAST))
-
-	def listenOn(self, name: str = None, sock: socket.socket = None):
-		name += "-THREAD"
-		listenThread = Thread(target = self._listenThread, args=(name, sock))
-		listenThread.start()
-		self._threads[name] = [True, listenThread]
-
-	def _listenThread(self, name: str = None, sock: socket.socket = None):
-		print("SOCKET OBJECT:", sock)
-		sock.listen(5)
-		while name in self._threads and self._threads[name][0]:
-			print("Listening!")
-			data, addr = sock.recv(1024)
-			data = data.decode("utf-8")
-			if not len(data): continue
-			print("Recieved data from ", addr, ", it was \"", data, '"', sep = '')
-			pkt = Packet.fromString(data)
-			if pkt is None:
-				print("Invalid packet!")
-				continue
-			else: self.onPacketRecieved(pkt, Ports.fastSocket(addr[0], addr[1]))
-		self.closeThread(name)
-
-	def closeThread(self, name: str = None):
-		name += "-THREAD"
-		if name in self._threads:
-			self._threads[name][0] = False
-			self._threads[name][1]._stop()
-			del self._threads[name]
-
-	def onPacketRecieved(self, pkt: Packet = None, pktFrom: socket.socket = None): raise NotImplementedError
-
-class Server(Networkable):
-
-	def __init__(self, expectedClients: int = 0):
-		super().__init__(True)
-		self._broadcastThreadInst = None
-		self._expectedClient = expectedClients
-
-	def beginBroadcast(self):
-		self._broadcastThreadInst = Thread(target = self._broadcastThread)
-		self._broadcastThreadInst.start()
-		#Broadcast_IP(1, 1).step(self._broadcastSocket)
-
-	def _broadcastThread(self):
-		foundClients = 0
-		while foundClients < self._expectedClient:
-			print("Broadcasting! Found", foundClients, "clients!")
-			Broadcast_IP(1).step(self._broadcastSocket, "")
-
-	def onPacketRecieved(self, pkt: Packet = None, pktFrom: socket.socket = None):
-		proto = Protocol.protocolClassFromID(pkt._protocol)
-		if proto is None:
-			print("S: Invalid protocol!")
-			return
-		else:
-			print("S: Creating instance of protocol")
-			protoInst = proto(pkt._step)
-			print("S: [1/2] Stepping")
-			protoInst.step(pktFrom)
-			print("S: [2/2] Stepping")
-
-class Client(Networkable):
+class Destroyable:
 
 	def __init__(self):
-		super().__init__(False)
+		self._destroying = False
 
-	def onPacketRecieved(self, pkt: Packet = None, pktFrom: socket.socket = None):
-		proto = Protocol.protocolClassFromID(pkt._protocol)
-		if proto is None:
-			print("C: Invalid protocol!")
-			return
-		else:
-			print("C: Creating instance of protocol")
-			protoInst = proto(pkt._step)
-			print("C: [1/2] Stepping")
-			protoInst.step(pktFrom)
-			print("C: [2/2] Stepping")
+	# Source: https://stackoverflow.com/a/2704528
+	def __getattribute__(self, name: str = None):
+		attribute = object.__getattribute__(self, name)
+		destroying = False
+		try: destroying = self._destroying
+		except AttributeError: pass
+		if not destroying:
+			if hasattr(attribute, "__call__"):
+				def handle(args = (), kwargs = {}):
+					return attribute(*args, **kwargs)
+				return handle
+			else: return attribute
+		else: return None
 
-class Protocol:
+	def destroy(self):
+		self._destroying = True
+
+class Protocol(Destroyable):
 
 	@staticmethod
 	def allProtocols(): return [_class.__name__.upper() for _class in Protocol.__subclasses__()]
@@ -424,12 +336,12 @@ class Broadcast_IP(Protocol):
 		nS = S + 1
 		print(str(sender._addr) + ": Doing step " + str(S) + ", sending to " + str(reciever))
 		if S == 1:
-			sender.sendDataProtected(reciever, Packet("BROADCAST_IP", N, nS, reciever).build()._packetString)
+			Packet("BROADCAST_IP", N, nS, sender, reciever).build().send()
 		elif S == 2:
-			sender.sendDataProtected(reciever, Packet("CONFIRM", N, nS, sender).build()._packetString)
+			Packet("CONFIRM", N, nS, sender, reciever).build().send()
 		elif S == 3:
-			sender.sendDataProtected(reciever, Packet("AGREE", N, nS, sender).build()._packetString)
-		else: return
+			Packet("AGREE", N, nS, sender, reciever).build().send()
+		else: super(Broadcast_IP, self).destroy()
 
 	def isServersTurn(self):
 		return self._step % 2 == 1
@@ -531,7 +443,7 @@ class Key_Exchange(Protocol):
 	def isServersTurn(self):
 		return self._step % 2 == 0
 
-class Packet:
+class Packet(Destroyable):
 
 	Methods = {
 		"ERROR":         -1,
