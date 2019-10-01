@@ -73,7 +73,13 @@ class TSocket:
 		for sock in TSocket.allSockets:
 			if sock._addr == addr:
 				return sock
-		return TSocket(addr)
+		return TSocket.createNewSocket(addr)
+
+	@staticmethod
+	def createNewSocket(addr: TAddress):
+		sock = TSocket(addr)
+		TSocket.allSockets.append(sock)
+		return sock
 
 	def __init__(self, addr: TAddress = None):
 		self._addr = addr
@@ -81,7 +87,12 @@ class TSocket:
 		self._lastDataRecieved = None
 		self._recieveEvent = Event()
 		self._recievers = 0
-		self._id = random.randint(0, 2**32 - 1)
+		self._callbackID = random.randint(-1 * (2 ** 32), 2 ** 32)
+
+	def __str__(self):
+		return "Address: " + str(self._addr) + ", Data History: " + str(self._dataHistroy) + ", Last Data Recieved: " + str(self._lastDataRecieved) + ",\n\
+Recieve Event Set: " + str(self._recieveEvent.is_set()) + ", Recievers: " + str(self._recievers) + ",\n\
+and Callback ID: " + str(self._callbackID)
 
 	def recieve(self, addr: TAddress = None, data: TData = None):
 		if not (type(data) is TData): return
@@ -118,7 +129,8 @@ class TSocket:
 			return TSocket.sendDataProtected(reciever, data)
 		if type(reciever) is TAddress and reciever.addr[0] == "<broadcast>":
 			for sock in TSocket.allSockets:
-				if sock._addr != self._addr and sock._addr.addr[0] == self._addr.addr[0]:
+				print("Socket: " + str(sock))
+				if sock._addr.addr[0] == self._addr.addr[0] and sock._addr.addr[1] == self._addr.addr[1] and sock._callbackID != self._callbackID:
 					sock.recieve(self._addr, TData(data, True))
 
 class TThread:
@@ -159,7 +171,7 @@ class TNetworkable:
 	def __init__(self, isServer: bool = False, fakeRealIP: str = None):
 		self._isServer = isServer
 		self._ip = fakeRealIP
-		self._broadcastSocket = TSocket(TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
+		self._broadcastSocket = TSocket.createNewSocket(TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
 		self._networkingThreads = {}
 		self._activeProtocols = {}
 		'''
@@ -221,7 +233,8 @@ class TServer(TNetworkable):
 	def _broadcastOutThread(self):
 		while True:
 			print("Server 0: Broadcasting IP Address")
-			super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args= (0, 1))
+			proto, index = super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args= (0, 1))
+			proto.step(self._broadcastSocket, self._broadcastSocket._addr)
 			time.sleep(3)
 
 	def _broadcastInThread(self):
@@ -233,8 +246,11 @@ class TServer(TNetworkable):
 				continue
 			sock = TSocket.getSocket(addr)
 			if Packet.isValidPacket(data):
+				print("Server 2: Got a valid packet back")
 				packet = Packet.fromString(data)
-			else: sock.sendDataProtected(self._broadcastSocket, "!")
+			else:
+				print("Server 2: Got an invalid packet back")
+				sock.sendDataProtected(self._broadcastSocket, "!")
 
 	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
 		senderSock = TSocket.getSocket(addr)
@@ -261,6 +277,7 @@ class TClient(TNetworkable):
 
 	def _waitingForServerThread(self):
 		while True:
+			print("Client 0: Waiting!")
 			addr, data = self._broadcastSocket.recieveData()
 			if data is None or not len(data):
 				print("Client 0: No data or invalid data was gotten from recieveData function")
@@ -279,17 +296,18 @@ class Destroyable:
 
 	# Source: https://stackoverflow.com/a/2704528
 	def __getattribute__(self, name: str = None):
-		attribute = object.__getattribute__(self, name)
+		try: attribute = object.__getattribute__(self, name)
+		except RecursionError: return object.__getattribute__(self, name)
 		destroying = False
 		try: destroying = self._destroying
 		except AttributeError: pass
-		if not destroying:
+		if destroying: return lambda: () if hasattr(attribute, "__call__") else None
+		else:
 			if hasattr(attribute, "__call__"):
-				def handle(args = (), kwargs = {}):
+				def handle(*args, **kwargs):
 					return attribute(*args, **kwargs)
 				return handle
 			else: return attribute
-		else: return None
 
 	def destroy(self):
 		self._destroying = True
