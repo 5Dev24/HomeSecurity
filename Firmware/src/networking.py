@@ -3,11 +3,7 @@ import socket
 from .crypt import AES, RSA
 from threading import Thread, Timer, Event
 from .error import Error, Codes
-import time
-import random
-import string
-import re
-import traceback
+import time, random, string, re, traceback, sys
 
 # T at the beginning of each class means theoretical
 
@@ -90,8 +86,8 @@ class TSocket:
 		self._callbackID = random.randint(-1 * (2 ** 32), 2 ** 32)
 
 	def __str__(self):
-		return "Address: " + str(self._addr) + ", Data History: " + str(self._dataHistroy) + ", Last Data Recieved: " + str(self._lastDataRecieved) + ",\n\
-Recieve Event Set: " + str(self._recieveEvent.is_set()) + ", Recievers: " + str(self._recievers) + ",\n\
+		return "Address: " + str(self._addr) + ", Data History: " + str(self._dataHistroy) + ", Last Data Recieved: " + str(self._lastDataRecieved) + ",\
+Recieve Event Set: " + str(self._recieveEvent.is_set()) + ", Recievers: " + str(self._recievers) + ",\
 and Callback ID: " + str(self._callbackID)
 
 	def recieve(self, addr: TAddress = None, data: TData = None):
@@ -125,11 +121,12 @@ and Callback ID: " + str(self._callbackID)
 		if type(reciever) is str:
 			data = reciever
 			reciever = self._addr
+			print("Invalid format, correcting!")
 		if not (reciever is None) and reciever.addr[0] != "<broadcast>":
 			return TSocket.sendDataProtected(reciever, data)
 		if type(reciever) is TAddress and reciever.addr[0] == "<broadcast>":
 			for sock in TSocket.allSockets:
-				print("Socket: " + str(sock))
+				print("Socket:\n\t" + str(sock))
 				if sock._addr.addr[0] == self._addr.addr[0] and sock._addr.addr[1] == self._addr.addr[1] and sock._callbackID != self._callbackID:
 					sock.recieve(self._addr, TData(data, True))
 
@@ -219,7 +216,6 @@ class TNetworkable:
 
 	def _threadTimeout(self, recipient: TAddress = None, protoIndex: int = 0, timeout: float = 5):
 		time.sleep(timeout)
-		self._activeProtocols[recipient][protoIndex].destroy()
 		self._activeProtocols[recipient][protoIndex] = None
 
 class TServer(TNetworkable):
@@ -233,7 +229,7 @@ class TServer(TNetworkable):
 	def _broadcastOutThread(self):
 		while True:
 			print("Server 0: Broadcasting IP Address")
-			proto, index = super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args= (0, 1))
+			proto = super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args = (1, 1))[0]
 			proto.step(self._broadcastSocket, self._broadcastSocket._addr)
 			time.sleep(3)
 
@@ -248,6 +244,7 @@ class TServer(TNetworkable):
 			if Packet.isValidPacket(data):
 				print("Server 2: Got a valid packet back")
 				packet = Packet.fromString(data)
+				print("Packet data: " + str(packet))
 			else:
 				print("Server 2: Got an invalid packet back")
 				sock.sendDataProtected(self._broadcastSocket, "!")
@@ -289,30 +286,7 @@ class TClient(TNetworkable):
 				super().closeThread("ServerListening")
 				break
 
-class Destroyable:
-
-	def __init__(self):
-		self._destroying = False
-
-	# Source: https://stackoverflow.com/a/2704528
-	def __getattribute__(self, name: str = None):
-		try: attribute = object.__getattribute__(self, name)
-		except RecursionError: return object.__getattribute__(self, name)
-		destroying = False
-		try: destroying = self._destroying
-		except AttributeError: pass
-		if destroying: return lambda: () if hasattr(attribute, "__call__") else None
-		else:
-			if hasattr(attribute, "__call__"):
-				def handle(*args, **kwargs):
-					return attribute(*args, **kwargs)
-				return handle
-			else: return attribute
-
-	def destroy(self):
-		self._destroying = True
-
-class Protocol(Destroyable):
+class Protocol:
 
 	@staticmethod
 	def allProtocols(): return [_class.__name__.upper() for _class in Protocol.__subclasses__()]
@@ -354,12 +328,12 @@ class Broadcast_IP(Protocol):
 		nS = S + 1
 		print(str(sender._addr) + ": Doing step " + str(S) + ", sending to " + str(reciever))
 		if S == 1:
+			print("Building and sending packet")
 			Packet("BROADCAST_IP", N, nS, sender, reciever).build().send()
 		elif S == 2:
 			Packet("CONFIRM", N, nS, sender, reciever).build().send()
 		elif S == 3:
 			Packet("AGREE", N, nS, sender, reciever).build().send()
-		else: super(Broadcast_IP, self).destroy()
 
 	def isServersTurn(self):
 		return self._step % 2 == 1
@@ -461,7 +435,7 @@ class Key_Exchange(Protocol):
 	def isServersTurn(self):
 		return self._step % 2 == 0
 
-class Packet(Destroyable):
+class Packet:
 
 	Methods = {
 		"ERROR":         -1,
@@ -520,6 +494,11 @@ class Packet(Destroyable):
 		self._reciever = reciever
 		self._data = []
 
+	def __str__(self):
+		return ("Method: " + self._method + ", Protocol: " + Protocol.protocolClassNameFromID(self._protocol) + ""
+			", Step: " + str(self._step) + ", Current Packet String: \n" + self._packetString + ",\nSender: " + str(self._sender) + ""
+			", Reciever: " + str(self._reciever) + ", Data: " + str(self._data))
+
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
 		self._data.append(data)
@@ -534,6 +513,6 @@ class Packet(Destroyable):
 		return self
 
 	def send(self):
-		if self._sock is None or self._packetString is None or len(self._packetString) == 0: return
-		self._sender.sendDataProtected(self._reciever, self._packetString)
+		if self._sender is None or self._packetString is None or len(self._packetString) == 0: return
+		self._sender.sendData(self._reciever, self._packetString)
 		del self
