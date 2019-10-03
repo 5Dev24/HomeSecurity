@@ -86,8 +86,8 @@ class TSocket:
 		self._callbackID = random.randint(-1 * (2 ** 32), 2 ** 32)
 
 	def __str__(self):
-		return "Address: " + str(self._addr) + ", Data History: " + str(self._dataHistroy) + ", Last Data Recieved: " + str(self._lastDataRecieved) + ",\
-Recieve Event Set: " + str(self._recieveEvent.is_set()) + ", Recievers: " + str(self._recievers) + ",\
+		return "Address: " + str(self._addr) + ", Data History: " + str(self._dataHistroy) + ", Last Data Recieved: " + str(self._lastDataRecieved) + ", \
+Recieve Event Set: " + str(self._recieveEvent.is_set()) + ", Recievers: " + str(self._recievers) + ", \
 and Callback ID: " + str(self._callbackID)
 
 	def recieve(self, addr: TAddress = None, data: TData = None):
@@ -243,7 +243,7 @@ class TServer(TNetworkable):
 			sock = TSocket.getSocket(addr)
 			if Packet.isValidPacket(data):
 				print("Server 2: Got a valid packet back")
-				packet = Packet.fromString(data)
+				packet = Packet.fromString(data, self._broadcastSocket, addr)
 				print("Packet data: " + str(packet))
 			else:
 				print("Server 2: Got an invalid packet back")
@@ -329,7 +329,10 @@ class Broadcast_IP(Protocol):
 		print(str(sender._addr) + ": Doing step " + str(S) + ", sending to " + str(reciever))
 		if S == 1:
 			print("Building and sending packet")
-			Packet("BROADCAST_IP", N, nS, sender, reciever).build().send()
+			print("N", N, "nS", nS, "sender", sender, "reciever", reciever)
+			pack = Packet("BROADCAST_IP", N, nS, sender, reciever).build()
+			print(str(pack))
+			pack.send()
 		elif S == 2:
 			Packet("CONFIRM", N, nS, sender, reciever).build().send()
 		elif S == 3:
@@ -464,25 +467,24 @@ class Packet:
 		return "ERROR"
 
 	@staticmethod
-	def fromString(packet: str = None):
+	def fromString(packet: str = None, sender: TSocket = None, recievedFrom: TAddress = None):
+		print("PACKET DATA: \"", packet, '"', sep = "")
 		if packet is None or len(packet) < 8: return None
-		try:
-			mtd = int(packet[:2])
-			protoID = int(packet[2:4])
-			step = int(packet[4:6])
-			numberOfDataPoints = int(packet[6:8])
-			packet = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step, None)
-			offset = 0
-			for i in range(numberOfDataPoints - 1):
-				del i
-				dataLength = int(packet[8 + offset: 12 + offset])
-				packet.addData(packet[12 + offset: 12 + offset + dataLength])
-			return packet
-		except ValueError: return None
+		mtd = int(packet[:2])
+		protoID = int(packet[2:4])
+		step = int(packet[4:6])
+		numberOfDataPoints = int(packet[6:8])
+		packet = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step, sender, recievedFrom)
+		offset = 0
+		for i in range(numberOfDataPoints - 1):
+			del i
+			dataLength = int(packet[8 + offset: 12 + offset])
+			packet.addData(packet[12 + offset: 12 + offset + dataLength])
+		return packet
 
 	@staticmethod
 	def isValidPacket(packet: str = None):
-		return Packet.fromString(packet) != None
+		return Packet.fromString(packet, None, None) != None
 
 	def __init__(self, method: str = None, protocolName: str = None, step: int = 0, sender: TSocket = None, reciever: TAddress = None):
 		# Step is the step that the recieving service should do in the protocol
@@ -495,9 +497,9 @@ class Packet:
 		self._data = []
 
 	def __str__(self):
-		return ("Method: " + self._method + ", Protocol: " + Protocol.protocolClassNameFromID(self._protocol) + ""
-			", Step: " + str(self._step) + ", Current Packet String: \n" + self._packetString + ",\nSender: " + str(self._sender) + ""
-			", Reciever: " + str(self._reciever) + ", Data: " + str(self._data))
+		return "Method: " + self._method + ", Protocol: " + Protocol.protocolClassNameFromID(self._protocol) + "\
+, Step: " + str(self._step) + ", Current Packet String: \n" + self._packetString + ",\nSender: " + str(self._sender) + "\
+, Reciever: " + str("Unknown" if type(self._reciever) != str else self._reciever) + ", Data: " + str(self._data)
 
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
@@ -505,8 +507,8 @@ class Packet:
 		return self
 
 	def build(self):
-		opt = lambda length, value: "0" * (length - len(str(value)))
-		data = opt(2, self._method) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
+		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
+		data = "" + opt(2, self._method) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			data += opt(4, len(dataPoint)) + dataPoint
 		self._packetString = data
