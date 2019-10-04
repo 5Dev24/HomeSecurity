@@ -97,6 +97,7 @@ and Callback ID: " + str(self._callbackID)
 			print("Data was already read before we recieved it, was this a broadcasted message?")
 			return
 		self._dataHistroy.append([addr, data])
+		while len(self._dataHistroy) > 25: del self._dataHistroy[0]
 		self._lastDataRecieved = [addr, data]
 		while self._recieveEvent.is_set():
 			time.sleep(.5)
@@ -126,7 +127,6 @@ and Callback ID: " + str(self._callbackID)
 			return TSocket.sendDataProtected(reciever, data)
 		if type(reciever) is TAddress and reciever.addr[0] == "<broadcast>":
 			for sock in TSocket.allSockets:
-				print("Socket:\n\t" + str(sock))
 				if sock._addr.addr[0] == self._addr.addr[0] and sock._addr.addr[1] == self._addr.addr[1] and sock._callbackID != self._callbackID:
 					sock.recieve(self._addr, TData(data, True))
 
@@ -209,6 +209,8 @@ class TNetworkable:
 		return [proto, index]
 
 	def hasProtocolSpawned(self, recipient: TAddress = None, protocolClass = None):
+		try: self._activeProtocols[recipient]
+		except KeyError: return [False, None]
 		for spawnedProtocol in self._activeProtocols[recipient]:
 			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__class__.__name__.uper():
 				return [True, spawnedProtocol]
@@ -224,12 +226,13 @@ class TServer(TNetworkable):
 		super().__init__(True, "192.168.6.60")
 
 	def startBroadcasting(self):
-		super().spawnThread("Broadcasting", self._broadcastOutThread, False).start()
+		super().spawnThread("BroadcastingOut", self._broadcastOutThread, False).start()
+		super().spawnThread("BroadcastingIn", self._broadcastInThread, False).start()
 
 	def _broadcastOutThread(self):
 		while True:
 			print("Server 0: Broadcasting IP Address")
-			proto = super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args = (1, 1))[0]
+			proto = super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args = (1,))[0]
 			proto.step(self._broadcastSocket, self._broadcastSocket._addr)
 			time.sleep(3)
 
@@ -244,7 +247,7 @@ class TServer(TNetworkable):
 			if Packet.isValidPacket(data):
 				print("Server 2: Got a valid packet back")
 				packet = Packet.fromString(data, self._broadcastSocket, addr)
-				print("Packet data: " + str(packet))
+				print("Server 2: Packet data: " + str(packet))
 			else:
 				print("Server 2: Got an invalid packet back")
 				sock.sendDataProtected(self._broadcastSocket, "!")
@@ -280,11 +283,20 @@ class TClient(TNetworkable):
 				print("Client 0: No data or invalid data was gotten from recieveData function")
 				continue
 			print("Client 0: Got Data: \"" + data + "\" from \"" + str(addr) + '"')
-			if super().isIP(data):
-				print("Client 0: Got servers ip address, its " + data)
-				print("Client 0: Sending response to tell server that I exist and that I got the IP Address")
-				super().closeThread("ServerListening")
-				break
+			pack = Packet.fromString(data, self._broadcastSocket, addr)
+			if pack != None:
+				print("Client 0: Got a valid packet!\"" + data + "\", Step: " + str(pack._step))
+				if pack._method == Packet.methodFromString("BROADCAST_IP"):
+					spawned = super().hasProtocolSpawned(addr, Broadcast_IP)
+					if spawned[0]:
+						spawned[1]._step += 1
+						spawned[1].step(self._broadcastSocket, addr)
+					else:
+						spawned = super().spawnProtocol(addr, 5, Broadcast_IP, args=(pack._step + 1,))
+						spawned[0].step(self._broadcastSocket, addr)
+						if spawned[0]._step >= 3:
+							super().closeThread("ServerListening")
+					break
 
 class Protocol:
 
@@ -305,36 +317,25 @@ class Protocol:
 
 	@staticmethod
 	def idFromProtocolName(name: str = None):
-		print("GETTING PROTOCOL FROM ID OF \"" + name + '"')
-		print(Protocol.allProtocols())
 		if name is None or type(name) != str or not (name.upper() in Protocol.allProtocols()): return -1
-		return Protocol.allProtocols().index(name) - 1
+		return Protocol.allProtocols().index(name)
 
 	def __init__(self, step: int = 0, *args, **kwargs):
 		self._step = step
 
 	def isServersTurn(self): raise NotImplementedError
 
-	def step(self, reciever: socket.socket = None): raise NotImplementedError
+	def step(self, sender: TSocket = None, reciever: TAddress = None): raise NotImplementedError
 
 class Broadcast_IP(Protocol):
-
-	def __init__(self, step: int = 0, exceptedClients: int = 1):
-		super().__init__(step)
-		self._possibleIPs = []
-		self._expectedClients = exceptedClients
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None):
 		S = self._step
 		N = self.__class__.__name__.upper()
 		nS = S + 1
-		print(str(sender._addr) + ": Doing step " + str(S) + ", sending to " + str(reciever))
+		print(str(sender._addr) + ">" + str(sender._callbackID) + ": Doing step " + str(S) + ", sending to " + str(reciever) + ", S: " + str(S) + ", N: " + N + ", nS: " + str(nS))
 		if S == 1:
-			print("Building and sending packet")
-			print("N", N, "nS", nS, "sender", sender, "reciever", reciever)
-			pack = Packet("BROADCAST_IP", N, nS, sender, reciever).build()
-			print(str(pack))
-			pack.send()
+			Packet("BROADCAST_IP", N, nS, sender, reciever).build().send()
 		elif S == 2:
 			Packet("CONFIRM", N, nS, sender, reciever).build().send()
 		elif S == 3:
@@ -472,7 +473,7 @@ class Packet:
 	def fromString(packet: str = None, sender: TSocket = None, recievedFrom: TAddress = None):
 		print("PACKET DATA: \"", packet, '"', sep = "")
 		if packet is None or len(packet) < 8: return None
-		mtd = int(packet[:2])
+		mtd = packet[:2]
 		protoID = int(packet[2:4])
 		step = int(packet[4:6])
 		numberOfDataPoints = int(packet[6:8])
@@ -511,7 +512,7 @@ class Packet:
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
-		data = "" + opt(2, self._method) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
+		data = "" + opt(2, Packet.methodFromString(self._method)) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			data += opt(4, len(dataPoint)) + dataPoint
 		self._packetString = data

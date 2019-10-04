@@ -12,23 +12,9 @@ def main():
 	cli = TClient()
 	print("Start Client Waiting For Server IP")
 	cli.waitForServer()
+	print("Server Callback: ", serv._broadcastSocket._callbackID, ",\nClient Callback: ", cli._broadcastSocket._callbackID, sep = "")
 	input("Press enter to start server broadcasting")
 	print("Starting Server IP Broadcasting")
 	serv.startBroadcasting()
-	'''
-	Non Theorectical Solution
-
-	parser = ArgumentParser(False, { "vars": { "required": { "server": "boolean" } } })
-	parser.parse(sys.argv[1:])
-	response = parser.execute()
-	print("Response:", response)
-	if response == 1:
-		if parser.readVariable("server"):
-			ser = Server(1)
-			ser.beginBroadcast()
-		else:
-			cli = Client()
-	'''
-
 
 if __name__ == "__main__": main()
