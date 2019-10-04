@@ -305,7 +305,9 @@ class Protocol:
 
 	@staticmethod
 	def idFromProtocolName(name: str = None):
-		if name is None or not (name in Protocol.allProtocols()): return -1
+		print("GETTING PROTOCOL FROM ID OF \"" + name + '"')
+		print(Protocol.allProtocols())
+		if name is None or type(name) != str or not (name.upper() in Protocol.allProtocols()): return -1
 		return Protocol.allProtocols().index(name) - 1
 
 	def __init__(self, step: int = 0, *args, **kwargs):
@@ -497,7 +499,8 @@ class Packet:
 		self._data = []
 
 	def __str__(self):
-		return "Method: " + self._method + ", Protocol: " + Protocol.protocolClassNameFromID(self._protocol) + "\
+		protocolName = Protocol.protocolClassNameFromID(self._protocol)
+		return "Method: " + self._method + ", Protocol: " + (protocolName if protocolName != None and type(protocolName) == str else "Unknown protocol \"" + str(self._protocol) + '"') + "\
 , Step: " + str(self._step) + ", Current Packet String: \n" + self._packetString + ",\nSender: " + str(self._sender) + "\
 , Reciever: " + str("Unknown" if type(self._reciever) != str else self._reciever) + ", Data: " + str(self._data)
 
