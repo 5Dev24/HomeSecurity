@@ -202,21 +202,23 @@ class TNetworkable:
 
 	def spawnProtocol(self, recipient: TAddress = None, timeout = None, protocolClass = None, args = (), kwargs = {}):
 		proto = protocolClass(*args, **kwargs)
-		try: self._activeProtocols[recipient].append(proto)
-		except KeyError: self._activeProtocols[recipient] = [proto]
-		index = len(self._activeProtocols[recipient]) - 1
-		if type(timeout) is int: TThread(target = self._threadTimeout, loop = False, args=(recipient, index, timeout)).start()
+		recip = str(recipient)
+		try: self._activeProtocols[recip].append(proto)
+		except KeyError: self._activeProtocols[recip] = [proto]
+		index = len(self._activeProtocols[recip]) - 1
+		if type(timeout) is int: TThread(target = self._threadTimeout, loop = False, args=(recip, index, timeout)).start()
 		return [proto, index]
 
 	def hasProtocolSpawned(self, recipient: TAddress = None, protocolClass = None):
-		try: self._activeProtocols[recipient]
+		recip = str(recipient)
+		try: self._activeProtocols[recip]
 		except KeyError: return [False, None]
-		for spawnedProtocol in self._activeProtocols[recipient]:
-			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__class__.__name__.upper():
+		for spawnedProtocol in self._activeProtocols[recip]:
+			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__name__.upper():
 				return [True, spawnedProtocol]
 		return [False, None]
 
-	def _threadTimeout(self, recipient: TAddress = None, protoIndex: int = 0, timeout: float = 5):
+	def _threadTimeout(self, recipient: str = None, protoIndex: int = 0, timeout: float = 5):
 		time.sleep(timeout)
 		self._activeProtocols[recipient][protoIndex] = None
 
@@ -224,27 +226,39 @@ class TServer(TNetworkable):
 
 	def __init__(self):
 		super().__init__(True, "192.168.6.60")
+		self.expectedClients = 1 # Const for now
+		self.clientsGot = 0
+		self._broadcastProtoSaved = super().spawnProtocol(self._broadcastSocket._addr, None, Broadcast_IP, args = (1,))[0]
 
 	def startBroadcasting(self):
-		super().spawnThread("BroadcastingOut", self._broadcastOutThread, False).start()
-		super().spawnThread("BroadcastingIn", self._broadcastInThread, False).start()
+		super().spawnThread("BroadcastingOut", self._broadcastOutThread, True).start()
+		super().spawnThread("BroadcastingIn", self._broadcastInThread, True).start()
 
 	def _broadcastOutThread(self):
-		while True:
-			proto = super().spawnProtocol(self._broadcastSocket._addr, 5, Broadcast_IP, args = (1,))[0]
-			proto.step(self._broadcastSocket, self._broadcastSocket._addr)
-			time.sleep(3)
+		self._broadcastProtoSaved._step = 1
+		self._broadcastProtoSaved.step(self._broadcastSocket, self._broadcastSocket._addr)
+		time.sleep(5)
 
 	def _broadcastInThread(self):
-		while True:
-			addr, data = self._broadcastSocket.recieveData()
-			if data is None or not len(data): continue
-			sock = TSocket.getSocket(addr)
-			if Packet.isValidPacket(data):
-				packet = Packet.fromString(data, self._broadcastSocket, addr)
-				print("Server got a valid packet, not responding!")
-			else:
-				sock.sendDataProtected(self._broadcastSocket, "!")
+		addr, data = self._broadcastSocket.recieveData()
+		if data is None or not len(data): return
+		sock = TSocket.getSocket(addr)
+		pack = Packet.fromString(data, self._broadcastSocket, addr)
+		if Packet.isValidPacket(data):
+			if pack._protocol == "BROADCAST_IP":
+				spawned = super().hasProtocolSpawned(addr, Broadcast_IP)
+				if spawned[0]:
+					if spawned[1].expectedNextStep() != pack._step: return
+					spawned[1]._step = pack._step
+					spawned[1].step(self._broadcastSocket, addr)
+					if spawned[1]._step == 3:
+						self.clientsGot += 1
+						spawned[1]._step = 1 # Reset steps to allow for multiple uses of protocol
+					if self.clientsGot >= self.expectedClients:
+						print("Got all of the clients I need to get, ending broadcasting!")
+						super().closeThread("BroadcastingOut")
+						super().closeThread('BroadcastingIn')
+		else: sock.sendDataProtected(self._broadcastSocket, "!")
 
 	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
 		senderSock = TSocket.getSocket(addr)
@@ -272,20 +286,22 @@ class TClient(TNetworkable):
 			if data is None or not len(data): continue
 			pack = Packet.fromString(data, self._broadcastSocket, addr)
 			if pack != None:
-				if pack._method == "BROADCAST_IP":
+				if pack._protocol == "BROADCAST_IP":
 					spawned = super().hasProtocolSpawned(addr, Broadcast_IP)
-					print("Protocol spawned?", spawned[0], " Instance?", spawned[1])
 					if spawned[0]:
-						if spawned[1].expectedNextStep() != pack._step:
-							continue
+						if spawned[1].expectedNextStep() != pack._step: continue
 						spawned[1]._step = pack._step
 						spawned[1].step(self._broadcastSocket, addr)
+						spawned = spawned[1]
 					else:
 						spawned = super().spawnProtocol(addr, 5, Broadcast_IP, args=(pack._step,))
 						spawned[0].step(self._broadcastSocket, addr)
-						if spawned[0]._step >= 3:
-							super().closeThread("ServerListening")
-							break
+						spawned = spawned[0]
+					if spawned._step >= 3:
+						print("I've been confirmed and the server knows I exist, closeing listening thread!")
+						super().closeThread("ServerListening")
+						break
+			else: TSocket.getSocket(addr).sendDataProtected(self._broadcastSocket, "!")
 
 class Protocol:
 
@@ -313,7 +329,7 @@ class Protocol:
 		self._step = step
 
 	def expectedNextStep(self):
-		return self._step + 1
+		return self._step + 2
 
 	def isServersTurn(self): raise NotImplementedError
 
@@ -325,15 +341,11 @@ class Broadcast_IP(Protocol):
 		S = self._step
 		N = self.__class__.__name__.upper()
 		nS = S + 1
-		print(str(sender._addr) + ">" + str(sender._callbackID) + ": Doing step " + str(S) + ", sending to " + str(reciever) + ", S: " + str(S) + ", N: " + N + ", nS: " + str(nS))
 		if S == 1:
-			print("SERVER SENDING BROADCASTING PACKET TO START PROTOCOL")
 			Packet("BROADCAST_IP", N, nS, sender, reciever).build().send()
 		elif S == 2:
-			print("CLIENT SHOULD BE CONFIRMING!")
 			Packet("CONFIRM", N, nS, sender, reciever).build().send()
 		elif S == 3:
-			print("SERVER SHOULD BE AGREEING!")
 			Packet("AGREE", N, nS, sender, reciever).build().send()
 
 	def isServersTurn(self):
@@ -486,7 +498,7 @@ class Packet:
 	def __init__(self, method: str = None, protocolName: str = None, step: int = 0, sender: TSocket = None, reciever: TAddress = None):
 		# Step is the step that the recieving service should do in the protocol
 		self._method = method
-		self._protocol = Protocol.idFromProtocolName(protocolName)
+		self._protocol = protocolName
 		self._step = step
 		self._packetString = ""
 		self._sender = sender
@@ -494,8 +506,7 @@ class Packet:
 		self._data = []
 
 	def __str__(self):
-		protocolName = Protocol.protocolClassNameFromID(self._protocol)
-		return "Method: " + self._method + ", Protocol: " + (protocolName if protocolName != None and type(protocolName) == str else "Unknown protocol \"" + str(self._protocol) + '"') + "\
+		return "Method: " + self._method + ", Protocol: " + self._protocol + "\
 , Step: " + str(self._step) + ", Current Packet String: \n" + self._packetString + ",\nSender: " + str(self._sender) + "\
 , Reciever: " + str("Unknown" if type(self._reciever) != str else self._reciever) + ", Data: " + str(self._data)
 
@@ -506,7 +517,7 @@ class Packet:
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
-		data = "" + opt(2, Packet.methodFromString(self._method)) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
+		data = "" + opt(2, Packet.methodFromString(self._method)) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			data += opt(4, len(dataPoint)) + dataPoint
 		self._packetString = data
