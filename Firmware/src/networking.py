@@ -3,7 +3,7 @@ import socket
 from .crypt import AES, RSA
 from threading import Thread, Timer, Event
 from .error import Error, Codes
-import time, random, string, re, traceback, sys
+import time, random, string, re, traceback, sys, base64
 
 # T at the beginning of each class means theoretical
 
@@ -65,19 +65,21 @@ class TSocket:
 		return False
 
 	@staticmethod
-	def getSocket(addr: TAddress):
+	def getSocket(getterIP: str = "127.0.0.1", addr: TAddress):
 		for sock in TSocket.allSockets:
 			if sock._addr == addr:
 				return sock
-		return TSocket.createNewSocket(addr)
+		if getterIP is None or type(getterIP) != str: return None
+		return TSocket.createNewSocket(getterIP, addr)
 
 	@staticmethod
-	def createNewSocket(addr: TAddress):
-		sock = TSocket(addr)
+	def createNewSocket(spawnerIP: str = "127.0.0.1", addr: TAddress):
+		sock = TSocket(spawnerIP, addr)
 		TSocket.allSockets.append(sock)
 		return sock
 
-	def __init__(self, addr: TAddress = None):
+	def __init__(self, ip: str = "127.0.0.1", addr: TAddress):
+		self._spawnedFrom = ip
 		self._addr = addr
 		self._dataHistroy = []
 		self._lastDataRecieved = None
@@ -168,7 +170,7 @@ class TNetworkable:
 	def __init__(self, isServer: bool = False, fakeRealIP: str = None):
 		self._isServer = isServer
 		self._ip = fakeRealIP
-		self._broadcastSocket = TSocket.createNewSocket(TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
+		self._broadcastSocket = TSocket.createNewSocket(fakeRealIP, TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
 		self._networkingThreads = {}
 		self._activeProtocols = {}
 		'''
@@ -227,7 +229,7 @@ class TServer(TNetworkable):
 	def __init__(self):
 		super().__init__(True, "192.168.6.60")
 		self.expectedClients = 1 # Const for now
-		self.clientsGot = 0
+		self._clientsGot = []
 		self._broadcastProtoSaved = super().spawnProtocol(self._broadcastSocket._addr, None, Broadcast_IP, args = (1,))[0]
 
 	def startBroadcasting(self):
@@ -242,7 +244,7 @@ class TServer(TNetworkable):
 	def _broadcastInThread(self):
 		addr, data = self._broadcastSocket.recieveData()
 		if data is None or not len(data): return
-		sock = TSocket.getSocket(addr)
+		sock = TSocket.getSocket(None, addr)
 		pack = Packet.fromString(data, self._broadcastSocket, addr)
 		if Packet.isValidPacket(data):
 			if pack._protocol == "BROADCAST_IP":
@@ -252,16 +254,16 @@ class TServer(TNetworkable):
 					spawned[1]._step = pack._step
 					spawned[1].step(self._broadcastSocket, addr)
 					if spawned[1]._step == 3:
-						self.clientsGot += 1
+						self._clientsGot.append(pack.getDataAt(0))
 						spawned[1]._step = 1 # Reset steps to allow for multiple uses of protocol
-					if self.clientsGot >= self.expectedClients:
+					if len(self._clientsGot) >= self.expectedClients:
 						print("Got all of the clients I need to get, ending broadcasting!")
 						super().closeThread("BroadcastingOut")
 						super().closeThread('BroadcastingIn')
 		else: sock.sendDataProtected(self._broadcastSocket, "!")
 
 	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
-		senderSock = TSocket.getSocket(addr)
+		senderSock = TSocket.getSocket(None, addr)
 		while True:
 			addr, data = senderSock.recieveData()
 			if data is None or not len(data): continue
@@ -272,6 +274,7 @@ class TClient(TNetworkable):
 
 	def __init__(self):
 		super().__init__(False, "192.168.6.62")
+		self._serversIP = ""
 
 	def waitForServer(self):
 		T = TThread(self._waitingForServerThread)
@@ -297,11 +300,12 @@ class TClient(TNetworkable):
 						spawned = super().spawnProtocol(addr, 5, Broadcast_IP, args=(pack._step,))
 						spawned[0].step(self._broadcastSocket, addr)
 						spawned = spawned[0]
+					if spawned._step == 2: self._serversIP = pack.getDataAt(0)
 					if spawned._step >= 3:
 						print("I've been confirmed and the server knows I exist, closeing listening thread!")
 						super().closeThread("ServerListening")
 						break
-			else: TSocket.getSocket(addr).sendDataProtected(self._broadcastSocket, "!")
+			else: TSocket.getSocket(None, addr).sendDataProtected(self._broadcastSocket, "!")
 
 class Protocol:
 
@@ -342,9 +346,9 @@ class Broadcast_IP(Protocol):
 		N = self.__class__.__name__.upper()
 		nS = S + 1
 		if S == 1:
-			Packet("BROADCAST_IP", N, nS, sender, reciever).build().send()
+			Packet("BROADCAST_IP", N, nS, sender, reciever).addData(sender._spawnedFrom).build().send()
 		elif S == 2:
-			Packet("CONFIRM", N, nS, sender, reciever).build().send()
+			Packet("CONFIRM", N, nS, sender, reciever).addData(sender._spawnedFrom).build().send()
 		elif S == 3:
 			Packet("AGREE", N, nS, sender, reciever).build().send()
 
@@ -488,7 +492,8 @@ class Packet:
 		for i in range(numberOfDataPoints - 1):
 			del i
 			dataLength = int(packet[8 + offset: 12 + offset])
-			packet.addData(packet[12 + offset: 12 + offset + dataLength])
+			packet.addData(base64.b64decode(packet[12 + offset: 12 + offset + dataLength], "-="))
+			offset += 4 + dataLength
 		return packet
 
 	@staticmethod
@@ -512,7 +517,7 @@ class Packet:
 
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
-		self._data.append(data)
+		self._data.append(base64.b64encode(data, "-="))
 		return self
 
 	def build(self):
@@ -522,6 +527,12 @@ class Packet:
 			data += opt(4, len(dataPoint)) + dataPoint
 		self._packetString = data
 		return self
+
+	def getDataAt(self, index: int = 0):
+		if index < 0: index = 0
+		if index >= len(self._data): index = len(self._data) - 1
+		if index == -1: raise LookupError("Unable to get data at index " + str(index))
+		return self._data[index]
 
 	def send(self):
 		if self._sender is None or self._packetString is None or len(self._packetString) == 0: return
