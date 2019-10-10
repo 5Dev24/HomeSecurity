@@ -65,7 +65,7 @@ class TSocket:
 		return False
 
 	@staticmethod
-	def getSocket(getterIP: str = "127.0.0.1", addr: TAddress):
+	def getSocket(getterIP: str = "127.0.0.1", addr: TAddress = None):
 		for sock in TSocket.allSockets:
 			if sock._addr == addr:
 				return sock
@@ -73,12 +73,12 @@ class TSocket:
 		return TSocket.createNewSocket(getterIP, addr)
 
 	@staticmethod
-	def createNewSocket(spawnerIP: str = "127.0.0.1", addr: TAddress):
+	def createNewSocket(spawnerIP: str = "127.0.0.1", addr: TAddress = None):
 		sock = TSocket(spawnerIP, addr)
 		TSocket.allSockets.append(sock)
 		return sock
 
-	def __init__(self, ip: str = "127.0.0.1", addr: TAddress):
+	def __init__(self, ip: str = "127.0.0.1", addr: TAddress = None):
 		self._spawnedFrom = ip
 		self._addr = addr
 		self._dataHistroy = []
@@ -88,9 +88,8 @@ class TSocket:
 		self._callbackID = random.randint(-1 * (2 ** 32), 2 ** 32)
 
 	def __str__(self):
-		return "Address: " + str(self._addr) + ", Data History: " + str(self._dataHistroy) + ", Last Data Recieved: " + str(self._lastDataRecieved) + ", \
-Recieve Event Set: " + str(self._recieveEvent.is_set()) + ", Recievers: " + str(self._recievers) + ", \
-and Callback ID: " + str(self._callbackID)
+		return f"Address: {self._addr}, Data History: {self._dataHistroy}, Last Data Recieved: {self._lastDataRecieved}, \
+Recieve Event Set: {self._recieveEvent.is_set()}, Recievers: {self._recievers}, and Callback ID: {self._callbackID}"
 
 	def recieve(self, addr: TAddress = None, data: TData = None):
 		if not (type(data) is TData): return
@@ -124,7 +123,6 @@ and Callback ID: " + str(self._callbackID)
 		if type(reciever) is str:
 			data = reciever
 			reciever = self._addr
-			print("Invalid format, correcting!")
 		if not (reciever is None) and reciever.addr[0] != "<broadcast>":
 			return TSocket.sendDataProtected(reciever, data)
 		if type(reciever) is TAddress and reciever.addr[0] == "<broadcast>":
@@ -152,12 +150,11 @@ class TThread:
 			while not self._stop and self._running:
 				try: self._target(*self._args, **self._kwargs)
 				except BaseException:
-					print("Theoretical Thread threw an error (1), closing thread\n" + traceback.format_exc())
+					print(f"Theoretical Thread threw an error (1), closing thread\n{traceback.format_exc()}")
 					break
 		else:
 			try: self._target(*self._args, **self._kwargs)
-			except BaseException:
-				print("Theoretical Thread threw an error (2), closing thread\n" + traceback.format_exc())
+			except BaseException: print(f"Theoretical Thread threw an error (2), closing thread\n{traceback.format_exc()}")
 		self.stop()
 		del self._internalThread, self._target, self._args, self._kwargs
 
@@ -173,17 +170,6 @@ class TNetworkable:
 		self._broadcastSocket = TSocket.createNewSocket(fakeRealIP, TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
 		self._networkingThreads = {}
 		self._activeProtocols = {}
-		'''
-		{
-			TAddress: [
-				Protocol,
-				Protocol
-			],
-			TAddress: [
-				Protocol
-			]
-		}
-		'''
 
 	def isIP(self, ipaddr: str = None):
 		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False
@@ -251,13 +237,13 @@ class TServer(TNetworkable):
 				spawned = super().hasProtocolSpawned(addr, Broadcast_IP)
 				if spawned[0]:
 					if spawned[1].expectedNextStep() != pack._step: return
+					if not spawned[1].isServersTurn(): return
 					spawned[1]._step = pack._step
 					spawned[1].step(self._broadcastSocket, addr)
 					if spawned[1]._step == 3:
 						self._clientsGot.append(pack.getDataAt(0))
 						spawned[1]._step = 1 # Reset steps to allow for multiple uses of protocol
 					if len(self._clientsGot) >= self.expectedClients:
-						print("Got all of the clients I need to get, ending broadcasting!")
 						super().closeThread("BroadcastingOut")
 						super().closeThread('BroadcastingIn')
 		else: sock.sendDataProtected(self._broadcastSocket, "!")
@@ -293,16 +279,17 @@ class TClient(TNetworkable):
 					spawned = super().hasProtocolSpawned(addr, Broadcast_IP)
 					if spawned[0]:
 						if spawned[1].expectedNextStep() != pack._step: continue
+						if spawned[1].isServersTurn(): continue
 						spawned[1]._step = pack._step
 						spawned[1].step(self._broadcastSocket, addr)
 						spawned = spawned[1]
 					else:
 						spawned = super().spawnProtocol(addr, 5, Broadcast_IP, args=(pack._step,))
+						if spawned[0].isServersTurn(): continue
 						spawned[0].step(self._broadcastSocket, addr)
 						spawned = spawned[0]
 					if spawned._step == 2: self._serversIP = pack.getDataAt(0)
 					if spawned._step >= 3:
-						print("I've been confirmed and the server knows I exist, closeing listening thread!")
 						super().closeThread("ServerListening")
 						break
 			else: TSocket.getSocket(None, addr).sendDataProtected(self._broadcastSocket, "!")
@@ -357,8 +344,8 @@ class Broadcast_IP(Protocol):
 
 class Key_Exchange(Protocol):
 
-	def __init__(self, step: int = 0, clientKey: str = None, serverKey: str = None):
-		self.keys = (clientKey, serverKey)
+	def __init__(self, step: int = 0):
+		self.keys = ("", "")
 		super().__init__(step)
 
 	def _generateAESFromKeys(self):
@@ -377,77 +364,7 @@ class Key_Exchange(Protocol):
 			newKey[newKey.index(" ")] = characters[random.randint(0, len(longKey) - 1)] # Set the next empty index to be a random character from the character list
 		return AES("".join(newKey)) # Create a new AES object using the newly made pseudo random key
 
-	def step(self, reciever: socket.socket = None):
-		S = self._step # Step
-		N = self.__class__.__name__.upper() # Name of protocol
-		nS = S + 1 # Next step
-		if S == 1: # Client
-			Packet("QUERY_DATA", N, nS, reciever).addData("SERVER_RSA_KEY").build().send()
-		elif S == 2: # Server
-			# Get server's public rsa key
-			Packet("QUERY_RESPONSE", N, nS, reciever).addData("Server's RSA key").build().send()
-		elif S == 3: # Client
-			# Use server's rsa key to encrypt client rsa key
-			Packet("DATA", N, nS, reciever).addData("Their key encrypted with the server's RSA key").build().send()
-		elif S == 4: # Server
-			# Decrypt client's rsa key using server's private key
-			# Use client's rsa key to encrypt a random message
-			Packet("DATA", N, nS, reciever).addData("Random string encrypted with the clients RSA key").build().send()
-		elif S == 5: # Client
-			# Decrypt the random message sent by the server
-			# Send back the message
-			Packet("CONFIRM", N, nS, reciever).addData("Decrypted random string sent originally by server").build().send()
-		elif S == 6: # Server
-			# Server checks if they match
-			# If True
-			Packet("AGREE", N, S, reciever).build().send()
-			# Generate new, random, AES key and encrypt it with the client's rsa key
-			# Generate a random message and encrypt it with the AES key
-			Packet("DATA", N, nS, reciever).addData("Encrypted AES key").addData("Message encrypted with AES").build().send()
-			# If False
-			#Packet("DISAGREE", N, 1, reciever).build().send()
-		elif S == 7: # Client
-			# Decrypts the AES key using their private key
-			# Decrypts message encrypted with AES
-			Packet("CONFIRM", N, nS, reciever).addData("Decrypted message").build().send()
-		elif S == 8: # Server
-			# Verifies that the messages match
-			# If True
-			Packet("AGREE", N, nS, reciever).build().send()
-			# If False
-			#Packet("DISAGREE", N, 6, reciever).build().send()
-			#self._step = 6
-			#self.step(reciever)
-		elif S == 9: # Client
-			# Gets the previously sent unique ID for communication
-			# DEAD Packet("DATA", N, nS, reciever).addData("The client's unique id").build().send()
-			pass
-		elif S == 10: # Server
-			# Verfy that the unique id sent by the client matches one in the database (local file)
-			# If True
-			# Client is now trusted
-			# DEAD Packet("AGREE", N, S, reciever).build().send()
-			# Generate new unique id to be used for next communication
-			# DEAD Packet("DATA", N, nS, reciever).addData("Client's new unique id").build().send()
-			# If False
-			# Decrease number of remaining tries, if tries <= 0: halt communications (Default number of tries = 3)
-			# Packet("DISAGREE", N, 9, reciever).build().send()
-			pass
-		elif S == 11: # Client
-			# Client gets id and save it, then sends it back to verify they have the same unique id
-			Packet("CONFIRM", N, nS, reciever).addData("The Client's new unique id, checking").build().send()
-		elif S == 12: # Server
-			# Verify that the new ids match
-			# If True
-			Packet("AGREE", N, nS, reciever).build().send()
-			# Save unique id to database for next communication
-			# If False
-			# Packet("DISAGREE", N, 11, reciever).addData("Client's new unique id").build().send()
-		elif S == 13: # Client
-			# Save new key to file
-			Packet("CONFIRM", N, nS, reciever).build().send()
-		elif S == 14: # Server
-			reciever.close() # Close connection
+	def step(self, sender: TSocket = None, reciever: TAddress = None): pass
 
 	def isServersTurn(self):
 		return self._step % 2 == 0
@@ -487,14 +404,16 @@ class Packet:
 		protoID = int(packet[2:4])
 		step = int(packet[4:6])
 		numberOfDataPoints = int(packet[6:8])
-		packet = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step, sender, recievedFrom)
+		packetInstance = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step, sender, recievedFrom)
 		offset = 0
-		for i in range(numberOfDataPoints - 1):
+		for i in range(numberOfDataPoints):
 			del i
-			dataLength = int(packet[8 + offset: 12 + offset])
-			packet.addData(base64.b64decode(packet[12 + offset: 12 + offset + dataLength], "-="))
+			dataLength = int(packet[8 + offset: 12 + offset]) + 1
+			rawData = packet[12 + offset: 12 + offset + dataLength]
+			decodedData = base64.b64decode(rawData.encode("utf-8"), b"-=").decode("utf-8")
+			packetInstance.addData(decodedData)
 			offset += 4 + dataLength
-		return packet
+		return packetInstance
 
 	@staticmethod
 	def isValidPacket(packet: str = None):
@@ -511,27 +430,28 @@ class Packet:
 		self._data = []
 
 	def __str__(self):
-		return "Method: " + self._method + ", Protocol: " + self._protocol + "\
-, Step: " + str(self._step) + ", Current Packet String: \n" + self._packetString + ",\nSender: " + str(self._sender) + "\
-, Reciever: " + str("Unknown" if type(self._reciever) != str else self._reciever) + ", Data: " + str(self._data)
+		return f"Method: {self._method}, Protocol: {self._protocol}, Step: {self._step}\
+, Current Packet String: \n{self._packetString},\nSender: {self._sender}\
+, Reciever: " + ("Unknown" if type(self._reciever) != str else self._reciever) + f", Data: {self._data}"
 
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
-		self._data.append(base64.b64encode(data, "-="))
+		self._data.append(data)
 		return self
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
 		data = "" + opt(2, Packet.methodFromString(self._method)) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
-			data += opt(4, len(dataPoint)) + dataPoint
+			encodedData = base64.b64encode(dataPoint.encode("utf-8"), b"-=").decode("utf-8")
+			data += opt(4, len(encodedData) - 1) + encodedData
 		self._packetString = data
 		return self
 
 	def getDataAt(self, index: int = 0):
 		if index < 0: index = 0
 		if index >= len(self._data): index = len(self._data) - 1
-		if index == -1: raise LookupError("Unable to get data at index " + str(index))
+		if index == -1: raise LookupError(f"Unable to get data at index {index}")
 		return self._data[index]
 
 	def send(self):
