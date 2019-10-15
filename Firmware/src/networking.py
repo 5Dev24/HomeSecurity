@@ -7,6 +7,8 @@ import time, random, string, re, traceback, sys, base64
 
 # T at the beginning of each class means theoretical
 
+Characters = string.punctuation + string.digits + longKey + string.ascii_letters
+
 class TPorts:
 
 	SEND_RECIEVE = 2
@@ -173,7 +175,7 @@ class TNetworkable:
 
 	def isIP(self, ipaddr: str = None):
 		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False
-		return re.match("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}", ipaddr)
+		return re.match("((\\.)*\\d{1,3}){4}", ipaddr)
 
 	def spawnThread(self, threadName: str = None, threadTarget = None, loop: bool = False, args = (), kwargs = {}):
 		self.closeThread(threadName)
@@ -216,6 +218,7 @@ class TServer(TNetworkable):
 		super().__init__(True, "192.168.6.60")
 		self.expectedClients = 1 # Const for now
 		self._clientsGot = []
+		self._confirmedClients = {}
 		self._broadcastProtoSaved = super().spawnProtocol(self._broadcastSocket._addr, None, Broadcast_IP, args = (1,))[0]
 
 	def startBroadcasting(self):
@@ -225,7 +228,7 @@ class TServer(TNetworkable):
 	def _broadcastOutThread(self):
 		self._broadcastProtoSaved._step = 1
 		self._broadcastProtoSaved.step(self._broadcastSocket, self._broadcastSocket._addr)
-		time.sleep(5)
+		time.sleep(10)
 
 	def _broadcastInThread(self):
 		addr, data = self._broadcastSocket.recieveData()
@@ -241,18 +244,22 @@ class TServer(TNetworkable):
 					spawned[1]._step = pack._step
 					spawned[1].step(self._broadcastSocket, addr)
 					if spawned[1]._step == 3:
-						self._clientsGot.append(pack.getDataAt(0))
+						ip = pack.getDataAt(0)
+						if super().isIP(ip): self._clientsGot.append(addr)
 						spawned[1]._step = 1 # Reset steps to allow for multiple uses of protocol
 					if len(self._clientsGot) >= self.expectedClients:
 						super().closeThread("BroadcastingOut")
 						super().closeThread('BroadcastingIn')
+						#for client in self._clientsGot:
+						#	key = "".join([Characters[random.randint(0, len(Characters) - 1)] for i in range(54)])
+						#	super().spawnThread("commThread-" + key, self._communicationThread, False, args=("commThread-" + key, client)).start()
 		else: sock.sendDataProtected(self._broadcastSocket, "!")
 
 	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
 		senderSock = TSocket.getSocket(None, addr)
 		while True:
-			addr, data = senderSock.recieveData()
-			if data is None or not len(data): continue
+			#addr, data = senderSock.recieveData()
+			#if data is None or not len(data): continue
 			super().closeThread(thrdName)
 			break
 
@@ -260,7 +267,7 @@ class TClient(TNetworkable):
 
 	def __init__(self):
 		super().__init__(False, "192.168.6.62")
-		self._serversIP = ""
+		self._serversIP = None
 
 	def waitForServer(self):
 		T = TThread(self._waitingForServerThread)
@@ -288,8 +295,10 @@ class TClient(TNetworkable):
 						if spawned[0].isServersTurn(): continue
 						spawned[0].step(self._broadcastSocket, addr)
 						spawned = spawned[0]
-					if spawned._step == 2: self._serversIP = pack.getDataAt(0)
-					if spawned._step >= 3:
+					if spawned._step == 2:
+						ip = pack.getDataAt(0)
+						if super().isIP(ip): self._serversIP = addr
+					if spawned._step >= 3 and self._serversIP != None:
 						super().closeThread("ServerListening")
 						break
 			else: TSocket.getSocket(None, addr).sendDataProtected(self._broadcastSocket, "!")
@@ -351,17 +360,16 @@ class Key_Exchange(Protocol):
 	def _generateAESFromKeys(self):
 		longKey = "".join(self.keys) # Merges both keys together
 		pseudoRandomNumber = "".join([ord(c) for c in longKey]) # Get the unicode code point for each character and put them together
-		random.seed(pseudoRandomNumber) # Set the random see to be the pseudo random number
+		rand = random.Random(pseudoRandomNumber) # Set the random seed to be the pseudo random number
 		split = [] # Empty split
 		split[:] = pseudoRandomNumber # Split the pseudo random number into each number
 		ranLength = len(longKey) * 2 # The random length is the length of the keys multiplied by 2
-		ran = random.randint(int("1" + ("0" * (ranLength - 1)), int("9" * int(ranLength))), 2) # Generate a new random seed from the pseudo random number
-		random.seed(ran) # Set the new seed
+		ran = rand.randint(int("1" + ("0" * (ranLength - 1)), int("9" * int(ranLength))), 2) # Generate a new random seed from the pseudo random number
+		rand.seed(ran) # Set the new seed
 		newKey = [] # Empty new key
 		newKey[:] = " " * len(longKey) # Create an empty list of empty characters
-		characters = string.punctuation + string.digits + longKey + string.ascii_letters # Make a new list of characters
 		while newKey.count(" "): # While the new key still has an empty index that can be written to
-			newKey[newKey.index(" ")] = characters[random.randint(0, len(longKey) - 1)] # Set the next empty index to be a random character from the character list
+			newKey[newKey.index(" ")] = Characters[rand.randint(0, len(longKey) - 1)] # Set the next empty index to be a random character from the character list
 		return AES("".join(newKey)) # Create a new AES object using the newly made pseudo random key
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None): pass
