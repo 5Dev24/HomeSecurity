@@ -7,7 +7,7 @@ import time, random, string, re, traceback, sys, base64
 
 # T at the beginning of each class means theoretical
 
-Characters = string.punctuation + string.digits + longKey + string.ascii_letters
+Characters = string.punctuation + string.digits + string.ascii_letters
 
 class TPorts:
 
@@ -368,8 +368,8 @@ class Key_Exchange(Protocol):
 		rand.seed(ran) # Set the new seed
 		newKey = [] # Empty new key
 		newKey[:] = " " * len(longKey) # Create an empty list of empty characters
-		while newKey.count(" "): # While the new key still has an empty index that can be written to
-			newKey[newKey.index(" ")] = Characters[rand.randint(0, len(longKey) - 1)] # Set the next empty index to be a random character from the character list
+		while newKey.count(" ") > 0: # While the new key still has an empty index that can be written to
+			newKey[newKey.index(" ")] = rand.choice(Characters) # Set the next empty index to be a random character from the character list
 		return AES("".join(newKey)) # Create a new AES object using the newly made pseudo random key
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None): pass
