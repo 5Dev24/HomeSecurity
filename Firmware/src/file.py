@@ -1,6 +1,7 @@
 from os import remove, access as hasPerm
 from os import R_OK, W_OK, X_OK, F_OK
 from os.path import abspath
+import re
 
 class File:
 
@@ -105,10 +106,75 @@ class ListFile(File):
 	def clear(self):
 		self.writeList([])
 
-class Dictionary(File):
+class BaseExceptionForFiles(Exception):
 
-	def writeDictionary(self, data: dict = None): pass
-	def readDictionary(self): pass
-	def addKey(self, key = None, value = None): pass
-	def overwriteKey(self, key = None, value = None): pass
-	def removeKey(self, key = None): pass
+	def __init__(self, originClass: None, cause: str = None, *args, **kwargs):
+		self.__source__ = originClass.__name__.upper()
+		self.__cause__ = cause
+		super().__init__(self, "Error Origin: " + self.__source__ + ", Cause: " + self.__cause__, *args, **kwargs)
+
+	def __str__(self):
+		return "Error Origin: " + self.__source__ + ", Cause: " + self.__cause__
+
+class InvalidFormat(BaseExceptionForFiles): pass
+class OverwriteError(BaseExceptionForFiles): pass
+
+class DictFile(File):
+
+	def writeDict(self, data: dict = None):
+		def _write(file, data):
+			try:
+				if type(data) != dict: return False
+				for key, val in data.items():
+					if key != None and val != None:
+						sanKey = str(key).replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")
+						sanVal = str(val).replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")
+						file.write(str(len(sanKey)) + ":" + str(key) + str(len(sanVal)) + ":" + str(val) + "\n")
+					else: return False
+				return True
+			except Exception: return False
+		if type(data) != dict: return False
+		return super()._fileInstance("w", _write, args = (data,))
+
+	def readDict(self):
+		def _read(file):
+			def helper(inputString):
+				split = inputString.split(":")
+				keyLength = int(split[0])
+				return (inputString[len(str(keyLength)) + 1:keyLength + len(str(keyLength)) + 1], keyLength + len(str(keyLength)) + 1)
+			try:
+				output = {}
+				for line in file.readlines():
+					if len(re.compile("[\\d:]+").split(line)) < 2: raise InvalidFormat(DictFile, "Invalid Dictionary Format")
+					try:
+						keyOut = helper(line)
+						valueOut = helper(line[keyOut[1]:])
+						key = keyOut[0].replace("\n", "").replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t").replace("\\b", "\b")
+						val = valueOut[0].replace("\n", "").replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t").replace("\\b", "\b")
+						try: output[key] = val
+						except KeyError: pass
+					except ValueError: pass
+				return output
+			except Exception: return False
+			return False
+		return super()._fileInstance("r", _read)
+
+	def addKey(self, key = None, value = None):
+		data = self.readDict()
+		if key in data: raise OverwriteError(DictFile, f"Cannot add key \"{key}\" as it already exists")
+		else:
+			data[key] = value
+			return self.writeDict(data)
+
+	def overwriteKey(self, key = None, value = None):
+		data = self.readDict()
+		if key in data:
+			data[key] = value
+			return self.writeDict(data)
+		else: raise KeyError(f"Cannot override key \"{key}\" as it isn't in the dictionary")
+
+	def removeKey(self, key = None):
+		data = self.readDict()
+		if key in data:
+			del data[key]
+			return self.writeDict(data)
