@@ -180,3 +180,14 @@ class DictFile(File):
 		else: raise KeyError(f"Cannot remove key \"{key}\" as it is not in the dictionary")
 
 	def clear(self): return self.writeDict({})
+
+class RSAKeys(DictFile):
+
+	def __init__(self, keys: tuple = None):
+		if keys is None or type(keys) != tuple: keys = (None, None)
+		keys = keys[0:2]
+		while len(keys) < 2: keys = keys + (None,)
+		self.keys = keys
+
+	def saveKeys(self): return super().writeDict({"Private Key": self.keys[0], "Public Key": self.keys[1]})
+	def getKeys(self): return super().readDict()
