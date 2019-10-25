@@ -101,20 +101,19 @@ class ListFile(File):
 		tmp = self.readList()
 		if not tmp or tmp is None: tmp = []
 		tmp.append(element)
-		self.writeList(tmp)
+		return self.writeList(tmp)
 
-	def clear(self):
-		self.writeList([])
+	def clear(self): return self.writeList([])
 
 class BaseExceptionForFiles(Exception):
 
-	def __init__(self, originClass: None, cause: str = None, *args, **kwargs):
+	def __init__(self, originClass = None, cause = None, *args, **kwargs):
 		self.__source__ = originClass.__name__.upper()
-		self.__cause__ = cause
-		super().__init__(self, "Error Origin: " + self.__source__ + ", Cause: " + self.__cause__, *args, **kwargs)
+		self.cause = cause
+		super().__init__(self, f"Error Origin: {self.__source__}, Cause: {cause}", *args, **kwargs)
 
 	def __str__(self):
-		return "Error Origin: " + self.__source__ + ", Cause: " + self.__cause__
+		return f"Error Origin: {self.__source__}, Cause: {self.cause}"
 
 class InvalidFormat(BaseExceptionForFiles): pass
 class OverwriteError(BaseExceptionForFiles): pass
@@ -171,10 +170,13 @@ class DictFile(File):
 		if key in data:
 			data[key] = value
 			return self.writeDict(data)
-		else: raise KeyError(f"Cannot override key \"{key}\" as it isn't in the dictionary")
+		else: raise KeyError(f"Cannot override key \"{key}\" as it is not in the dictionary")
 
 	def removeKey(self, key = None):
 		data = self.readDict()
 		if key in data:
 			del data[key]
 			return self.writeDict(data)
+		else: raise KeyError(f"Cannot remove key \"{key}\" as it is not in the dictionary")
+
+	def clear(self): return self.writeDict({})
