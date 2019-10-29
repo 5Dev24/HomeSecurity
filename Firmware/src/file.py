@@ -1,6 +1,8 @@
 from os import remove, access as hasPerm
 from os import R_OK, W_OK, X_OK, F_OK
 from os.path import abspath
+from .crypt import RSA
+from Crypto.PublicKey import RSA as _RSA
 import re
 
 class File:
@@ -190,4 +192,20 @@ class RSAKeys(DictFile):
 		self.keys = keys
 
 	def saveKeys(self): return super().writeDict({"Private Key": self.keys[0], "Public Key": self.keys[1]})
-	def getKeys(self): return super().readDict()
+
+	def getKeys(self):
+		keysDict = super().readDict()
+		try:
+			keys = (keysDict["Private Key"], keysDict["Public Key"])
+			self.keys = keys
+			return keys
+		except KeyError: pass
+		return (None, None)
+
+	def genInstance(self): return super()._fileInstance("r", lambda f: RSA(False, _RSA.importKey(f.read())))
+
+	def loadInstance(self):
+		key = self.keys[1]
+		if key is None or not key or not len(key): key = self.keys[0]
+		if key is None or not key or not len(key): return None
+		return RSA(False, _RSA.importKey(key, passphrase=))

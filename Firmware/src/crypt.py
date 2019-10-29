@@ -13,7 +13,10 @@ from .error import Error, Codes
 CONSTS = {
 	"SALT_LENGTH": 2**24, # Length of salt
 	"AES_KEY_SIZE": 144, # Length of AES keys
-	"KEY_ITERNATIONS": 2**24 # Times to use SHA256 on key
+	"KEY_ITERNATIONS": 2**24, # Times to use SHA256 on key
+	"CLIENT_RSA": 512,
+	"SERVER_RSA": 1024,
+	"RSA_PRIME": 63
 }
 
 class AES:
@@ -130,7 +133,7 @@ class RSA:
 
 		:returns RSA: New instance spawned from the public key
 		"""
-		return RSA(isClients, _RSA.importKey(pubKeyOpenSSH, passphrase=None)) # Create key 
+		return RSA(isClients, _RSA.importKey(pubKeyOpenSSH, passphrase=None)) # Create key
 
 	def __init__(self, isClients: bool = False, rsa: object = None):
 		"""
@@ -141,7 +144,7 @@ class RSA:
 
 		:returns self: Instance
 		"""
-		if rsa is None: self._rsa = _RSA.generate(256*(8 if isClients else 16), e=getPrime(2^64 - 1)) # If no rsa was passed, generate new one
+		if rsa is None: self._rsa = _RSA.generate(CONSTS["CLIENT_RSA"] if isClients else CONSTS["SERVER_RSA"], e=getPrime(CONSTS["RSA_PRIME"])) # If no rsa was passed, generate new one
 		else: self._rsa = rsa # Save rsa if it was already created
 		self._pkcs = _PKCS.new(self._rsa, hashAlgo=_SHA256) # Save PKCS for RSA using SHA256
 
@@ -151,7 +154,15 @@ class RSA:
 
 		:returns str: The public key
 		"""
-		return self._rsa.exportKey(format="OpenSSH", passphrase=None, pkcs=1) # Get the public key in open ssh format
+		return self._rsa.publickey().export_key("PEM") # Returns the public key
+
+	def privKey(self):
+		"""
+		Gets the private key in open ssh format
+
+		:returns str: The private key
+		"""
+		return self._rsa.export_key("PEM") # Returns the private key
 
 	def verifyPubSame(self, pubKeyOpenSSH: str = None):
 		"""
