@@ -202,10 +202,12 @@ class RSAKeys(DictFile):
 		except KeyError: pass
 		return (None, None)
 
-	def genInstance(self): return super()._fileInstance("r", lambda f: RSA(False, _RSA.importKey(f.read())))
+	def loadKeysIntoRSAFromFile(self):
+		self.getKeys()
+		return self.loadAlreadySavedKeys()
 
-	def loadInstance(self):
+	def loadAlreadySavedKeys(self):
 		key = self.keys[1]
 		if key is None or not key or not len(key): key = self.keys[0]
 		if key is None or not key or not len(key): return None
-		return RSA(False, _RSA.importKey(key, passphrase=))
+		return RSA(False, _RSA.importKey(key))
