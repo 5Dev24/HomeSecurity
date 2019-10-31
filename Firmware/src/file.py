@@ -183,13 +183,30 @@ class DictFile(File):
 
 	def clear(self): return self.writeDict({})
 
-class RSAKeys(DictFile):
+class RSAFile(DictFile):
 
-	def __init__(self, keys: tuple = None):
+	@staticmethod
+	def new(file: str = None, isClient: bool = False, key: str = None):
+		rsa = RSA.new(isClient, key) if type(key) == str and len(key) else RSA(isClient)
+		f = RSAFile(file, (rsa.pubKey(), rsa.privKey()))
+		f._cryptoInstance = rsa
+		f.saveKeys()
+		return f
+
+	def __init__(self, fi: str = None, keys: tuple = None):
+		super().__init__(fi)
 		if keys is None or type(keys) != tuple: keys = (None, None)
 		keys = keys[0:2]
 		while len(keys) < 2: keys = keys + (None,)
 		self.keys = keys
+		self._cryptoInstance = None
+
+	@property
+	def crypto(self):
+		if self.keys == (None, None) or self.keys[0] == None and self.keys[1] == None: return None
+		keysSave = self.keys
+		if self.getKeys() != keysSave: self._cryptoInstance = self.loadKeysIntoRSAFromFile()
+		return self._cryptoInstance
 
 	def saveKeys(self): return super().writeDict({"Private Key": self.keys[0], "Public Key": self.keys[1]})
 
@@ -207,7 +224,7 @@ class RSAKeys(DictFile):
 		return self.loadAlreadySavedKeys()
 
 	def loadAlreadySavedKeys(self):
-		key = self.keys[1]
-		if key is None or not key or not len(key): key = self.keys[0]
+		key = self.keys[0]
+		if key is None or not key or not len(key): key = self.keys[1]
 		if key is None or not key or not len(key): return None
 		return RSA(False, _RSA.importKey(key))

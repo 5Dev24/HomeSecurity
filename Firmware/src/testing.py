@@ -1,15 +1,13 @@
 from .crypt import RSA, CONSTS
 from .networking import TThread
-import time, sys
+import time, sys, math
 
-GLOBAL_CURRENT_RSA_TEST = -1
-GLOBAL_TOTAL_RSA_TESTS = -1
 GLOBAL_TOTAL_TIME_TAKEN_RSA = -1
+GLOBAL_TOTAL_TESTS_DONE = -1
 
 def rsaTests(tests: int = 1, threads: int = 0):
-	global GLOBAL_CURRENT_RSA_TEST, GLOBAL_TOTAL_RSA_TESTS, GLOBAL_TOTAL_TIME_TAKEN_RSA
-
-	if GLOBAL_CURRENT_RSA_TEST != -1 or GLOBAL_TOTAL_RSA_TESTS != -1 or GLOBAL_TOTAL_TIME_TAKEN_RSA != -1: return
+	global GLOBAL_TOTAL_TIME_TAKEN_RSA, GLOBAL_TOTAL_TESTS_DONE
+	if GLOBAL_TOTAL_TIME_TAKEN_RSA != -1 or GLOBAL_TOTAL_TESTS_DONE != -1: return
 
 	print("Settings")
 	print("Client key:", CONSTS["CLIENT_RSA"])
@@ -20,40 +18,41 @@ def rsaTests(tests: int = 1, threads: int = 0):
 	print("Starting RSA Tests")
 
 	GLOBAL_TOTAL_TIME_TAKEN_RSA = 0
-	GLOBAL_CURRENT_RSA_TEST = 1
-	GLOBAL_TOTAL_RSA_TESTS = tests
+	GLOBAL_TOTAL_TESTS_DONE = 0
 	threadsInstances = []
 
 	if threads < 1: threads = 1
 
 	for i in range(threads):
-		T = TThread(rsaTestingThread, False, (), {"threadid": i})
+		T = TThread(rsaTestingThread, False, (), {"threadid": i, "testsToRun": math.floor(tests / threads) + (tests - tests % threads) if i == threads -1 else 0)})
 		T.start()
 		threadsInstances.append(T)
 
-	while GLOBAL_CURRENT_RSA_TEST < GLOBAL_TOTAL_RSA_TESTS + 2: continue
+	while GLOBAL_TOTAL_TESTS_DONE < tests: continue
 
 	TempText.clear()
 
 	print("Done With RSA Tests")
 	print("Average Time: {:4.2f}".format(GLOBAL_TOTAL_TIME_TAKEN_RSA / tests))
 
-def rsaTestingThread(threadid: int = 0):
-	global GLOBAL_CURRENT_RSA_TEST, GLOBAL_TOTAL_RSA_TESTS, GLOBAL_TOTAL_TIME_TAKEN_RSA
-	while GLOBAL_CURRENT_RSA_TEST <= GLOBAL_TOTAL_RSA_TESTS:
+def rsaTestingThread(threadid: int = 0, testsToRun: int = 0):
+	global GLOBAL_TOTAL_TIME_TAKEN_RSA, GLOBAL_TOTAL_TESTS_DONE
+	for test in range(testsToRun):
 		start = time.time()
 		RSA(False)
 		took = time.time() - start
-		if GLOBAL_CURRENT_RSA_TEST <= GLOBAL_TOTAL_RSA_TESTS:
-			GLOBAL_TOTAL_TIME_TAKEN_RSA += took
-			TempText.print("Thread ID: #{:d} Test #{:d}: {:5.2f} seconds".format(threadid, GLOBAL_CURRENT_RSA_TEST, took))
-			GLOBAL_CURRENT_RSA_TEST += 1
-		else: break
+		GLOBAL_TOTAL_TIME_TAKEN_RSA += took
+		GLOBAL_TOTAL_TESTS_DONE += 1
+		TempText.print("Thread ID: #{:03d} Test #{:03d}: {:08.4f} seconds".format(threadid + 1, test + 1, took))
 
 class TempText:
 
-	@staticmethod
-	def print(line: str = ""): print(line, end = "\r")
+	PreviousLineLength = 0
 
 	@staticmethod
-	def clear(): TempText.print(" " * 64)
+	def print(line: str = ""):
+		TempText.PreviousLineLength = len(line)
+		print(line, end = "\r")
+
+	@staticmethod
+	def clear(): TempText.print(" " * TempText.PreviousLineLength)
