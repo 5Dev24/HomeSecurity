@@ -119,6 +119,8 @@ class BaseExceptionForFiles(Exception):
 
 class InvalidFormat(BaseExceptionForFiles): pass
 class OverwriteError(BaseExceptionForFiles): pass
+class NoKeySaveError(BaseExceptionForFiles): pass
+class KeysNotFoundError(BaseExceptionForFiles): pass
 
 class DictFile(File):
 
@@ -186,45 +188,43 @@ class DictFile(File):
 class RSAFile(DictFile):
 
 	@staticmethod
-	def new(file: str = None, isClient: bool = False, key: str = None):
-		rsa = RSA.new(isClient, key) if type(key) == str and len(key) else RSA(isClient)
-		f = RSAFile(file, (rsa.pubKey(), rsa.privKey()))
-		f._cryptoInstance = rsa
-		f.saveKeys()
-		return f
+	def new(file: str = None, isClient: bool = False):
+		instance = RSAFile(file)
+		instance.keys = RSA(isClient, None)
+		return instance
 
-	def __init__(self, fi: str = None, keys: tuple = None):
-		super().__init__(fi)
-		if keys is None or type(keys) != tuple: keys = (None, None)
-		keys = keys[0:2]
-		while len(keys) < 2: keys = keys + (None,)
-		self.keys = keys
-		self._cryptoInstance = None
+	def __init__(self, file: str = None):
+		super().__init__(file)
 
 	@property
 	def crypto(self):
-		if self.keys == (None, None) or self.keys[0] == None and self.keys[1] == None: return None
-		keysSave = self.keys
-		if self.getKeys() != keysSave: self._cryptoInstance = self.loadKeysIntoRSAFromFile()
-		return self._cryptoInstance
+		keys = self.keys
+		key = keys[1]
+		if keys[0] != None: key = keys[0]
+		if not len(key): raise KeysNotFoundError(RSAFile, "No keys were found in the rsa file (2)")
+		return RSA.new(False, key)
 
-	def saveKeys(self): return super().writeDict({"Private Key": self.keys[0], "Public Key": self.keys[1]})
+	@property
+	def keys(self):
+		data = self.readDict()
+		if (not ("Public" in data)) and (not ("Private") in data): raise KeysNotFoundError(RSAFile, "No keys were found in the rsa file (1)")
+		return (data["Private"], data["Public"])
 
-	def getKeys(self):
-		keysDict = super().readDict()
-		try:
-			keys = (keysDict["Private Key"], keysDict["Public Key"])
-			self.keys = keys
-			return keys
-		except KeyError: pass
-		return (None, None)
-
-	def loadKeysIntoRSAFromFile(self):
-		self.getKeys()
-		return self.loadAlreadySavedKeys()
-
-	def loadAlreadySavedKeys(self):
-		key = self.keys[0]
-		if key is None or not key or not len(key): key = self.keys[1]
-		if key is None or not key or not len(key): return None
-		return RSA(False, _RSA.importKey(key))
+	@keys.setter
+	def keys(self, values: object = None):
+		if type(values) == list:
+			if len(values) > 0 and len(values) < 3:
+				self.writeDict({
+					"Private": values[0],
+					"Public": values[1]
+				})
+		elif type(values) == dict:
+			if len(values) > 0 and len(values) < 3:
+				if "Public" in values:
+					if not ("Private" in values):
+						values = {"Private": ""}.update(values)
+					self.writeDict({
+						"Private": values["Private"],
+						"Public": values["Public"]
+					})
+		else: raise NoKeySaveError(RSAFile, f"Unable to save key(s) of type {type(values)}")

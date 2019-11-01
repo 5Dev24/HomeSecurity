@@ -124,16 +124,16 @@ class RSA:
 	"""
 
 	@staticmethod
-	def new(isClients: bool = False, pubKeyOpenSSH: str = None):
+	def new(isClients: bool = False, key: str = None):
 		"""
 		Generate new RSA instance from a public key
 
 		:param isClients bool: If this is from a client
-		:param pubKeyOpenSSH str: The public key in open ssh format
+		:param key str: The public key in any format
 
-		:returns RSA: New instance spawned from the public key
+		:returns RSA: New instance spawned from a key
 		"""
-		return RSA(isClients, _RSA.importKey(pubKeyOpenSSH, passphrase=None)) # Create key
+		return RSA(isClients, _RSA.importKey(key, passphrase=None)) # Create key
 
 	def __init__(self, isClients: bool = False, rsa: object = None):
 		"""
