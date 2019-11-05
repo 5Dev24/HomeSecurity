@@ -8,6 +8,7 @@ from Crypto.Hash import SHA256 as _SHA256
 from hashlib import sha256
 import hashlib
 from .error import Error, Codes
+from string import ascii_uppercase as Alph
 
 CONSTS = {
 	"SALT_LENGTH": 2**24, # Length of salt
@@ -17,6 +18,27 @@ CONSTS = {
 	"SERVER_RSA": 2 ** 11,
 	"RSA_PRIME": 63
 }
+
+def FormatBytes(obj: object = None):
+	if type(obj) == bytes:
+		output = ""
+		for i in obj:
+			div = i // 26
+			remainder = i % 26
+			output += Alph[div - 1] + Alph[remainder - 1]
+			print(f"I: {i}, Div: {div}, Remainder: {remainder}, Output: {Alph[div - 1] + Alph[remainder - 1]}", file=open("to.txt", "a"))
+		return "".join(output)
+	elif type(obj) == str:
+		output = []
+		for i in range(0, len(obj), 2):
+			print("Chars:", obj[i] + obj[i+1])
+			a = (Alph.find(obj[i]) + 1) * 26
+			b = Alph.find(obj[i + 1]) + 1
+			c = a + b
+			#print("a:",a,"b:",b,"c:", c,end=", ")
+			output.append(c)
+		return bytes(output)
+		#return bytes([Alph.find(byteList[i:i+1]) * 26 + Alph.find(byteList[i+1:i+2]) for i in range(0, len(byteList), 2)])
 
 class AES:
 	"""
