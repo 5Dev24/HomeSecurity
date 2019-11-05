@@ -1,4 +1,3 @@
-from __future__ import annotations
 import socket
 from .crypt import AES, RSA
 from threading import Thread, Timer, Event

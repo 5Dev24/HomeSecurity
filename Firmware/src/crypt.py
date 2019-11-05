@@ -1,4 +1,3 @@
-from __future__ import annotations
 from Crypto import Random as _Ran
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES as _AES
@@ -14,8 +13,8 @@ CONSTS = {
 	"SALT_LENGTH": 2**24, # Length of salt
 	"AES_KEY_SIZE": 144, # Length of AES keys
 	"KEY_ITERNATIONS": 2**24, # Times to use SHA256 on key
-	"CLIENT_RSA": 512,
-	"SERVER_RSA": 1024,
+	"CLIENT_RSA": 2 ** 10,
+	"SERVER_RSA": 2 ** 11,
 	"RSA_PRIME": 63
 }
 
@@ -154,7 +153,7 @@ class RSA:
 
 		:returns str: The public key
 		"""
-		return self._rsa.publickey().export_key("PEM") # Returns the public key
+		return self._keyCast(self._rsa.publickey().export_key("PEM")) # Returns the public key
 
 	def privKey(self):
 		"""
@@ -162,7 +161,14 @@ class RSA:
 
 		:returns str: The private key
 		"""
-		return self._rsa.export_key("PEM") # Returns the private key
+		return self._keyCast(self._rsa.export_key("PEM")) # Returns the private key
+
+	def _keyCast(self, key = None):
+		if type(key) == bytes: key = key.decode("utf-8")
+		finalKey = [k for k in key.split("\n")]
+		del finalKey[0]
+		del finalKey[len(finalKey) - 1]
+		return "".join(finalKey)
 
 	def verifyPubSame(self, pubKeyOpenSSH: str = None):
 		"""
@@ -185,7 +191,7 @@ class RSA:
 		:returns str: The encrypted message
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption") # If message is empty, throw error
-		return self._pkcs.encrypt(msg).decode("utf-8")
+		return self._pkcs.encrypt(bytes(msg, "utf-8"))
 
 	def decrypt(self, msg: str = None):
 		"""

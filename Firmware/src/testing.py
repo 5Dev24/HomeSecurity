@@ -24,7 +24,7 @@ def rsaTests(tests: int = 1, threads: int = 0):
 	if threads < 1: threads = 1
 
 	for i in range(threads):
-		T = TThread(rsaTestingThread, False, (), {"threadid": i, "testsToRun": math.floor(tests / threads) + (tests - tests % threads) if i == threads -1 else 0)})
+		T = TThread(rsaTestingThread, False, (), {"threadid": i, "testsToRun": math.floor(tests / threads) + (tests - tests % threads) if i == threads -1 else 0})
 		T.start()
 		threadsInstances.append(T)
 

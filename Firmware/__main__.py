@@ -1,11 +1,16 @@
 #!usr/bin/python3
 
-from __future__ import annotations
 from src.file import RSAFile
-import time
-import sys
 
 def main():
-	RSAFile.new("test.test", False, None)
+	f = RSAFile.new("test.test", False)
+	print(f.keys)
+	rsa = f.crypto
+	originalMsg = "Test Message To Test The Encryption Of RSA That Was Saved To A File Before!"
+	print("Original Msg:", originalMsg)
+	encrypt_msg = rsa.encrypt(originalMsg)
+	print("Encrypted Msg:", encrypt_msg)
+	decrypt_msg = rsa.decrypt(encrypt_msg)
+	print("Decrypted Msg:", decrypt_msg)
 
 if __name__ == "__main__": main()

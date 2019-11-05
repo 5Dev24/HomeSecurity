@@ -3,7 +3,7 @@ from os import R_OK, W_OK, X_OK, F_OK
 from os.path import abspath
 from .crypt import RSA
 from Crypto.PublicKey import RSA as _RSA
-import re
+import re, math
 
 class File:
 
@@ -190,7 +190,8 @@ class RSAFile(DictFile):
 	@staticmethod
 	def new(file: str = None, isClient: bool = False):
 		instance = RSAFile(file)
-		instance.keys = RSA(isClient, None)
+		rsa = RSA(isClient, None)
+		instance.keys = (rsa.privKey(), rsa.pubKey())
 		return instance
 
 	def __init__(self, file: str = None):
@@ -199,10 +200,13 @@ class RSAFile(DictFile):
 	@property
 	def crypto(self):
 		keys = self.keys
-		key = keys[1]
-		if keys[0] != None: key = keys[0]
+		key = "-----BEGIN PUBLIC KEY-----\n" + self._cryptoSplit(keys[1], 64) + "\n-----END PUBLIC KEY-----"
+		if len(keys[0]): key = "-----BEGIN RSA PRIVATE KEY-----\n" + self._cryptoSplit(keys[0], 64) + "\n-----END RSA PRIVATE KEY-----"
 		if not len(key): raise KeysNotFoundError(RSAFile, "No keys were found in the rsa file (2)")
-		return RSA.new(False, key)
+		return RSA.new(False, bytes(key, "utf-8"))
+
+	def _cryptoSplit(self, key: str = None, length: int = 1):
+		return "\n".join([key[length * i:length * (i + 1)] for i in range(math.ceil(len(key) / length))])
 
 	@property
 	def keys(self):
@@ -212,19 +216,12 @@ class RSAFile(DictFile):
 
 	@keys.setter
 	def keys(self, values: object = None):
-		if type(values) == list:
+		if type(values) == list or type(values) == tuple:
 			if len(values) > 0 and len(values) < 3:
-				self.writeDict({
-					"Private": values[0],
-					"Public": values[1]
-				})
+				self.writeDict({ "Private": values[0], "Public": values[1] })
 		elif type(values) == dict:
 			if len(values) > 0 and len(values) < 3:
 				if "Public" in values:
-					if not ("Private" in values):
-						values = {"Private": ""}.update(values)
-					self.writeDict({
-						"Private": values["Private"],
-						"Public": values["Public"]
-					})
-		else: raise NoKeySaveError(RSAFile, f"Unable to save key(s) of type {type(values)}")
+					if not ("Private" in values): values = {"Private": ""}.update(values)
+					self.writeDict({ "Private": values["Private"], "Public": values["Public"] })
+		else: raise NoKeySaveError(RSAFile, f"Unable to save key(s) of the type {type(values).__name__}")
