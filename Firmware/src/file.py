@@ -194,6 +194,17 @@ class RSAFile(DictFile):
 		instance.keys = (rsa.privKey(), rsa.pubKey())
 		return instance
 
+	@staticmethod
+	def newOrFrom(file: str = None, isClient: bool = False):
+		instance = RSAFile(file)
+		try:
+			instance.crypto
+			return instance
+		except KeysNotFoundError:
+			rsa = RSA(isClient, None)
+			instance.keys = (rsa.privKey(), rsa.pubKey())
+			return instance
+
 	def __init__(self, file: str = None):
 		super().__init__(file)
 
@@ -211,7 +222,7 @@ class RSAFile(DictFile):
 	@property
 	def keys(self):
 		data = self.readDict()
-		if (not ("Public" in data)) and (not ("Private") in data): raise KeysNotFoundError(RSAFile, "No keys were found in the rsa file (1)")
+		if (type(data) != dict or (not ("Public" in data)) and (not ("Private") in data)): raise KeysNotFoundError(RSAFile, "No keys were found in the rsa file (1)")
 		return (data["Private"], data["Public"])
 
 	@keys.setter
