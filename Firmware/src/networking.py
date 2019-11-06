@@ -249,18 +249,6 @@ class TServer(TNetworkable):
 					if len(self._clientsGot) >= self.expectedClients:
 						super().closeThread("BroadcastingOut")
 						super().closeThread('BroadcastingIn')
-						#for client in self._clientsGot:
-						#	key = "".join([Characters[random.randint(0, len(Characters) - 1)] for i in range(54)])
-						#	super().spawnThread("commThread-" + key, self._communicationThread, False, args=("commThread-" + key, client)).start()
-		else: sock.sendDataProtected(self._broadcastSocket, "!")
-
-	def _communicationThread(self, thrdName: str = None, addr: TAddress = None):
-		senderSock = TSocket.getSocket(None, addr)
-		while True:
-			#addr, data = senderSock.recieveData()
-			#if data is None or not len(data): continue
-			super().closeThread(thrdName)
-			break
 
 class TClient(TNetworkable):
 
@@ -371,7 +359,13 @@ class Key_Exchange(Protocol):
 			newKey[newKey.index(" ")] = rand.choice(Characters) # Set the next empty index to be a random character from the character list
 		return AES("".join(newKey)) # Create a new AES object using the newly made pseudo random key
 
-	def step(self, sender: TSocket = None, reciever: TAddress = None): pass
+	def step(self, sender: TSocket = None, reciever: TAddress = None):
+		S = self._step
+		N = self.__class__.__name__.upper()
+		nS = S + 1
+		if S == 1:
+			Packet("QUERY_DATA")
+		elif S == 2: pass
 
 	def isServersTurn(self):
 		return self._step % 2 == 0
