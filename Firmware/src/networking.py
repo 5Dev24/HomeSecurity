@@ -1,5 +1,6 @@
 import socket
 from .crypt import AES, RSA
+from hashlib import sha256
 from threading import Thread, Timer, Event
 from .error import Error, Codes
 import time, random, string, re, traceback, sys, base64
@@ -35,7 +36,6 @@ class TAddress:
 	def free(self):
 		self.registered = False
 		TAddress.allAddresses.remove(self)
-		del self
 
 class TData:
 
@@ -320,7 +320,7 @@ class Protocol:
 
 	def isServersTurn(self): raise NotImplementedError
 
-	def step(self, sender: TSocket = None, reciever: TAddress = None): raise NotImplementedError
+	def step(self, sender: TSocket = None, reciever: TAddress = None, *args, **kwargs): raise NotImplementedError
 
 class Broadcast_IP(Protocol):
 
@@ -329,11 +329,11 @@ class Broadcast_IP(Protocol):
 		N = self.__class__.__name__.upper()
 		nS = S + 1
 		if S == 1:
-			Packet("BROADCAST_IP", N, nS, sender, reciever).addData(sender._spawnedFrom).build().send()
+			Packet("BROADCAST_IP", N, nS, sender, reciever).addData(sender._spawnedFrom).finalize()
 		elif S == 2:
-			Packet("CONFIRM", N, nS, sender, reciever).addData(sender._spawnedFrom).build().send()
+			Packet("CONFIRM", N, nS, sender, reciever).addData(sender._spawnedFrom).finalize()
 		elif S == 3:
-			Packet("AGREE", N, nS, sender, reciever).build().send()
+			Packet("AGREE", N, nS, sender, reciever).finalize()
 
 	def isServersTurn(self):
 		return self._step % 2 == 1
@@ -341,31 +341,30 @@ class Broadcast_IP(Protocol):
 class Key_Exchange(Protocol):
 
 	def __init__(self, step: int = 0):
-		self.keys = ("", "")
+		self.keys = (None, None, None)
+		# 0 = Server RSA, 1 = Client RSA, 2 = Shared AES
+		self.sessionIds = ("", "")
 		super().__init__(step)
 
-	def _generateAESFromKeys(self):
-		longKey = "".join(self.keys) # Merges both keys together
-		pseudoRandomNumber = "".join([ord(c) for c in longKey]) # Get the unicode code point for each character and put them together
-		rand = random.Random(pseudoRandomNumber) # Set the random seed to be the pseudo random number
-		split = [] # Empty split
-		split[:] = pseudoRandomNumber # Split the pseudo random number into each number
-		ranLength = len(longKey) * 2 # The random length is the length of the keys multiplied by 2
-		ran = rand.randint(int("1" + ("0" * (ranLength - 1)), int("9" * int(ranLength))), 2) # Generate a new random seed from the pseudo random number
-		rand.seed(ran) # Set the new seed
-		newKey = [] # Empty new key
-		newKey[:] = " " * len(longKey) # Create an empty list of empty characters
-		while newKey.count(" ") > 0: # While the new key still has an empty index that can be written to
-			newKey[newKey.index(" ")] = rand.choice(Characters) # Set the next empty index to be a random character from the character list
-		return AES("".join(newKey)) # Create a new AES object using the newly made pseudo random key
+	def session(self, key):
+		seed = sha256((key.privKey() + str(random.randint(-(2 ** 64 - 1), 2 ** 64 - 1))).encode("utf-8")).digest()
+		rand = random.Random(seed)
+		return "".join([hex(rand.randint(0, 15)) for i in range(32)])
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None):
 		S = self._step
 		N = self.__class__.__name__.upper()
 		nS = S + 1
-		if S == 1:
-			Packet("QUERY_DATA")
-		elif S == 2: pass
+		if S == 1: # Client
+			Packet("QUERY_DATA", N, nS, sender, reciever).addData("PUB_RSA").finalize()
+		elif S == 2: # Server
+			Packet("QUERY_RESPONSE", N, nS, sender, reciever).addData(self.keys[0].pubKey()).finalize()
+		elif S == 3: # Client
+			Packet("DATA", N, nS, sender, reciever).addData(self.keys[1].encrypt(self.keys[1].privKey())).finalize()
+		elif S == 4: # Server
+			Packet("DATA", N, nS, sender, reciever).addData(self.keys[2].encrypt()).finalize()
+		elif S == 5: # Client
+			Packet("DATA", N, nS, sender, reciever).addData(self.keys[2].encrypt()).finalize()
 
 	def isServersTurn(self):
 		return self._step % 2 == 0
@@ -458,4 +457,5 @@ class Packet:
 	def send(self):
 		if self._sender is None or self._packetString is None or len(self._packetString) == 0: return
 		self._sender.sendData(self._reciever, self._packetString)
-		del self
+
+	def finalize(self): self.build().send()
