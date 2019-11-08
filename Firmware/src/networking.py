@@ -214,7 +214,7 @@ class TNetworkable:
 class TServer(TNetworkable):
 
 	def __init__(self):
-		super().__init__(True, "192.168.6.60")
+		super().__init__(True, "192.168.6.1")
 		self.expectedClients = 1 # Const for now
 		self._clientsGot = []
 		self._confirmedClients = {}
@@ -232,7 +232,6 @@ class TServer(TNetworkable):
 	def _broadcastInThread(self):
 		addr, data = self._broadcastSocket.recieveData()
 		if data is None or not len(data): return
-		sock = TSocket.getSocket(None, addr)
 		pack = Packet.fromString(data, self._broadcastSocket, addr)
 		if Packet.isValidPacket(data):
 			if pack._protocol == "BROADCAST_IP":
@@ -240,6 +239,7 @@ class TServer(TNetworkable):
 				if spawned[0]:
 					if spawned[1].expectedNextStep() != pack._step: return
 					if not spawned[1].isServersTurn(): return
+					if not spawned[1].isProperPacket(pack._step, pack._method): return
 					spawned[1]._step = pack._step
 					spawned[1].step(self._broadcastSocket, addr)
 					if spawned[1]._step == 3:
@@ -249,12 +249,14 @@ class TServer(TNetworkable):
 					if len(self._clientsGot) >= self.expectedClients:
 						super().closeThread("BroadcastingOut")
 						super().closeThread('BroadcastingIn')
+						print("Server: Done waiting for all clients!")
 
 class TClient(TNetworkable):
 
 	def __init__(self):
-		super().__init__(False, "192.168.6.62")
+		super().__init__(False, "192.168.6.2")
 		self._serversIP = None
+		self._serverSockets = [None, None]
 
 	def waitForServer(self):
 		T = TThread(self._waitingForServerThread)
@@ -262,6 +264,13 @@ class TClient(TNetworkable):
 		try: self._networkingThreads["ServerListening"].stop()
 		except KeyError: pass
 		self._networkingThreads["ServerListening"] = T
+
+	def keyExchange(self):
+		if None in self._serverSockets:
+			self._serverSockets = [TSocket.createNewSocket(self._ip, TAddress(self._serversIP, TPorts.SEND_RECIEVE)),
+				TSocket.createNewSocket(self._ip, TAddress(self._serversIP, TPorts.ENCRYPTED_SEND_RECIEVE))]
+		ex = Key_Exchange(0)
+		ex.step(self._serverSockets[0], self._serversIP)
 
 	def _waitingForServerThread(self):
 		while True:
@@ -274,12 +283,14 @@ class TClient(TNetworkable):
 					if spawned[0]:
 						if spawned[1].expectedNextStep() != pack._step: continue
 						if spawned[1].isServersTurn(): continue
+						if not spawned[1].isProperPacket(pack._step, pack._method): continue
 						spawned[1]._step = pack._step
 						spawned[1].step(self._broadcastSocket, addr)
 						spawned = spawned[1]
 					else:
 						spawned = super().spawnProtocol(addr, 5, Broadcast_IP, args=(pack._step,))
 						if spawned[0].isServersTurn(): continue
+						if not spawned[0].isProperPacket(pack._step, pack._method): continue
 						spawned[0].step(self._broadcastSocket, addr)
 						spawned = spawned[0]
 					if spawned._step == 2:
@@ -287,8 +298,8 @@ class TClient(TNetworkable):
 						if super().isIP(ip): self._serversIP = addr
 					if spawned._step >= 3 and self._serversIP != None:
 						super().closeThread("ServerListening")
+						print("Client: Done waiting for server!")
 						break
-			else: TSocket.getSocket(None, addr).sendDataProtected(self._broadcastSocket, "!")
 
 class Protocol:
 
@@ -312,17 +323,24 @@ class Protocol:
 		if name is None or type(name) != str or not (name.upper() in Protocol.allProtocols()): return -1
 		return Protocol.allProtocols().index(name)
 
-	def __init__(self, step: int = 0, *args, **kwargs):
+	def __init__(self, step: int = 0, turn: int = 0, packetMethods: list = None, *args, **kwargs):
 		self._step = step
+		self._turn = turn % 2
+		self._packets = packetMethods
 
-	def expectedNextStep(self):
-		return self._step + 2
+	def expectedNextStep(self): return self._step + 2
 
-	def isServersTurn(self): raise NotImplementedError
+	def isServersTurn(self): return self._step % 2 == self._turn
 
+	def isProperPacket(self, step: int = 0, mtd: str = None):
+		try: return mtd in self._packets[step - 1]
+		except IndexError: return False
 	def step(self, sender: TSocket = None, reciever: TAddress = None, *args, **kwargs): raise NotImplementedError
 
 class Broadcast_IP(Protocol):
+
+	def __init__(self, step: int = 0):
+		super().__init__(step, 1, (("BROADCAST_IP",), ("CONFIRM",), ("AGREE",)))
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None):
 		S = self._step
@@ -335,21 +353,19 @@ class Broadcast_IP(Protocol):
 		elif S == 3:
 			Packet("AGREE", N, nS, sender, reciever).finalize()
 
-	def isServersTurn(self):
-		return self._step % 2 == 1
-
 class Key_Exchange(Protocol):
 
 	def __init__(self, step: int = 0):
-		self.keys = (None, None, None)
+		self.keys = [None, None, None]
 		# 0 = Server RSA, 1 = Client RSA, 2 = Shared AES
-		self.sessionIds = ("", "")
-		super().__init__(step)
+		self.sessionIds = ["", ""]
+		# 0 = Server uuid, Client uuid
+		super().__init__(step, 0, (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
 
 	def session(self, key):
 		seed = sha256((key.privKey() + str(random.randint(-(2 ** 64 - 1), 2 ** 64 - 1))).encode("utf-8")).digest()
 		rand = random.Random(seed)
-		return "".join([hex(rand.randint(0, 15)) for i in range(32)])
+		return "".join([rand.choice("0123456789abcdef") for i in range(64)])
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None):
 		S = self._step
@@ -362,12 +378,11 @@ class Key_Exchange(Protocol):
 		elif S == 3: # Client
 			Packet("DATA", N, nS, sender, reciever).addData(self.keys[1].encrypt(self.keys[1].privKey())).finalize()
 		elif S == 4: # Server
-			Packet("DATA", N, nS, sender, reciever).addData(self.keys[2].encrypt()).finalize()
+			self.sessionIds[1] = self.keys[2].encrypt(self.session(self.keys[1]))
+			Packet("DATA", N, nS, sender, reciever).addData(self.sessionIds[1]).finalize()
 		elif S == 5: # Client
-			Packet("DATA", N, nS, sender, reciever).addData(self.keys[2].encrypt()).finalize()
-
-	def isServersTurn(self):
-		return self._step % 2 == 0
+			self.sessionIds[0] = self.keys[2].encrypt(self.session(self.keys[0]))
+			Packet("DATA", N, nS, sender, reciever).addData(self.sessionIds[0]).finalize()
 
 class Packet:
 
