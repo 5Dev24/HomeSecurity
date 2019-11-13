@@ -245,6 +245,7 @@ class TServer(TNetworkable):
 			super().closeThread("BroadcastingIn")
 			super().invalidateProtocol(self._broadcastSocket._addr, Broadcast_IP)
 			print("Done, Found", len(self._clientsGot), "clients which were:", self._clientsGot)
+		print("So far I have", len(self._clientsGot), "clients")
 
 class TClient(TNetworkable):
 
@@ -289,10 +290,12 @@ class ProtocolHandler:
 		def _client_Broadcast_IP():
 			spawned = self._instanceOfOwner.hasProtocolSpawned(sentBy, Broadcast_IP)
 			wasSpawned = not spawned is None
-			if not wasSpawned: spawned = self._instanceOfOwner.spawnProtocol(sentBy, 15, Broadcast_IP, args=(packet._step,))
+			if not wasSpawned: spawned = self._instanceOfOwner.spawnProtocol(sentBy, 30, Broadcast_IP, args=(packet._step,))
 			if spawned.isServersTurn(): return 0
 			if not spawned.isProperPacket(packet._step - 1, packet._method): return 0
+			print("Checking: ", spawned.expectedNextStep() != packet._step, packet._step != 2, spawned.expectedNextStep(), packet._step, packet._pack)
 			if spawned.expectedNextStep() != packet._step and wasSpawned: return 0
+			print("Check C Passed")
 			if wasSpawned: spawned._step = packet._step
 			spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, "")
 			if spawned._step == 2:
@@ -355,19 +358,13 @@ class Protocol:
 		if name is None or type(name) != str or not (name.upper() in Protocol.allProtocols()): return -1
 		return Protocol.allProtocols().index(name)
 
-	@staticmethod
-	def waitThenInvoke(callback = None, timeout: int = 3, check = None, *args, **kwargs):
-		def _threadedInvoke(callback = None, timeout: int = 3, check = None, *args, **kwargs):
-			time.sleep(timeout)
-			if check(): callback(*args, **kwargs)
-		TThread(_threadedInvoke, False, *args, **kwargs).start()
-
-	def __init__(self, step: int = 0, turn: int = 0, packetMethods: list = None, *args, **kwargs):
+	def __init__(self, step: int = 0, turn: int = 0, totalSteps: int = 0, packetMethods: list = None, *args, **kwargs):
 		self._step = step
 		self._turn = turn % 2
 		self._packets = packetMethods
+		self._total = totalSteps
 
-	def expectedNextStep(self): return self._step + 2
+	def expectedNextStep(self): return (self._step + 2) % self._total
 
 	def isServersTurn(self): return self._step % 2 == self._turn
 
@@ -380,7 +377,7 @@ class Protocol:
 class Broadcast_IP(Protocol):
 
 	def __init__(self, step: int = 0):
-		super().__init__(step, 1, (("BROADCAST_IP",), ("CONFIRM",), ("AGREE",)))
+		super().__init__(step, 1, 3, (("BROADCAST_IP",), ("CONFIRM",), ("AGREE",)))
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None, confirming: str = " "):
 		protoName = self.__class__.__name__.upper()
@@ -402,7 +399,7 @@ class Key_Exchange(Protocol):
 		# 0 = Server RSA, 1 = Client RSA, 2 = Shared AES
 		self.sessionIds = ["", ""]
 		# 0 = Server uuid, Client uuid
-		super().__init__(step, 0, (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
+		super().__init__(step, 0, 5, (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
 
 	def session(self, key):
 		seed = sha256((key.privKey() + str(random.randint(-(2 ** 64 - 1), 2 ** 64 - 1))).encode("utf-8")).digest()
@@ -458,6 +455,7 @@ class Packet:
 		step = int(packet[4:6])
 		numberOfDataPoints = int(packet[6:8])
 		packetInstance = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step)
+		packetInstance._packetString = packet
 		offset = 0
 		for i in range(numberOfDataPoints):
 			del i

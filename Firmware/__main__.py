@@ -3,7 +3,7 @@
 from src.networking import TServer, TClient
 
 def main():
-	spawnXClients(4)
+	spawnXClients(int(input()))
 	server = TServer()
 	server.startBroadcasting()
 
