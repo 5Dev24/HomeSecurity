@@ -216,7 +216,7 @@ class TNetworkable:
 
 	def _threadTimeout(self, recipient: str = None, proto = None, timeout: float = 5):
 		time.sleep(timeout)
-		print("Timeout:", self.invalidateProtocol(recipient, proto))
+		print("Client: Timeout:", self.invalidateProtocol(recipient, proto))
 
 class TServer(TNetworkable):
 
@@ -226,7 +226,7 @@ class TServer(TNetworkable):
 		self._clientsGot = []
 		self._confirmedClients = {}
 		self._broadcastProtoSaved = super().spawnProtocol(self._broadcastSocket._addr, None, Broadcast_IP, args = (1,))
-		print("My IP as a server is 192.168.6.1 and I'm looking for", self.expectedClients, "clients")
+		print("Server: My IP as a server is 192.168.6.1 and I'm looking for", self.expectedClients, "clients")
 
 	def startBroadcasting(self):
 		super().spawnThread("BroadcastingOut", self._broadcastOutThread, True).start()
@@ -235,7 +235,7 @@ class TServer(TNetworkable):
 	def _broadcastOutThread(self):
 		self._broadcastProtoSaved._step = 1
 		self._broadcastProtoSaved.step(self._broadcastSocket, self._broadcastSocket._addr, "")
-		time.sleep(5)
+		time.sleep(10)
 
 	def _broadcastInThread(self):
 		addr, data = self._broadcastSocket.recieveData()
@@ -244,8 +244,8 @@ class TServer(TNetworkable):
 			super().closeThread("BroadcastingOut")
 			super().closeThread("BroadcastingIn")
 			super().invalidateProtocol(self._broadcastSocket._addr, Broadcast_IP)
-			print("Done, Found", len(self._clientsGot), "clients which were:", self._clientsGot)
-		print("So far I have", len(self._clientsGot), "clients")
+			print("Server: Done, Found", len(self._clientsGot), "clients which were:", self._clientsGot)
+		print("Server: So far I have", len(self._clientsGot), "clients", self._clientsGot)
 
 class TClient(TNetworkable):
 
@@ -256,7 +256,7 @@ class TClient(TNetworkable):
 		super().__init__(False, "192.168.6." + str(TClient.Clients + 1))
 		self._serversIP = None
 		self._serverSockets = [None, None]
-		print("My IP as a client is " + self._ip)
+		print("Client: My IP as a client is " + self._ip)
 
 	def waitForServer(self):
 		super().spawnThread("ServerListening", self._waitingForServerThread, True).start()
@@ -274,7 +274,7 @@ class TClient(TNetworkable):
 		if self._protocolHandler.incomingPacket(data, addr) == 2:
 			super().closeThread("ServerListening")
 			super().invalidateProtocol(self._broadcastSocket._addr, Broadcast_IP)
-			print("Found server, their ip is", self._serversIP)
+			print("Client: Found server, their ip is", self._serversIP)
 
 class ProtocolHandler:
 
@@ -290,21 +290,24 @@ class ProtocolHandler:
 		def _client_Broadcast_IP():
 			spawned = self._instanceOfOwner.hasProtocolSpawned(sentBy, Broadcast_IP)
 			wasSpawned = not spawned is None
-			if not wasSpawned: spawned = self._instanceOfOwner.spawnProtocol(sentBy, 30, Broadcast_IP, args=(packet._step,))
+			if not wasSpawned: spawned = self._instanceOfOwner.spawnProtocol(sentBy, 45, Broadcast_IP, args=(2,))
+			print("Client: Is server's turn and not mine?", spawned.isServersTurn())
 			if spawned.isServersTurn(): return 0
-			if not spawned.isProperPacket(packet._step - 1, packet._method): return 0
-			print("Checking: ", spawned.expectedNextStep() != packet._step, packet._step != 2, spawned.expectedNextStep(), packet._step, packet._pack)
-			if spawned.expectedNextStep() != packet._step and wasSpawned: return 0
-			print("Check C Passed")
-			if wasSpawned: spawned._step = packet._step
-			spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, "")
-			if spawned._step == 2:
+			print("Client: Is this a proper packet?", spawned.isProperPacket(packet._step, packet._method))
+			if not spawned.isProperPacket(packet._step, packet._method): return 0
+			print("Client: Checking: ", spawned._step != packet._step, not wasSpawned, spawned._step, packet._step, str(packet))
+			if spawned._step != packet._step and not wasSpawned: return 0
+			print("Client: Check C Passed, Doing Step", spawned._step)
+			if spawned._step == 3:
 				ip = packet.getDataAt(0)
-				print("Client got IP:", ip)
+				print("Client: Got IP:", ip)
 				if self._instanceOfOwner.isIP(ip):
 					self._instanceOfOwner._serversIP = ip
-					print("Got server IP!")
-			if spawned._step >= 3 and packet.getDataAt(0) == self._instanceOfOwner._ip: return 2
+					print("Client: Got server IP!")
+			if spawned._step == -2:
+				if packet.getDataAt(0) == self._instanceOfOwner._ip: return 2
+				else: spawned._step = 2
+			else: spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, "")
 			return 1
 
 		def _server_Broadcast_IP():
@@ -312,19 +315,22 @@ class ProtocolHandler:
 			wasSpawned = not spawned is None
 			if not wasSpawned: return 0
 			else:
+				print("Server: Got packet for broadcasting, its", packet)
 				if not spawned.isServersTurn(): return 0
-				if not spawned.isProperPacket(packet._step - 1, packet._method): return 0
-				if spawned.expectedNextStep() != packet._step: return 0
-				spawned._step = packet._step
-				print("Broadcasting?", spawned._step)
-				if spawned._step >= 3:
+				print("Server: Passed A")
+				if not spawned.isProperPacket(packet._step, packet._method): return 0
+				print("Server: Passed B", spawned._step, packet._step + 1, packet._step != 3)
+				if spawned._step != packet._step + 1 and packet._step != 3: return 0
+				print("Server: Passed C")
+				print("Server: Broadcasting?", spawned._step)
+				if spawned._step >= 2:
 					ip = packet.getDataAt(0)
 					if self._instanceOfOwner.isIP(ip):
-						print("Valid IP!")
+						print("Server: Valid IP!")
 						self._instanceOfOwner._clientsGot.append(ip)
-						print("Got an ip, it is (1)", ip)
-						spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, ip)
-						print("Got an ip, it is (2)", ip)
+						print("Server: Got an ip, it is (1)", ip)
+						print(spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, ip))
+						print("Server: Got an ip, it is (2)", ip)
 					spawned._step = 1
 				else: spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, "")
 				if len(self._instanceOfOwner._clientsGot) >= self._instanceOfOwner.expectedClients: return 2
@@ -364,13 +370,15 @@ class Protocol:
 		self._packets = packetMethods
 		self._total = totalSteps
 
-	def expectedNextStep(self): return (self._step + 2) % self._total
-
 	def isServersTurn(self): return self._step % 2 == self._turn
 
 	def isProperPacket(self, step: int = 0, mtd: str = None):
 		try: return mtd in self._packets[step - 1]
 		except IndexError: return False
+
+	def inc(self):
+		self._step += 2
+		if self._step > self._total: self._step = -2
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None, *args, **kwargs): raise NotImplementedError
 
@@ -381,16 +389,25 @@ class Broadcast_IP(Protocol):
 
 	def step(self, sender: TSocket = None, reciever: TAddress = None, confirming: str = " "):
 		protoName = self.__class__.__name__.upper()
-		nextStep = self._step + 1
-		print("Doing Step", self._step)
-		if self._step == 1: # Server
-			Packet("BROADCAST_IP", protoName, nextStep).addData(sender._spawnedFrom).finalize(sender, reciever)
-		elif self._step == 2: # Client
-			Packet("CONFIRM", protoName, nextStep).addData(sender._spawnedFrom).finalize(sender, reciever)
-		elif self._step == 3: # Server
-			print("Confirming", confirming)
-			Packet("AGREE", protoName, nextStep).addData(confirming).finalize(sender, reciever)
+		step = self._step
+		print("Doing Step", step)
+		if step == 1: # Server
+			Packet("BROADCAST_IP", protoName, step).addData(sender._spawnedFrom).finalize(sender, reciever)
+		elif step == 2: # Client
+			print("Confirming server's broadcast message")
+			Packet("CONFIRM", protoName, step).addData(sender._spawnedFrom).finalize(sender, reciever)
+		elif step == 3: # Server
+			print("Confirming", confirming, protoName)
+			if confirming == "" or confirming == " ":
+				time.sleep(15)
+			p = Packet("AGREE", protoName, step)
+			print(p)
+			p.addData(confirming)
+			print(p)
+			p.finalize(sender, reciever)
+			print(p)
 			print("Packet Sent!")
+		self.inc()
 
 class Key_Exchange(Protocol):
 
