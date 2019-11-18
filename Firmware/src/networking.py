@@ -56,7 +56,7 @@ class TSocket:
 	@staticmethod
 	def sendDataProtected(sender: TAddress = None, reciever: TAddress = None, data: str = None):
 		for sock in TSocket.allSockets:
-			if sock._addr == reciever: # In a real situation, any socket could recieve this message but we're assuming that a socket only accepts messages for itself
+			if sock._addr.registered and sock._addr == reciever: # In a real situation, any socket could recieve this message but we're assuming that a socket only accepts messages for itself
 				TThread(target=sock.recieve, args=(sender, TData(data, False))).start()
 				return True
 		return False
@@ -97,9 +97,12 @@ Recieve Event Set: {self._recieveEvent.is_set()}, Recievers: {self._recievers}, 
 		self._dataHistroy.append([addr, data])
 		while len(self._dataHistroy) > 25: del self._dataHistroy[0]
 		self._lastDataRecieved = [addr, data]
-		while self._recieveEvent.is_set():
-			time.sleep(.5)
+		timeout = 0
+		while self._recieveEvent.is_set() and timeout < 3:
+			time.sleep(.05)
+			timeout += 1
 			continue
+		if timeout == 3: return
 		self._recieveEvent.set()
 
 	def recieveData(self):
@@ -124,8 +127,12 @@ Recieve Event Set: {self._recieveEvent.is_set()}, Recievers: {self._recievers}, 
 			return TSocket.sendDataProtected(reciever, data)
 		if type(reciever) is TAddress and reciever.addr[0] == "<broadcast>":
 			for sock in TSocket.allSockets:
-				if sock._addr.addr[0] == self._addr.addr[0] and sock._addr.addr[1] == self._addr.addr[1] and sock._callbackID != self._callbackID:
-					TThread(target=sock.recieve, args=(self._addr, TData(data, True))).start()
+				if sock._addr.registered and sock._addr.addr[0] == self._addr.addr[0] and sock._addr.addr[1] == self._addr.addr[1] and sock._callbackID != self._callbackID:
+					sock.recieve(self._addr, TData(data, True))
+
+	def close(self):
+		self._addr.free()
+		del TSocket.allSockets[TSocket.allSockets.index(self)]
 
 class TThread:
 
@@ -234,7 +241,7 @@ class TServer(TNetworkable):
 	def _broadcastOutThread(self):
 		self._broadcastProtoSaved._step = 0
 		self._broadcastProtoSaved.step(self._broadcastSocket, self._broadcastSocket._addr)
-		time.sleep(15)
+		time.sleep(5)
 
 	def _broadcastInThread(self):
 		addr, data = self._broadcastSocket.recieveData()
@@ -243,7 +250,9 @@ class TServer(TNetworkable):
 			super().closeThread("BroadcastingOut")
 			super().closeThread("BroadcastingIn")
 			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP)
+			self._broadcastSocket.close()
 			print("Server: Done, Found", len(self._clientsGot), "clients which were:", self._clientsGot)
+		else: print("Server: So far have:", self._clientsGot)
 
 class TClient(TNetworkable):
 
@@ -271,6 +280,7 @@ class TClient(TNetworkable):
 		if self._protocolHandler.incomingPacket(data, addr) == 2:
 			super().closeThread("ServerListening")
 			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP)
+			self._broadcastSocket.close()
 			print("Client (", self._ip, "): Found server, their ip is ", self._serversIP, " and server found me!", sep="")
 
 class ProtocolHandler:
@@ -301,7 +311,7 @@ class ProtocolHandler:
 				else:
 					spawned._step = 1
 					spawned.step(self._instanceOfOwner._broadcastSocket, sentBy)
-					#self._instanceOfOwner.invalidateProtocol(str(sentBy), Broadcast_IP)
+					self._instanceOfOwner.invalidateProtocol(str(sentBy), Broadcast_IP)
 			else: spawned.step(self._instanceOfOwner._broadcastSocket, sentBy)
 			return 1
 
@@ -315,7 +325,8 @@ class ProtocolHandler:
 			if packet._step == 2:
 				ip = packet.getDataAt(0)
 				if self._instanceOfOwner.isIP(ip):
-					self._instanceOfOwner._clientsGot.append(ip)
+					if not ip in self._instanceOfOwner._clientsGot:
+						self._instanceOfOwner._clientsGot.append(ip)
 					spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, ip)
 				spawned._step = 2
 			else: spawned.step(self._instanceOfOwner._broadcastSocket, sentBy)
