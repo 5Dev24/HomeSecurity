@@ -24,7 +24,6 @@ def FormatBytes(obj: object = None):
 		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj])
 	elif type(obj) == str:
 		output = [Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)]
-		print(output)
 		return bytes(output)
 
 class AES:
@@ -141,7 +140,20 @@ class RSA:
 
 		:returns RSA: New instance spawned from a key
 		"""
-		return RSA(isClients, _RSA.importKey(key, passphrase=None)) # Create key
+		return RSA(isClients, _RSA.importKey(key)) # Create key
+
+	@staticmethod
+	def removeExtraDetailOnKey(self, key = None):
+		print("Type of object key:", type(key))
+		if type(key) == bytes: key = key.decode("utf-8")
+		finalKey = [k for k in key.split("\n")]
+		del finalKey[0]
+		del finalKey[len(finalKey) - 1]
+		return "".join(finalKey)
+
+	@staticmethod
+	def addExtraDetailToKey(self, key: str = None, isPublic: bool = True):
+		return "-----BEGIN " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----\n" + key + "\n-----END " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----"
 
 	def __init__(self, isClients: bool = False, rsa: object = None):
 		"""
@@ -162,7 +174,9 @@ class RSA:
 
 		:returns str: The public key
 		"""
-		return self._keyCast(self._rsa.publickey().export_key("PEM")) # Returns the public key
+		key = self._rsa.publickey().export_key("PEM")
+		print("Public Key:", key)
+		return RSA.removeExtraDetailOnKey(key) # Returns the public key
 
 	def privKey(self):
 		"""
@@ -170,14 +184,7 @@ class RSA:
 
 		:returns str: The private key
 		"""
-		return self._keyCast(self._rsa.export_key("PEM")) # Returns the private key
-
-	def _keyCast(self, key = None):
-		if type(key) == bytes: key = key.decode("utf-8")
-		finalKey = [k for k in key.split("\n")]
-		del finalKey[0]
-		del finalKey[len(finalKey) - 1]
-		return "".join(finalKey)
+		return RSA.removeExtraDetailOnKey(self._rsa.export_key("PEM")) # Returns the private key
 
 	def verifyPubSame(self, pubKeyOpenSSH: str = None):
 		"""

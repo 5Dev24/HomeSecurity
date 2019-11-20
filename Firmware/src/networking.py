@@ -55,8 +55,9 @@ class TSocket:
 	@staticmethod
 	def sendDataProtected(sender: TAddress = None, receiver: TAddress = None, data: str = None):
 		for sock in TSocket.allSockets:
-			if sock._addr.registered and sock._addr == receiver: # In a real situation, any socket could receive this message but we're assuming that a socket only accepts messages for itself
+			if sock._addr.registered and str(sock._addr) == str(receiver): # In a real situation, any socket could receive this message but we're assuming that a socket only accepts messages for itself
 				TThread(target=sock.receive, args=(sender, TData(data, False))).start()
+				return
 
 	@staticmethod
 	def getSocket(getterIP: str = "127.0.0.1", addr: TAddress = None):
@@ -86,7 +87,7 @@ class TSocket:
 Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, and Callback ID: {self._callbackID}"
 
 	def receive(self, addr: TAddress = None, data: TData = None):
-		if self.close(): return
+		if self.closed(): return
 		if not (type(data) is TData): return
 		data = data.get()
 		if data is None:
@@ -104,7 +105,7 @@ Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, 
 		self._receiveEvent.set()
 
 	def receiveData(self):
-		if self.close(): return [None, None]
+		if self.closed(): return [None, None]
 		if self._receivers > 1:
 			print("2 Threads Listening For Data!")
 			return [None, None]
@@ -120,15 +121,11 @@ Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, 
 
 	def sendData(self, receiver: TAddress = None, data: str = None):
 		if self.closed(): return
-		if type(receiver) is str:
-			data = receiver
-			receiver = self._addr
-		if not (receiver is None) and receiver.addr[0] != "<broadcast>":
-			TSocket.sendDataProtected(receiver, data)
-		if type(receiver) is TAddress and receiver.addr[0] == "<broadcast>":
+		if receiver.addr[0] == "<broadcast>":
 			for sock in TSocket.allSockets:
 				if sock._addr.registered and sock._addr.addr[0] == self._addr.addr[0] and sock._addr.addr[1] == self._addr.addr[1] and sock._callbackID != self._callbackID:
 					sock.receive(self._addr, TData(data, True))
+		else: TSocket.sendDataProtected(self._addr, receiver, data)
 
 	def closed(self):
 		return not self._addr.registered
@@ -239,7 +236,7 @@ class TNetworkable:
 			return
 		addr, data = self._broadcastSocket.receiveData()
 		if data is None or not len(data): return
-		self.broadcastReceive(addr, data.get())
+		self.broadcastReceive(addr, data)
 
 	def _generalReceive(self):
 		if self._generalSocket.closed():
@@ -247,10 +244,10 @@ class TNetworkable:
 			return
 		addr, data = self._generalSocket.receiveData()
 		if data is None or not len(data): return
-		self.generalReceive(addr, data.get())
+		self.generalReceive(addr, data)
 
-	def broadcastReceive(self, addr: TAddress = None, data: str = None): raise NotImplementedError
-	def generalReceive(self, addr: TAddress = None, data: str = None): raise NotImplementedError
+	def broadcastReceive(self, addr: TAddress = None, data: str = None): raise NotImplementedError()
+	def generalReceive(self, addr: TAddress = None, data: str = None): raise NotImplementedError()
 
 class TServer(TNetworkable):
 
@@ -270,11 +267,19 @@ class TServer(TNetworkable):
 		time.sleep(5)
 
 	def broadcastReceive(self, addr: TAddress = None, data: str = None):
-		if self._protocolHandler.incomingPacket(data, addr) == 2:
+		hndl = self._protocolHandler.incomingPacket(data, addr)
+		if hndl[0] == 2:
+			super().closeThread("Broadcasting")
 			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP)
 			self._broadcastSocket.close()
 			print("Server: Done, Found", len(self._clientsGot), "clients which were:", self._clientsGot)
 		else: print("Server: So far have:", self._clientsGot)
+
+	def generalReceive(self, addr: TAddress = None, data: str = None):
+		hndl = self._protocolHandler.incomingPacket(data, addr)
+		print("Server: Handling returned", hndl[0])
+		if hndl[0] == 2:
+			super().invalidateProtocol(addr, hndl[1])
 
 class TClient(TNetworkable):
 
@@ -284,21 +289,26 @@ class TClient(TNetworkable):
 		TClient.Clients += 1
 		super().__init__(False, "192.168.6." + str(TClient.Clients + 1))
 		self._serversIP = None
-		self._serverSocket = None
 
 	def keyExchange(self):
-		if self._serverSocket == None:
-			self._serverSocket = TSocket.createNewSocket(self._ip, TAddress(self._serversIP, TPorts.SEND_RECEIVE))
-		ex = Key_Exchange(0)
+		ex = super().spawnProtocol(self._serversIP, None, Key_Exchange, args = (0,))
 		ex.keys[1] = RSA(True)
-		ex.step(self._serverSocket, self._serversIP)
+		ex.step(self._generalSocket, self._serversIP)
 
 	def broadcastReceive(self, addr: TAddress = None, data: str = None):
-		if self._protocolHandler.incomingPacket(data, addr) == 2:
+		hndl = self._protocolHandler.incomingPacket(data, addr)
+		if hndl[0] == 2:
 			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP)
 			self._broadcastSocket.close()
 			print("Client (", self._ip, "): Found server, their ip is ", self._serversIP, " and server found me!", sep="")
-			#self.keyExchange()
+			self._serversIP = TAddress(self._serversIP, TPorts.SEND_RECEIVE)
+			self.keyExchange()
+
+	def generalReceive(self, addr: TAddress = None, data: str = None):
+		hndl = self._protocolHandler.incomingPacket(data, addr)
+		print("Client: Handling returned", hndl[0])
+		if hndl[0] == 2:
+			super().invalidateProtocol(addr, hndl[1])
 
 class ProtocolHandler:
 
@@ -328,7 +338,7 @@ class ProtocolHandler:
 				else:
 					spawned._step = 1
 					spawned.step(self._instanceOfOwner._broadcastSocket, sentBy)
-					self._instanceOfOwner.invalidateProtocol(str(sentBy), Broadcast_IP)
+					self._instanceOfOwner.invalidateProtocol(sentBy, Broadcast_IP)
 			else: spawned.step(self._instanceOfOwner._broadcastSocket, sentBy)
 			return 1
 
@@ -352,36 +362,46 @@ class ProtocolHandler:
 
 		def _client_Key_Exchange():
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
+			print("Client: Recieved step", packet._step)
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously: return 0
 			if not spawned.isServersTurn(packet._step): return 0
 			if not spawned.isProperPacket(packet): return 0
 			if spawned._step != packet._step: return 0
+			print("Client: Doing work")
+			if packet._step == 2:
+				serverPubKey = RSA.addExtraDetailToKey(packet.getDataAt(0))
+				print("Adding in the servers public RSA key, which is\n", serverPubKey, sep="")
+				spawned.keys[0] = RSA.new(False, serverPubKey)
 			spawned.step(self._instanceOfOwner._generalSocket, sentBy)
 			if packet._step == 4:
 				print("Received new UUID from server")
+				return 2
 
 		def _server_Key_Exchange():
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
+			print("Server: Recieved step", packet._step)
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously:
-				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 5, Key_Exchange, args=(1,))
+				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 30, Key_Exchange, args=(1,))
 				spawned.keys[0] = RSA(False)
 			if spawned.isServersTurn(packet._step): return 0
 			if not spawned.isProperPacket(packet): return 0
 			if spawned._step != packet._step: return 0
+			print("Server: Doing work")
 			if packet._step == 5:
 				print("Final packet received containiny my new UUID")
+				return 2
 			else: spawned.step(self._instanceOfOwner._generalSocket, sentBy)
 
 		packetProto = packet._protocol
 		if packetProto == "BROADCAST_IP":
-			if self._isClient: return _client_Broadcast_IP()
-			else: return _server_Broadcast_IP()
+			if self._isClient: return (_client_Broadcast_IP(), Broadcast_IP)
+			else: return (_server_Broadcast_IP(), Broadcast_IP)
 		elif packetProto == "KEY_EXCHANGE":
-			if self._isClient: return _client_Key_Exchange()
-			else: return _server_Key_Exchange()
-		else: return -1
+			if self._isClient: return (_client_Key_Exchange(), Key_Exchange)
+			else: return (_server_Key_Exchange(), Key_Exchange)
+		else: return (-1, None)
 
 class Protocol:
 
@@ -411,15 +431,13 @@ class Protocol:
 		self._totalSteps = totalSteps
 		self._serverSteps = serverSteps
 
-	def isProtocolDone(self): self._step > self._totalSteps
-
 	def isServersTurn(self, step: int = 0): return step in self._serverSteps
 
 	def isProperPacket(self, pkt: object = None):
 		try: return pkt._method in self._packets[pkt._step - 1]
 		except IndexError: return False
 
-	def step(self, sender: TSocket = None, receiver: TAddress = None, *args, **kwargs): raise NotImplementedError
+	def step(self, sender: TSocket = None, receiver: TAddress = None, *args, **kwargs): raise NotImplementedError()
 
 class Broadcast_IP(Protocol):
 
@@ -444,7 +462,7 @@ class Key_Exchange(Protocol):
 		# 0 = Server RSA, 1 = Client RSA, 2 = Shared AES
 		self.sessionIds = ["", ""]
 		# 0 = Server uuid, Client uuid
-		super().__init__(step, 0, 5, (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
+		super().__init__(step, 0, (2, 4), (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
 
 	def session(self, key):
 		seed = sha256((key.privKey() + str(random.randint(-(2 ** 64 - 1), 2 ** 64 - 1))).encode("utf-8")).digest()
@@ -454,12 +472,15 @@ class Key_Exchange(Protocol):
 	def step(self, sender: TSocket = None, receiver: TAddress = None):
 		protoName = self.__class__.__name__.upper()
 		self._step += 1
+		print("Doing step", self._step)
 		if self._step == 1: # Client
 			Packet("QUERY_DATA", protoName, self._step).finalize(sender, receiver)
 		elif self._step == 2: # Server
+			# Server get's their own public key (0)
 			Packet("QUERY_RESPONSE", protoName, self._step).addData(self.keys[0].pubKey()).finalize(sender, receiver)
 		elif self._step == 3: # Client
-			Packet("DATA", protoName, self._step).addData(self.keys[1].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
+			# Client encrypts their private key (1) with the server's public key (0)
+			Packet("DATA", protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
 		elif self._step == 4: # Server
 			self.sessionIds[1] = self.keys[2].encrypt(self.session(self.keys[1]))
 			Packet("DATA", protoName, self._step).addData(self.sessionIds[1]).finalize(sender, receiver)
@@ -507,7 +528,7 @@ class Packet:
 			del i
 			dataLength = int(packet[8 + offset: 12 + offset]) + 1
 			rawData = packet[12 + offset: 12 + offset + dataLength]
-			decodedData = base64.b64decode(rawData.encode("utf-8"), b"-=").decode("utf-8")
+			decodedData = base64.b64decode(rawData.encode("utf-8")).decode("utf-8")
 			if decodedData.endswith("?"): decodedData = decodedData[:len(decodedData) - 1]
 			packetInstance.addData(decodedData)
 			offset += 4 + dataLength
@@ -538,7 +559,7 @@ class Packet:
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
 		data = "" + opt(2, Packet.methodFromString(self._method)) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
-			encodedData = base64.b64encode(dataPoint.encode("utf-8"), b"-=").decode("utf-8")
+			encodedData = base64.b64encode(dataPoint.encode("utf-8")).decode("utf-8")
 			data += opt(4, len(encodedData) - 1) + encodedData
 		self._packetString = data
 		return self
@@ -551,6 +572,7 @@ class Packet:
 
 	def send(self, socket: TSocket = None, toSendItTo: TAddress = None):
 		if socket is None or self._packetString is None or len(self._packetString) == 0: return
+		print("Sending Packet:", self._packetString)
 		socket.sendData(toSendItTo, self._packetString)
 		return self
 
