@@ -292,7 +292,9 @@ class TClient(TNetworkable):
 
 	def keyExchange(self):
 		ex = super().spawnProtocol(self._serversIP, None, Key_Exchange, args = (0,))
-		ex.keys[1] = RSA(True)
+		clientRSA = RSA(True)
+		ex.keys[1] = clientRSA
+		print("Client's Public key: ", clientRSA.pubKey(), "\nClient's Private Key: ", clientRSA.privKey(), sep="")
 		ex.step(self._generalSocket, self._serversIP)
 
 	def broadcastReceive(self, addr: TAddress = None, data: str = None):
@@ -370,7 +372,7 @@ class ProtocolHandler:
 			if spawned._step != packet._step: return 0
 			print("Client: Doing work")
 			if packet._step == 2:
-				serverPubKey = RSA.addExtraDetailToKey(packet.getDataAt(0))
+				serverPubKey = RSA.addExtraDetailToKey(packet.getDataAt(0), True)
 				print("Adding in the servers public RSA key, which is\n", serverPubKey, sep="")
 				spawned.keys[0] = RSA.new(False, serverPubKey)
 			spawned.step(self._instanceOfOwner._generalSocket, sentBy)
@@ -384,11 +386,23 @@ class ProtocolHandler:
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously:
 				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 30, Key_Exchange, args=(1,))
-				spawned.keys[0] = RSA(False)
+				serverRSA = RSA(False)
+				spawned.keys[0] = serverRSA
+				print("Server's Public key: ", serverRSA.pubKey(), "\nServer's Private Key: ", serverRSA.privKey(), sep="")
 			if spawned.isServersTurn(packet._step): return 0
 			if not spawned.isProperPacket(packet): return 0
 			if spawned._step != packet._step: return 0
 			print("Server: Doing work")
+			if packet._step == 3:
+				print("A")
+				encryptedClientKey = packet.getDataAt(0)
+				print("B:", encryptedClientKey)
+				decryptedClientKey = spawned.keys[0].decrypt(encryptedClientKey)
+				print("C:", decryptedClientKey)
+				key = RSA.addExtraDetailToKey(decryptedClientKey, False)
+				print("Decrypted Client Key:", key)
+				spawned.keys[1] = RSA.new(True, key)
+				print("D")
 			if packet._step == 5:
 				print("Final packet received containiny my new UUID")
 				return 2
@@ -442,13 +456,13 @@ class Protocol:
 class Broadcast_IP(Protocol):
 
 	def __init__(self, step: int = 0):
-		super().__init__(step, 3, (1, 3), (("BROADCAST_IP",), ("CONFIRM",), ("AGREE",)))
+		super().__init__(step, 3, (1, 3), (("DATA",), ("CONFIRM",), ("AGREE",)))
 
 	def step(self, sender: TSocket = None, receiver: TAddress = None, confirming: str = "(Unknown)"):
 		protoName = self.__class__.__name__.upper()
 		self._step += 1
 		if self._step == 1: # Server
-			Packet("BROADCAST_IP", protoName, self._step).addData(sender._spawnedFrom).finalize(sender, receiver)
+			Packet("DATA", protoName, self._step).addData(sender._spawnedFrom).finalize(sender, receiver)
 		elif self._step == 2: # Client
 			Packet("CONFIRM", protoName, self._step).addData(sender._spawnedFrom).finalize(sender, receiver)
 		elif self._step == 3: # Server
@@ -496,10 +510,9 @@ class Packet:
 		"CONFIRM":        1,
 		"AGREE":          2,
 		"DISAGREE":       3,
-		"BROADCAST_IP":   4,
-		"QUERY_DATA":     5,
-		"QUERY_RESPONSE": 6,
-		"DATA":           7
+		"QUERY_DATA":     4,
+		"QUERY_RESPONSE": 5,
+		"DATA":           6
 	}
 
 	@staticmethod
@@ -509,7 +522,7 @@ class Packet:
 
 	@staticmethod
 	def stringFromMethod(mtdID: int = None):
-		if mtdID is None or mtdID < -1 or mtdID > len(Packet.Methods.keys()) - 2: return "ERROR"
+		if mtdID is None or mtdID < -1 or mtdID > len(Packet.Methods.keys()) - 1: return "ERROR"
 		for key, val in Packet.Methods.items():
 			if val == mtdID: return key
 		return "ERROR"

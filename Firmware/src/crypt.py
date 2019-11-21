@@ -23,8 +23,7 @@ def FormatBytes(obj: object = None):
 	if type(obj) == bytes:
 		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj])
 	elif type(obj) == str:
-		output = [Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)]
-		return bytes(output)
+		return bytes([Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)])
 
 class AES:
 	"""
@@ -143,8 +142,7 @@ class RSA:
 		return RSA(isClients, _RSA.importKey(key)) # Create key
 
 	@staticmethod
-	def removeExtraDetailOnKey(self, key = None):
-		print("Type of object key:", type(key))
+	def removeExtraDetailOnKey(key: object = None):
 		if type(key) == bytes: key = key.decode("utf-8")
 		finalKey = [k for k in key.split("\n")]
 		del finalKey[0]
@@ -152,7 +150,7 @@ class RSA:
 		return "".join(finalKey)
 
 	@staticmethod
-	def addExtraDetailToKey(self, key: str = None, isPublic: bool = True):
+	def addExtraDetailToKey(key: str = None, isPublic: bool = True):
 		return "-----BEGIN " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----\n" + key + "\n-----END " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----"
 
 	def __init__(self, isClients: bool = False, rsa: object = None):
@@ -174,9 +172,7 @@ class RSA:
 
 		:returns str: The public key
 		"""
-		key = self._rsa.publickey().export_key("PEM")
-		print("Public Key:", key)
-		return RSA.removeExtraDetailOnKey(key) # Returns the public key
+		return RSA.removeExtraDetailOnKey(self._rsa.publickey().export_key("PEM")) # Returns the public key
 
 	def privKey(self):
 		"""
@@ -186,15 +182,15 @@ class RSA:
 		"""
 		return RSA.removeExtraDetailOnKey(self._rsa.export_key("PEM")) # Returns the private key
 
-	def verifyPubSame(self, pubKeyOpenSSH: str = None):
+	def verifyPubSame(self, key: str = None):
 		"""
 		Checks if the input public key is the same as the one in this instance
 
-		:param pubKeyOpenSSH str: 
+		:param key str: 
 
 		:returns bool: If they are the same key
 		"""
-		return self.pubKey() == pubKeyOpenSSH # Compare the keys
+		return self.pubKey() == key # Compare the keys
 
 	def encrypt(self, msg: str = None):
 		"""
@@ -207,7 +203,11 @@ class RSA:
 		:returns str: The encrypted message
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption") # If message is empty, throw error
-		return self._pkcs.encrypt(bytes(msg, "utf-8"))
+		out = ""
+		for i in range(len(msg.encode("utf-8")) // 128 + 1):
+			tmp = FormatBytes(self._pkcs.encrypt(msg[i*128:(i+1)*128].encode("utf-8")))
+			out += tmp
+		return out
 
 	def decrypt(self, msg: str = None):
 		"""
@@ -220,4 +220,8 @@ class RSA:
 		:returns str: The decrypted message
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption")
-		return self._pkcs.decrypt(msg).decode("utf-8")
+		out = ""
+		for i in range(len(msg) // 512 + 1):
+			tmp = self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512]))
+			out += tmp.decode("utf-8")
+		return out
