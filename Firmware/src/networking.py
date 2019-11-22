@@ -1,4 +1,4 @@
-from .crypt import AES, RSA
+from .crypt import AES, RSA, FormatBytes
 from hashlib import sha256
 from threading import Thread, Timer, Event
 import time, random, string, re, traceback, sys, base64
@@ -394,15 +394,11 @@ class ProtocolHandler:
 			if spawned._step != packet._step: return 0
 			print("Server: Doing work")
 			if packet._step == 3:
-				print("A")
 				encryptedClientKey = packet.getDataAt(0)
-				print("B:", encryptedClientKey)
 				decryptedClientKey = spawned.keys[0].decrypt(encryptedClientKey)
-				print("C:", decryptedClientKey)
 				key = RSA.addExtraDetailToKey(decryptedClientKey, False)
-				print("Decrypted Client Key:", key)
+				print("Decrypted Client Key:\n", key, sep="")
 				spawned.keys[1] = RSA.new(True, key)
-				print("D")
 			if packet._step == 5:
 				print("Final packet received containiny my new UUID")
 				return 2
@@ -496,11 +492,13 @@ class Key_Exchange(Protocol):
 			# Client encrypts their private key (1) with the server's public key (0)
 			Packet("DATA", protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
 		elif self._step == 4: # Server
-			self.sessionIds[1] = self.keys[2].encrypt(self.session(self.keys[1]))
-			Packet("DATA", protoName, self._step).addData(self.sessionIds[1]).finalize(sender, receiver)
+			self.keys[2] = AES(sha256(self.keys[0].pubKey() + self.keys[1].privKey() + self.sessionIds[0] + self.sessionIds[1]))
+			self.sessionIds[1] = self.session(self.keys[1])
+			Packet("DATA", protoName, self._step).addData(self.keys[2].encrypt(self.sessionIds[1])).finalize(sender, receiver)
 		elif self._step == 5: # Client
-			self.sessionIds[0] = self.keys[2].encrypt(self.session(self.keys[0]))
-			Packet("DATA", protoName, self._step).addData(self.sessionIds[0]).finalize(sender, receiver)
+			self.keys[2] = AES(sha256(self.keys[0].pubKey() + self.keys[1].privKey() + self.sessionIds[0] + self.sessionIds[1]))
+			self.sessionIds[0] = self.session(self.keys[0])
+			Packet("DATA", protoName, self._step).addData(self.keys[2].encrypt(self.sessionIds[0])).finalize(sender, receiver)
 		self._step += 1
 
 class Packet:
@@ -541,8 +539,7 @@ class Packet:
 			del i
 			dataLength = int(packet[8 + offset: 12 + offset]) + 1
 			rawData = packet[12 + offset: 12 + offset + dataLength]
-			decodedData = base64.b64decode(rawData.encode("utf-8")).decode("utf-8")
-			if decodedData.endswith("?"): decodedData = decodedData[:len(decodedData) - 1]
+			decodedData = base64.b64decode(rawData).decode("utf-8")
 			packetInstance.addData(decodedData)
 			offset += 4 + dataLength
 		return packetInstance
@@ -585,7 +582,7 @@ class Packet:
 
 	def send(self, socket: TSocket = None, toSendItTo: TAddress = None):
 		if socket is None or self._packetString is None or len(self._packetString) == 0: return
-		print("Sending Packet:", self._packetString)
+		print("Sending Packet:", self._packetString[:512])
 		socket.sendData(toSendItTo, self._packetString)
 		return self
 
