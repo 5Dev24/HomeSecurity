@@ -479,6 +479,9 @@ class Key_Exchange(Protocol):
 		rand = random.Random(seed)
 		return "".join([rand.choice("0123456789abcdef") for i in range(64)])
 
+	def aesKey(self):
+		return sha256((self.keys[0].pubKey() + self.keys[1].privKey() + self.sessionIds[0] + self.sessionIds[1]).encode("utf-8")).digest()
+
 	def step(self, sender: TSocket = None, receiver: TAddress = None):
 		protoName = self.__class__.__name__.upper()
 		self._step += 1
@@ -492,12 +495,12 @@ class Key_Exchange(Protocol):
 			# Client encrypts their private key (1) with the server's public key (0)
 			Packet("DATA", protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
 		elif self._step == 4: # Server
-			self.keys[2] = AES(sha256(self.keys[0].pubKey() + self.keys[1].privKey() + self.sessionIds[0] + self.sessionIds[1]))
 			self.sessionIds[1] = self.session(self.keys[1])
+			self.keys[2] = AES(self.aesKey())
 			Packet("DATA", protoName, self._step).addData(self.keys[2].encrypt(self.sessionIds[1])).finalize(sender, receiver)
 		elif self._step == 5: # Client
-			self.keys[2] = AES(sha256(self.keys[0].pubKey() + self.keys[1].privKey() + self.sessionIds[0] + self.sessionIds[1]))
 			self.sessionIds[0] = self.session(self.keys[0])
+			self.keys[2] = AES(self.aesKey())
 			Packet("DATA", protoName, self._step).addData(self.keys[2].encrypt(self.sessionIds[0])).finalize(sender, receiver)
 		self._step += 1
 

@@ -32,18 +32,19 @@ class AES:
 	All errors or problems will end with the program dying as if encryption fails, the program should die
 	"""
 
-	def __init__(self, key: str = None):
+	def __init__(self, key: object = None):
 		"""
 		Init
 
-		:param key str: AES key to use
+		:param key object: AES key to use, string or bytes list
 
 		:raises: TypeError if the key is none or the length is less than 32
 
 		:returns self: Instance
 		"""
 		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (1)") # Make sure key something and that it's atleast 32 charcters long, else throw error
-		self._key = bytes(key, "utf-8") # Save key as byte list
+		if type(key) != bytes: key = bytes(key, "utf-8")
+		self._key = key # Save key as byte list
 
 	def _generateCrypt(self, key: bytes = None, salt: bytes = None):
 		"""
