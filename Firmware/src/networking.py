@@ -307,6 +307,7 @@ class TClient(TNetworkable):
 			self.keyExchange()
 
 	def generalReceive(self, addr: TAddress = None, data: str = None):
+		print("Client: Received \"", data, '"', sep="")
 		hndl = self._protocolHandler.incomingPacket(data, addr)
 		print("Client: Handling returned", hndl[0])
 		if hndl[0] == 2:
@@ -364,7 +365,7 @@ class ProtocolHandler:
 
 		def _client_Key_Exchange():
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
-			print("Client: Recieved step", packet._step)
+			print("Client: Received step", packet._step)
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously: return 0
 			if not spawned.isServersTurn(packet._step): return 0
@@ -373,16 +374,18 @@ class ProtocolHandler:
 			print("Client: Doing work")
 			if packet._step == 2:
 				serverPubKey = RSA.addExtraDetailToKey(packet.getDataAt(0), True)
-				print("Adding in the servers public RSA key, which is\n", serverPubKey, sep="")
+				print("Client: Adding in the servers public RSA key, which is\n", serverPubKey, sep="")
 				spawned.keys[0] = RSA.new(False, serverPubKey)
 			spawned.step(self._instanceOfOwner._generalSocket, sentBy)
 			if packet._step == 4:
-				print("Received new UUID from server")
+				spawned.sessionIds[1] = spawned.keys[2].decrypt(packet.getDataAt(0))
+				print("Client: Received new UUID from server")
+				print("Client: New UUID is", spawned.sessionIds[1])
 				return 2
 
 		def _server_Key_Exchange():
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
-			print("Server: Recieved step", packet._step)
+			print("Server: Received step", packet._step)
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously:
 				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 30, Key_Exchange, args=(1,))
@@ -397,10 +400,12 @@ class ProtocolHandler:
 				encryptedClientKey = packet.getDataAt(0)
 				decryptedClientKey = spawned.keys[0].decrypt(encryptedClientKey)
 				key = RSA.addExtraDetailToKey(decryptedClientKey, False)
-				print("Decrypted Client Key:\n", key, sep="")
+				print("Server: Decrypted Client Key:\n", key, sep="")
 				spawned.keys[1] = RSA.new(True, key)
 			if packet._step == 5:
-				print("Final packet received containiny my new UUID")
+				spawned.sessionIds[0] = spawned.keys[2].decrypt(packet.getDataAt(0))
+				print("Server: Final packet received containiny my new UUID")
+				print("Server: New UUID is", spawned.sessionIds[0])
 				return 2
 			else: spawned.step(self._instanceOfOwner._generalSocket, sentBy)
 
@@ -470,6 +475,7 @@ class Key_Exchange(Protocol):
 	def __init__(self, step: int = 0):
 		self.keys = [None, None, None]
 		# 0 = Server RSA, 1 = Client RSA, 2 = Shared AES
+		self.previousIds = ["", ""]
 		self.sessionIds = ["", ""]
 		# 0 = Server uuid, Client uuid
 		super().__init__(step, 0, (2, 4), (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
@@ -480,7 +486,7 @@ class Key_Exchange(Protocol):
 		return "".join([rand.choice("0123456789abcdef") for i in range(64)])
 
 	def aesKey(self):
-		return sha256((self.keys[0].pubKey() + self.keys[1].privKey() + self.sessionIds[0] + self.sessionIds[1]).encode("utf-8")).digest()
+		return sha256((self.keys[0].pubKey() + self.keys[1].privKey() + self.previousIds[0] + self.previousIds[1]).encode("utf-8")).digest()
 
 	def step(self, sender: TSocket = None, receiver: TAddress = None):
 		protoName = self.__class__.__name__.upper()
@@ -496,12 +502,18 @@ class Key_Exchange(Protocol):
 			Packet("DATA", protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
 		elif self._step == 4: # Server
 			self.sessionIds[1] = self.session(self.keys[1])
+			print("Session ID for Client: \"", self.sessionIds[1], '"', sep="")
+			print("AES Key: \"", self.aesKey(), '"', sep="")
 			self.keys[2] = AES(self.aesKey())
-			Packet("DATA", protoName, self._step).addData(self.keys[2].encrypt(self.sessionIds[1])).finalize(sender, receiver)
+			data = self.keys[2].encrypt(self.sessionIds[1])
+			Packet("DATA", protoName, self._step).addData(data).finalize(sender, receiver)
 		elif self._step == 5: # Client
 			self.sessionIds[0] = self.session(self.keys[0])
+			print("Session ID for Server: \"", self.sessionIds[0], '"', sep="")
+			print("AES Key: \"", self.aesKey(), '"', sep="")
 			self.keys[2] = AES(self.aesKey())
-			Packet("DATA", protoName, self._step).addData(self.keys[2].encrypt(self.sessionIds[0])).finalize(sender, receiver)
+			data = self.keys[2].encrypt(self.sessionIds[0])
+			Packet("DATA", protoName, self._step).addData(data).finalize(sender, receiver)
 		self._step += 1
 
 class Packet:
@@ -542,6 +554,7 @@ class Packet:
 			del i
 			dataLength = int(packet[8 + offset: 12 + offset]) + 1
 			rawData = packet[12 + offset: 12 + offset + dataLength]
+			print("Raw Data: \"", rawData, '"', sep="")
 			decodedData = base64.b64decode(rawData).decode("utf-8")
 			packetInstance.addData(decodedData)
 			offset += 4 + dataLength
@@ -565,6 +578,10 @@ class Packet:
 
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
+		if len(data) > 10000:
+			print("Data limit hit!")
+			input()
+			return self
 		self._data.append(data)
 		return self
 
@@ -572,7 +589,8 @@ class Packet:
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
 		data = "" + opt(2, Packet.methodFromString(self._method)) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
-			encodedData = base64.b64encode(dataPoint.encode("utf-8")).decode("utf-8")
+			if type(dataPoint) == str: dataPoint = dataPoint.encode("utf-8")
+			encodedData = base64.b64encode(dataPoint).decode("utf-8")
 			data += opt(4, len(encodedData) - 1) + encodedData
 		self._packetString = data
 		return self

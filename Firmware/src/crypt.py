@@ -106,7 +106,7 @@ class AES:
 		key, salt = self._generateCrypt(self._key, get_random_bytes(CONSTS["SALT_LENGTH"])) # Generate key from a random salt
 		aes = _AES.new(key, _AES.MODE_ECB) # Create a new instance of AES from pycryptodome
 		encryptedText = aes.encrypt(bytes(self._addPadding(msg), "utf-8")) # Add padding to message and then encrypt it
-		return FormatBytes(salt + encryptedText) # Add salt to front of encrypted message to be able to decrypt later
+		return (salt + encryptedText) # Add salt to front of encrypted message to be able to decrypt later
 
 	def decrypt(self, msg: str = None):
 		"""
@@ -221,6 +221,6 @@ class RSA:
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption")
 		out = ""
-		for i in range(len(msg) // 512):
+		for i in range(len(msg.encode("utf-8")) // 512):
 			out += self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512])).decode("utf-8")
 		return out
