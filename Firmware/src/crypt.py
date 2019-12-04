@@ -11,11 +11,11 @@ from .error import Error, Codes
 from string import ascii_uppercase as Alph
 
 CONSTS = {
-	"SALT_LENGTH": 2**24, # Length of salt
+	"SALT_LENGTH": 2**8, # Length of salt
 	"AES_KEY_SIZE": 144, # Length of AES keys
-	"KEY_ITERNATIONS": 2**24, # Times to use SHA256 on key
-	"CLIENT_RSA": 2 ** 10,
-	"SERVER_RSA": 2 ** 11,
+	"KEY_ITERNATIONS": 2**16, # Times to use SHA256 on key
+	"CLIENT_RSA": 2**10,
+	"SERVER_RSA": 2**11,
 	"RSA_PRIME": 63
 }
 

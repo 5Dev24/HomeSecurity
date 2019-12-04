@@ -152,8 +152,10 @@ class DictFile(File):
 					try:
 						keyOut = helper(line)
 						valueOut = helper(line[keyOut[1]:])
-						key = keyOut[0].replace("\n", "").replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t").replace("\\b", "\b")
-						val = valueOut[0].replace("\n", "").replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t").replace("\\b", "\b")
+						key = keyOut[0].replace("\n", "").replace("\\n", "\n").replace("\\r", "\r")\
+						.replace("\\t", "\t").replace("\\b", "\b")
+						val = valueOut[0].replace("\n", "").replace("\\n", "\n").replace("\\r", "\r")\
+						.replace("\\t", "\t").replace("\\b", "\b")
 						try: output[key] = val
 						except KeyError: pass
 					except ValueError: pass
@@ -211,8 +213,8 @@ class RSAFile(DictFile):
 	@property
 	def crypto(self):
 		keys = self.keys
-		key = "-----BEGIN PUBLIC KEY-----\n" + self._cryptoSplit(keys[1], 64) + "\n-----END PUBLIC KEY-----"
-		if len(keys[0]): key = "-----BEGIN RSA PRIVATE KEY-----\n" + self._cryptoSplit(keys[0], 64) + "\n-----END RSA PRIVATE KEY-----"
+		key = RSA.addExtraDetailToKey(self._cryptoSplit(keys[1], 64), True)
+		if len(keys[0]): key = RSA.addExtraDetailToKey(self._cryptoSplit(keys[0], 64), False)
 		if not len(key): raise KeysNotFoundError(RSAFile, "No keys were found in the rsa file (2)")
 		return RSA.new(False, bytes(key, "utf-8"))
 

@@ -272,12 +272,9 @@ class TServer(TNetworkable):
 			super().closeThread("Broadcasting")
 			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP)
 			self._broadcastSocket.close()
-			print("Server: Done, Found", len(self._clientsGot), "clients which were:", self._clientsGot)
-		else: print("Server: So far have:", self._clientsGot)
 
 	def generalReceive(self, addr: TAddress = None, data: str = None):
 		hndl = self._protocolHandler.incomingPacket(data, addr)
-		print("Server: Handling returned", hndl[0])
 		if hndl[0] == 2:
 			super().invalidateProtocol(addr, hndl[1])
 
@@ -294,7 +291,6 @@ class TClient(TNetworkable):
 		ex = super().spawnProtocol(self._serversIP, None, Key_Exchange, args = (0,))
 		clientRSA = RSA(True)
 		ex.keys[1] = clientRSA
-		print("Client's Public key: ", clientRSA.pubKey(), "\nClient's Private Key: ", clientRSA.privKey(), sep="")
 		ex.step(self._generalSocket, self._serversIP)
 
 	def broadcastReceive(self, addr: TAddress = None, data: str = None):
@@ -302,14 +298,11 @@ class TClient(TNetworkable):
 		if hndl[0] == 2:
 			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP)
 			self._broadcastSocket.close()
-			print("Client (", self._ip, "): Found server, their ip is ", self._serversIP, " and server found me!", sep="")
 			self._serversIP = TAddress(self._serversIP, TPorts.SEND_RECEIVE)
 			self.keyExchange()
 
 	def generalReceive(self, addr: TAddress = None, data: str = None):
-		print("Client: Received \"", data, '"', sep="")
 		hndl = self._protocolHandler.incomingPacket(data, addr)
-		print("Client: Handling returned", hndl[0])
 		if hndl[0] == 2:
 			super().invalidateProtocol(addr, hndl[1])
 
@@ -365,49 +358,45 @@ class ProtocolHandler:
 
 		def _client_Key_Exchange():
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
-			print("Client: Received step", packet._step)
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously: return 0
 			if not spawned.isServersTurn(packet._step): return 0
 			if not spawned.isProperPacket(packet): return 0
 			if spawned._step != packet._step: return 0
-			print("Client: Doing work")
 			if packet._step == 2:
 				serverPubKey = RSA.addExtraDetailToKey(packet.getDataAt(0), True)
-				print("Client: Adding in the servers public RSA key, which is\n", serverPubKey, sep="")
 				spawned.keys[0] = RSA.new(False, serverPubKey)
-			spawned.step(self._instanceOfOwner._generalSocket, sentBy)
+				spawned.createAESKey()
 			if packet._step == 4:
 				spawned.sessionIds[1] = spawned.keys[2].decrypt(packet.getDataAt(0))
-				print("Client: Received new UUID from server")
 				print("Client: New UUID is", spawned.sessionIds[1])
+				spawned.step(self._instanceOfOwner._generalSocket, sentBy)
 				return 2
+			spawned.step(self._instanceOfOwner._generalSocket, sentBy)
+			return 1
 
 		def _server_Key_Exchange():
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
-			print("Server: Received step", packet._step)
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously:
-				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 30, Key_Exchange, args=(1,))
+				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 45, Key_Exchange, args=(1,))
 				serverRSA = RSA(False)
 				spawned.keys[0] = serverRSA
-				print("Server's Public key: ", serverRSA.pubKey(), "\nServer's Private Key: ", serverRSA.privKey(), sep="")
 			if spawned.isServersTurn(packet._step): return 0
 			if not spawned.isProperPacket(packet): return 0
 			if spawned._step != packet._step: return 0
-			print("Server: Doing work")
 			if packet._step == 3:
-				encryptedClientKey = packet.getDataAt(0)
-				decryptedClientKey = spawned.keys[0].decrypt(encryptedClientKey)
+				decryptedClientKey = spawned.keys[0].decrypt(packet.getDataAt(0))
 				key = RSA.addExtraDetailToKey(decryptedClientKey, False)
-				print("Server: Decrypted Client Key:\n", key, sep="")
 				spawned.keys[1] = RSA.new(True, key)
+				spawned.createAESKey()
 			if packet._step == 5:
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(packet.getDataAt(0))
-				print("Server: Final packet received containiny my new UUID")
 				print("Server: New UUID is", spawned.sessionIds[0])
 				return 2
-			else: spawned.step(self._instanceOfOwner._generalSocket, sentBy)
+			else:
+				spawned.step(self._instanceOfOwner._generalSocket, sentBy)
+				return 1
 
 		packetProto = packet._protocol
 		if packetProto == "BROADCAST_IP":
@@ -488,10 +477,12 @@ class Key_Exchange(Protocol):
 	def aesKey(self):
 		return sha256((self.keys[0].pubKey() + self.keys[1].privKey() + self.previousIds[0] + self.previousIds[1]).encode("utf-8")).digest()
 
+	def createAESKey(self):
+		self.keys[2] = AES(self.aesKey())
+
 	def step(self, sender: TSocket = None, receiver: TAddress = None):
 		protoName = self.__class__.__name__.upper()
 		self._step += 1
-		print("Doing step", self._step)
 		if self._step == 1: # Client
 			Packet("QUERY_DATA", protoName, self._step).finalize(sender, receiver)
 		elif self._step == 2: # Server
@@ -502,16 +493,10 @@ class Key_Exchange(Protocol):
 			Packet("DATA", protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
 		elif self._step == 4: # Server
 			self.sessionIds[1] = self.session(self.keys[1])
-			print("Session ID for Client: \"", self.sessionIds[1], '"', sep="")
-			print("AES Key: \"", self.aesKey(), '"', sep="")
-			self.keys[2] = AES(self.aesKey())
 			data = self.keys[2].encrypt(self.sessionIds[1])
 			Packet("DATA", protoName, self._step).addData(data).finalize(sender, receiver)
 		elif self._step == 5: # Client
 			self.sessionIds[0] = self.session(self.keys[0])
-			print("Session ID for Server: \"", self.sessionIds[0], '"', sep="")
-			print("AES Key: \"", self.aesKey(), '"', sep="")
-			self.keys[2] = AES(self.aesKey())
 			data = self.keys[2].encrypt(self.sessionIds[0])
 			Packet("DATA", protoName, self._step).addData(data).finalize(sender, receiver)
 		self._step += 1
@@ -554,9 +539,12 @@ class Packet:
 			del i
 			dataLength = int(packet[8 + offset: 12 + offset]) + 1
 			rawData = packet[12 + offset: 12 + offset + dataLength]
-			print("Raw Data: \"", rawData, '"', sep="")
-			decodedData = base64.b64decode(rawData).decode("utf-8")
-			packetInstance.addData(decodedData)
+			data = base64.b64decode(rawData)
+			try:
+				decodedUTF8 = data.decode("utf-8")
+				data = decodedUTF8
+			except: pass
+			packetInstance.addData(data)
 			offset += 4 + dataLength
 		return packetInstance
 
@@ -579,8 +567,7 @@ class Packet:
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
 		if len(data) > 10000:
-			print("Data limit hit!")
-			input()
+			input("Data limit hit!")
 			return self
 		self._data.append(data)
 		return self
@@ -598,13 +585,13 @@ class Packet:
 	def getDataAt(self, index: int = 0):
 		if index < 0: index = 0
 		if index >= len(self._data): index = len(self._data) - 1
-		if index == -1: raise LookupError(f"Unable to get data at index {index}")
+		if index == -1: return None
 		return self._data[index]
 
 	def send(self, socket: TSocket = None, toSendItTo: TAddress = None):
 		if socket is None or self._packetString is None or len(self._packetString) == 0: return
-		print("Sending Packet:", self._packetString[:512])
 		socket.sendData(toSendItTo, self._packetString)
 		return self
 
-	def finalize(self, socket: TSocket = None, toSendItTo: TAddress = None): self.build().send(socket, toSendItTo)
+	def finalize(self, socket: TSocket = None, toSendItTo: TAddress = None):
+		self.build().send(socket, toSendItTo)
