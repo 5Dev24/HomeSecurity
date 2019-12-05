@@ -107,7 +107,7 @@ Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, 
 	def receiveData(self):
 		if self.closed(): return [None, None]
 		if self._receivers > 1:
-			print("2 Threads Listening For Data!")
+			print("2+ Threads Listening For Data!")
 			return [None, None]
 		got = None
 		self._receivers += 1
@@ -132,7 +132,8 @@ Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, 
 
 	def close(self):
 		self._addr.free()
-		del TSocket.allSockets[TSocket.allSockets.index(self)]
+		if self in TSocket.allSockets:
+			TSocket.allSockets.remove(self)
 
 class TThread:
 
@@ -255,7 +256,6 @@ class TServer(TNetworkable):
 		super().__init__(True, "192.168.6.1")
 		self.expectedClients = TClient.Clients
 		self._clientsGot = []
-		self._confirmedClients = {}
 		self._broadcastProtoSaved = super().spawnProtocol(self._broadcastSocket._addr, None, Broadcast_IP, args = (0,))
 
 	def startBroadcasting(self):
@@ -274,9 +274,12 @@ class TServer(TNetworkable):
 			self._broadcastSocket.close()
 
 	def generalReceive(self, addr: TAddress = None, data: str = None):
-		hndl = self._protocolHandler.incomingPacket(data, addr)
-		if hndl[0] == 2:
-			super().invalidateProtocol(addr, hndl[1])
+		def threading(self):
+			hndl = self._protocolHandler.incomingPacket(data, addr)
+			if hndl[0] == 2:
+				super().invalidateProtocol(addr ,hndl[1])
+		if not (addr.addr[0] in self._clientsGot): return
+		TThread(threading, False, args=(self,)).start()
 
 class TClient(TNetworkable):
 
@@ -299,9 +302,11 @@ class TClient(TNetworkable):
 			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP)
 			self._broadcastSocket.close()
 			self._serversIP = TAddress(self._serversIP, TPorts.SEND_RECEIVE)
-			self.keyExchange()
+			#self.keyExchange() <- Thread wouldn't normally be needed!
+			TThread(self.keyExchange, False, (), {}).start()
 
 	def generalReceive(self, addr: TAddress = None, data: str = None):
+		if addr.addr[0] != self._serversIP.addr[0]: return
 		hndl = self._protocolHandler.incomingPacket(data, addr)
 		if hndl[0] == 2:
 			super().invalidateProtocol(addr, hndl[1])
@@ -320,7 +325,7 @@ class ProtocolHandler:
 		def _client_Broadcast_IP():
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Broadcast_IP)
 			wasSpawnedPreviously = not spawned is None
-			if not wasSpawnedPreviously: spawned = self._instanceOfOwner.spawnProtocol(sentBy, 5, Broadcast_IP, args=(1,))
+			if not wasSpawnedPreviously: spawned = self._instanceOfOwner.spawnProtocol(sentBy, 10, Broadcast_IP, args=(1,))
 			if not spawned.isServersTurn(packet._step): return 0
 			if not spawned.isProperPacket(packet): return 0
 			if spawned._step != packet._step: return 0
@@ -369,7 +374,7 @@ class ProtocolHandler:
 				spawned.createAESKey()
 			if packet._step == 4:
 				spawned.sessionIds[1] = spawned.keys[2].decrypt(packet.getDataAt(0))
-				print("Client: New UUID is", spawned.sessionIds[1])
+				print(f"Server => Client ({self._instanceOfOwner._ip}): New UUID is {spawned.sessionIds[1]}")
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy)
 				return 2
 			spawned.step(self._instanceOfOwner._generalSocket, sentBy)
@@ -379,7 +384,7 @@ class ProtocolHandler:
 			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
 			wasSpawnedPreviously = not spawned is None
 			if not wasSpawnedPreviously:
-				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 45, Key_Exchange, args=(1,))
+				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 60, Key_Exchange, args=(1,))
 				serverRSA = RSA(False)
 				spawned.keys[0] = serverRSA
 			if spawned.isServersTurn(packet._step): return 0
@@ -392,7 +397,7 @@ class ProtocolHandler:
 				spawned.createAESKey()
 			if packet._step == 5:
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(packet.getDataAt(0))
-				print("Server: New UUID is", spawned.sessionIds[0])
+				print(f"Client ({sentBy.addr[0]}) => Server: New UUID is {spawned.sessionIds[0]}")
 				return 2
 			else:
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy)
