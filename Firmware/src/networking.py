@@ -1,7 +1,8 @@
 from .crypt import AES, RSA, FormatBytes
+from Crypto.Random import random as rand
 from hashlib import sha256
 from threading import Thread, Timer, Event
-import time, random, string, re, traceback, sys, base64
+import time, string, re, traceback, sys, base64
 
 Characters = string.punctuation + string.digits + string.ascii_letters
 
@@ -80,7 +81,7 @@ class TSocket:
 		self._lastDatareceived = None
 		self._receiveEvent = Event()
 		self._receivers = 0
-		self._callbackID = random.randint(-1 * (2 ** 32), 2 ** 32)
+		self._callbackID = rand.randint(-1 * (2 ** 32), 2 ** 32)
 
 	def __str__(self):
 		return f"Address: {self._addr}, Data History: {self._dataHistroy}, Last Data Received: {self._lastDatareceived}, \
@@ -475,9 +476,9 @@ class Key_Exchange(Protocol):
 		super().__init__(step, 0, (2, 4), (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
 
 	def session(self, key):
-		seed = sha256((key.privKey() + str(random.randint(-(2 ** 64 - 1), 2 ** 64 - 1))).encode("utf-8")).digest()
-		rand = random.Random(seed)
-		return "".join([rand.choice("0123456789abcdef") for i in range(64)])
+		seed = sha256((key.privKey() + str(rand.randint(-(2 ** 64 - 1), 2 ** 64 - 1))).encode("utf-8")).digest().hex()
+		rand.shuffle(shuffle := [c for c in seed])
+		return "".join([rand.choice(shuffle) for i in range(64)])
 
 	def aesKey(self):
 		return sha256((self.keys[0].pubKey() + self.keys[1].privKey() + self.previousIds[0] + self.previousIds[1]).encode("utf-8")).digest()
