@@ -38,20 +38,6 @@ class ArgumentParser:
 
 		:returns dict: The new handler
 		"""
-		def resolveType(argType: str = ""):
-			"""
-			Used to generate default value for args by finding a valid base type to use
-
-			:param argType str: The argument type
-
-			:returns object: A valid type or None if a valid type wasn't found
-			"""
-			if argType.count("|") > 0: # If there is a '|' in the type string
-				for newArgType in argType.split("|"): # Loop over the string by splits of '|' as newArgType
-					out = self._getDefaultValueForA(newArgType) # Try to get a default argument value
-					if out != None: return newArgType # If the generated argument type isn't None, return it
-			if argType != None: return argType # If argument type isn't None, return the argument type as it doesn't need spliting
-			else: return None # If argument can't be split and is None, return None
 
 		def isValidArgValueType(argValueType: str = ""):
 			"""
@@ -322,7 +308,7 @@ class ArgumentParser:
 
 			:returns function/lambda: Returns the function/lambda to call or None if the command wasn't found
 			"""
-			cmds = self._handler["cmds"] # Get the dictionary of commands from handler
+			cmds = handler("cmds") # Get the dictionary of commands from handler
 			if cmd is None: return None # If the command is None, then return None
 			if type(cmds) is dict and cmd in cmds: return cmds[cmd] # If cmds is a dictionary and the command is in cmds, then return the function/lambda
 			return None # If cmds wasn't a dictionary or cmd wasn't in cmds, then return None
@@ -364,7 +350,7 @@ class ArgumentParser:
 		pairIndex = 0 # Current index of parsed list
 		remaining = lambda: len(self._parsedArgs) - pairIndex # Gets the number of parsed arguments left to be executed
 		if remaining() == 0: # If there aren't any generated arguments
-			self._handler["none"]() # Call the none function/lambda
+			handler("none")() # Call the none function/lambda
 			return -2 # Return -2 as no work will be done
 		while pairIndex < len(self._parsedArgs): # Loop from 0 to the number of parsed arguments - 1
 			if pairIndex == 0 and remaining() == 1 and argType(pairIndex) == "cmd": # If it's the first index, there is only 1 remaining to be parsed and it's a cmd
@@ -386,7 +372,7 @@ class ArgumentParser:
 					return -1 # Return -1 as the executing stopped because an improper value was attempted to be used to change the variable's value
 			else:
 				if pairIndex == 0: # If the index is still at 0
-					self._handler["none"]() # Call none function/lambda
+					handler("none")() # Call none function/lambda
 					return -2 # Return -2 as nothing was executed
 				break # Exit Loop
 		if not areAllRequiredArgsSet(): # If not all required arguments have been set

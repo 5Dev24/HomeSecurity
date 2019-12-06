@@ -7,58 +7,125 @@ import time, string, re, traceback, sys, base64
 Characters = string.punctuation + string.digits + string.ascii_letters
 
 class TPorts:
+	"""
+	Theoretical ports used in simulation
+	"""
 
-	SEND_RECEIVE = 2
-	SERVER_BROADCAST = 4
+	SEND_RECEIVE = 2 # Normal sending and receiving data
+	SERVER_BROADCAST = 4 # For send and receiveing data from a broadcast
 
 class TAddress:
+	"""
+	Theoretical addresses used to identify a socket/destination
+	Requires both an ip and a port
+	"""
 
-	allAddresses = []
+	allAddresses = [] # All registered addresses
 
 	@staticmethod
 	def isRegisteredAddress(addr: str = "", port: int = 0):
-		for addr in TAddress.allAddresses:
-			if addr[0] == addr and addr[1] == port and addr.registered: return True
-		return False
+		"""
+		Checks if an address on a port has been registered
+
+		:param addr str: The address
+		:param port int: The port
+
+		:returns bool: If the address is registered on that port
+		"""
+		for addr in TAddress.allAddresses: # Loop through all addresses
+			if addr[0] == addr and addr[1] == port and addr.registered: return True # If the ip, port, and the address is still registered then return true
+		return False # An address on the address and port was not found, return false
 
 	def __init__(self, addr: str = "", port: int = 0):
-		self.addr = (addr, port)
-		self.registered = True
-		TAddress.allAddresses.append(self)
+		"""
+		Init
+
+		:param addr str: The address to register on
+		:param port int: The port to register with
+
+		:returns self: Instance
+		"""
+		self.addr = (addr, port) # Save address and port in tuple
+		self.registered = True # Set that this address is registered
+		TAddress.allAddresses.append(self) # Add this address to list of all addresses
 
 	def __str__(self):
+		"""
+		To string
+
+		:returns str: The format of ADDRESS:PORT
+		"""
 		return self.addr[0] + ":" + str(self.addr[1])
 
 	def free(self):
-		self.registered = False
-		TAddress.allAddresses.remove(self)
+		"""
+		Unregisters an address, "frees" it up to be used by another
+		
+		:returns None: Nothing is returned
+		"""
+		self.registered = False # Set that this address is no longer registered
+		TAddress.allAddresses.remove(self) # Remove this address from list of addresses
 
 class TData:
+	"""
+	Theoretical data that is sent over a socket
+	"""
 
 	def __init__(self, data: str = "", isBroadcast: bool = False):
-		self.data = data
-		self._read = False
-		self._isBroadcast = isBroadcast
+		"""
+		Init
+
+		:param data str: The message
+		:param isBroadcast bool: If this message is being broadcasted
+
+		:returns self: Instance
+		"""
+		self.data = data # Save message
+		self._read = False # Set that it hasn't been read yet
+		self._isBroadcast = isBroadcast # Save if it's a broadcast
 
 	def __len__(self):
-		return len(self.data) if (not self._read) or self._isBroadcast else 0
+		"""
+		Get Length
+
+		:returns int: The length of the data
+		"""
+		return len(self.data) if (not self._read) or self._isBroadcast else 0 # if it has been read and isn't a broadcast, return 0 instead, else return data length
 
 	def get(self):
-		if self._read == False or self._isBroadcast:
-			self._read = True
-			return self.data
-		return None
+		"""
+		Read data
+
+		:returns str: The data if it hasn't been read or it is a broadcast, else None
+		"""
+		if self._read == False or self._isBroadcast: # If it hasn't been read or it is a broadcast
+			self._read = True # Set that the data has been read
+			return self.data # Return the data
+		return None # Return none
 
 class TSocket:
+	"""
+	Theoretical socket used to send data
+	"""
 
-	allSockets = []
+	allSockets = [] # All sockets
 
 	@staticmethod
 	def sendDataProtected(sender: TAddress = None, receiver: TAddress = None, data: str = None):
-		for sock in TSocket.allSockets:
-			if sock._addr.registered and str(sock._addr) == str(receiver): # In a real situation, any socket could receive this message but we're assuming that a socket only accepts messages for itself
-				TThread(target=sock.receive, args=(sender, TData(data, False))).start()
-				return
+		"""
+		Send data directly to an address without using a socket, only two address and data
+
+		:param sender TAddress: The sender's address
+		:param receiver TAddress: The receiver's address
+		:param data str: The data to send
+
+		:returns None: Nothing is returned
+		"""
+		for sock in TSocket.allSockets: # Loop through ever socket as sock
+			if sock._addr.registered and str(sock._addr) == str(receiver): # If socket is registered and it's address matches the receiver
+				# In a real situation, any socket could receive this message but we're assuming that a socket only accepts messages for itself
+				TThread(target=sock.receive, args=(sender, TData(data, False))).start() # Start a thread to send data so one socket can't hold up everything
+				return # End loop as socket was sent message
 
 	@staticmethod
 	def getSocket(getterIP: str = "127.0.0.1", addr: TAddress = None):
