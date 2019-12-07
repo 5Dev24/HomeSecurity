@@ -1,7 +1,7 @@
 from .crypt import AES, RSA, FormatBytes
 from Crypto.Random import random as rand
 from hashlib import sha256
-from threading import Thread, Timer, Event
+from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
 import time, string, re, traceback, sys, base64
 
 Characters = string.punctuation + string.digits + string.ascii_letters
@@ -33,7 +33,7 @@ class TAddress:
 		:returns bool: If the address is registered on that port
 		"""
 		for addr in TAddress.allAddresses: # Loop through all addresses
-			if addr[0] == addr and addr[1] == port and addr.registered: return True # If the ip, port, and the address is still registered then return true
+			if addr.addr == (addr, port) and addr.registered: return True # If the ip, port, and the address is still registered then return true
 		return False # An address on the address and port was not found, return false
 
 	def __init__(self, addr: str = "", port: int = 0):
@@ -124,155 +124,289 @@ class TSocket:
 		for sock in TSocket.allSockets: # Loop through ever socket as sock
 			if sock._addr.registered and str(sock._addr) == str(receiver): # If socket is registered and it's address matches the receiver
 				# In a real situation, any socket could receive this message but we're assuming that a socket only accepts messages for itself
-				TThread(target=sock.receive, args=(sender, TData(data, False))).start() # Start a thread to send data so one socket can't hold up everything
+				SimpleThread(target=sock.receive, args=(sender, TData(data, False))).start() # Start a thread to send data so one socket can't hold up everything
 				return # End loop as socket was sent message
 
 	@staticmethod
 	def getSocket(getterIP: str = "127.0.0.1", addr: TAddress = None):
-		for sock in TSocket.allSockets:
-			if sock._addr == addr:
-				return sock
-		if type(getterIP) != str: return None
-		return TSocket.createNewSocket(getterIP, addr)
+		"""
+		Get a socket with the address: addr and who is getting it, getterIP
+
+		:param getterIP str: IP of socket get caller
+		:param addr TAddress: The address to lookup
+
+		:return TSocket: The found socket or a newly created one, or if getterIP isn't type str, then return None
+		"""
+		for sock in TSocket.allSockets: # Loop through ever socket as sock
+			if sock._addr == addr: # If the socket's address matches the address to find
+				return sock # Return the socket
+		if type(getterIP) != str: return None #  If getterIP isn't type string, then return None
+		return TSocket.createNewSocket(getterIP, addr) # If getterIP passed type check, then create a new socket and return it
 
 	@staticmethod
 	def createNewSocket(spawnerIP: str = "127.0.0.1", addr: TAddress = None):
-		sock = TSocket(spawnerIP, addr)
-		TSocket.allSockets.append(sock)
-		return sock
+		"""
+		Creates a new socket for address addr from the spawner ip of spawnerIP
+
+		:param spawnerIP str: IP of create new socket caller
+		:param addr TAddress: The address to create the socket for
+
+		:return TSocket: The socket created
+		"""
+		sock = TSocket(spawnerIP, addr) # Create new instance of socket
+		TSocket.allSockets.append(sock) # Add socket to list of sockets
+		return sock # Return the new socket instance
 
 	def __init__(self, ip: str = "127.0.0.1", addr: TAddress = None):
-		self._spawnedFrom = ip
-		self._addr = addr
-		self._dataHistroy = []
-		self._lastDatareceived = None
-		self._receiveEvent = Event()
-		self._receivers = 0
-		self._callbackID = rand.randint(-1 * (2 ** 32), 2 ** 32)
+		"""
+		Init
+
+		:param ip str: IP that socket was spawned from
+		:param addr TAddress: Address for the socket
+
+		:param self: Instance
+		"""
+		self._spawnedFrom = ip # Save ip
+		self._addr = addr # Save address
+		self._dataHistroy = [] # Create an empty data history
+		self._lastDataReceived = None # No previous data has been received so make None
+		self._receiveEvent = Event() # Create event for data being received
+		self._receivers = 0 # Number of threads waiting for event
+		self._callbackID = rand.randint(-1 * (2 ** 32), 2 ** 32) # Randomly generated callback id to prevent a socket from sending data to itself
 
 	def __str__(self):
-		return f"Address: {self._addr}, Data History: {self._dataHistroy}, Last Data Received: {self._lastDatareceived}, \
-Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, and Callback ID: {self._callbackID}"
+		"""
+		To string
+
+		:returns str: Data about the object: address, data histroy, last data received, event status, receivers, and callback id
+		"""
+		return f"Address: {self._addr}, Data History: {self._dataHistroy}, Last Data Received: {self._lastDataReceived}, \
+Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, and Callback ID: {self._callbackID}" # All data from socket in string format
 
 	def receive(self, addr: TAddress = None, data: TData = None):
-		if self.closed(): return
-		if not (type(data) is TData): return
-		data = data.get()
-		if data is None:
-			print("Data was already read before we received it, was this meant broadcasted message?")
-			return
-		self._dataHistroy.append([addr, data])
-		while len(self._dataHistroy) > 25: del self._dataHistroy[0]
-		self._lastDatareceived = [addr, data]
-		timeout = 0
-		while self._receiveEvent.is_set() and timeout < 3:
-			time.sleep(.05)
-			timeout += 1
-			continue
-		if timeout == 3: return
-		self._receiveEvent.set()
+		"""
+		Internal function other sockets use to tell another socket that they've received data
+
+		:param addr TAddress: Sender's address
+		:param data TData: Data send by sender
+
+		:returns None: Nothing is returned
+		"""
+		if self.closed(): return # If socket has been closed, cease execution
+		if type(data) is not TData: return # If data type isn't TData, exit
+		data = data.get() # Read data that was sent
+		if data is None: # If None was returned then that means that the data has been A) read previously or B) was set to be None
+			print("Data was already read before we received it, was this meant broadcasted message?") # Debug info
+			return # Exit
+		self._dataHistroy.append([addr, data]) # Added this to the data history
+		while len(self._dataHistroy) > 25: del self._dataHistroy[0] # While the length of the data history is greater than 25, remove the first entry
+		self._lastDataReceived = [addr, data] # Set the last received data to be the address and data
+		timeout = 0 # Set timeout for mutliple receives being called at once
+		while self._receiveEvent.is_set() and timeout < 3: # While the event is set and the timeout is less than 3
+			time.sleep(.05) # Wait .05 seconds
+			timeout += 1 # Increase timeout by 1
+		if timeout == 3: return # If timeout == 3 then the receiveData wasn't called in time
+		self._receiveEvent.set() # Set the event so receiveData listeners can read new data
 
 	def receiveData(self):
-		if self.closed(): return [None, None]
-		if self._receivers > 1:
-			print("2+ Threads Listening For Data!")
-			return [None, None]
-		got = None
-		self._receivers += 1
-		while got is None:
-			self._receiveEvent.wait()
-			got = self._lastDatareceived
-		self._lastDatareceived = None
-		self._receiveEvent.clear()
-		self._receivers -= 1
-		return got
+		"""
+		Function to call to halt thread until data has been received by socket
+		This method should be called outside of the main thread
+		Function will return None if it is called from main thread
+		"""
+		if self.closed(): return [None, None] # If socket has been closed, return None
+		if currThread() is mainThread(): # If function has been called from main python thread
+			print("An attempt was made to join a thread from the main python thread") # Debug info
+			return [None, None] # Return None
+		if self._receivers >= 1: # If receivers is greater than 1
+			print("2+ Threads Listening For Data!") # Debug info
+			return [None, None] # Return None
+		got = None # Currently gotten data
+		self._receivers += 1 # Increase number of receivers as now one has started a possibly infinite loop
+		while got is None: # While gotten data is None
+			self._receiveEvent.wait() # Wait for event to be set
+			got = self._lastDataReceived # Set the data gotten to be the data last received
+		self._lastDataReceived = None # Set last data received to be None
+		self._receiveEvent.clear() # Reset event
+		self._receivers -= 1 # Remove this listener from total receivers
+		return got # Return the gotten data
 
 	def sendData(self, receiver: TAddress = None, data: str = None):
-		if self.closed(): return
-		if receiver.addr[0] == "<broadcast>":
-			for sock in TSocket.allSockets:
-				if sock._addr.registered and sock._addr.addr[0] == self._addr.addr[0] and sock._addr.addr[1] == self._addr.addr[1] and sock._callbackID != self._callbackID:
-					sock.receive(self._addr, TData(data, True))
-		else: TSocket.sendDataProtected(self._addr, receiver, data)
+		"""
+		Send data to another address
+
+		:param receiver TAddress: The address to send data to
+		:param data str: The data to send
+
+		:returns None: Nothing is returned
+		"""
+		if self.closed(): return # If this socket has been closed, cease execution
+		if receiver.addr[0] == "<broadcast>": # If the receiving address is a broadcast
+			for sock in TSocket.allSockets: # Loop through every socket as sock
+				if sock._addr.registered and sock._addr.addr == self._addr.addr and sock._callbackID != self._callbackID: # If socket is registered, matches address, and callback doesn't equal this sockets
+					sock.receive(self._addr, TData(data, True)) # Send data to the socket
+		else: TSocket.sendDataProtected(self._addr, receiver, data) # If address isn't a broadcast, use send data protected
 
 	def closed(self):
+		"""
+		Gets if the socket has been closed
+
+		:returns bool: If the socket's address is not registered
+		"""
 		return not self._addr.registered
 
 	def close(self):
-		self._addr.free()
-		if self in TSocket.allSockets:
-			TSocket.allSockets.remove(self)
+		"""
+		Closes a socket, prevents furture calls to the socket
 
-class TThread:
+		:returns None: Nothing is returned
+		"""
+		self._addr.free() # Free socket's address
+		if self in TSocket.allSockets: # If this socket is in list of all sockets
+			TSocket.allSockets.remove(self) # Remove this socket from list of all sockets
+
+class SimpleThread:
+	"""
+	My own implementation of threading made simple
+	Still uses a Thread object for underlying threading but has better control
+	Adds for looping threads to continuously call the target function
+	"""
 
 	def __init__(self, target = None, loop: bool = False, args = (), kwargs = {}):
-		self._internalThread = Thread(target=self._internal)
-		self._target = target
-		self._args = args
-		self._kwargs = {} if kwargs is None else kwargs
-		self._loop = loop
-		self._stop = False
-		self._running = True
+		"""
+		Init
+
+		:param target function: The function that will be called by the thread
+		:param loop bool: Should the function be continuously called
+		:param args tuple: Arguments to pass to the function
+		:param kwargs dict: Keyword arguments to pass to the function
+		"""
+		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
+		self._target = target # Save target
+		self._args = args # Save args
+		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
+		self._loop = loop # Save whether function should loop
+		self._running = False # Thread isn't running yet
 
 	def stop(self):
-		self._stop = True
-		self._running = False
-		return self
+		"""
+		Stop the thread (change internal variable)
+
+		:returns SimpleThread: self
+		"""
+		self._running = False # Set that thread isn't running
+		return self # Return self
 
 	def _internal(self):
-		if self._loop:
-			while not self._stop and self._running:
-				try: self._target(*self._args, **self._kwargs)
-				except BaseException:
-					print(f"Theoretical Thread threw an error (1), closing thread\n{traceback.format_exc()}")
-					break
-		else:
-			try: self._target(*self._args, **self._kwargs)
-			except BaseException: print(f"Theoretical Thread threw an error (2), closing thread\n{traceback.format_exc()}")
-		self.stop()
-		del self._internalThread
+		try: # Try-except to always delete isntance of the internal thread, args, and kwargs
+			if self._loop: # If thread should loop
+				while self._running: # While the thread is running
+					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
+					except BaseException: # Catch all exceptions
+						print(f"Theoretical Thread threw an error (1), closing thread\n{traceback.format_exc()}") # Debug info
+						break # Break from loop
+			else: # If thread shouldn't loop
+				try: self._target(*self._args, **self._kwargs) # Call function with args and kwargs
+				except BaseException: print(f"Theoretical Thread threw an error (2), closing thread\n{traceback.format_exc()}") # Catch all exceptions and print debug info
+		finally: # Always execute
+			self.stop() # Mark thread as stopped
+			del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs
 
 	def start(self):
-		self._internalThread.start()
-		self._running = True
-		return self
+		"""
+		Start the internal thread
+
+		:returns SimpleThread: self
+		"""
+		if self._running: return self # If thread is already running, return self
+		self._running = True # Set that thread is running
+		self._internalThread.start() # Start internal thread
+		return self # Return self
+
+	def join(self, timeout: int = 5):
+		"""
+		Allows for thread to join internal thread
+		Should not and cannot be called form main thread
+
+		:returns None: Nothing is returned
+		"""
+		if currThread() is mainThread(): # If function has been called from main thread
+			print("An attempt was made to join a thread from the main python thread") # Debug info
+			return [None, None] # return None
+		self._internal.join(timeout) # Wait for thread to terminal but added timeout
 
 class TNetworkable:
+	"""
+	An object that uses networking (server and client)
+	"""
 
 	def __init__(self, isServer: bool = False, fakeRealIP: str = None):
-		self._isServer = isServer
-		self._ip = fakeRealIP
-		self._broadcastSocket = TSocket.createNewSocket(fakeRealIP, TAddress("<broadcast>", TPorts.SERVER_BROADCAST))
-		self._broadcastReceiveThread = TThread(self._broadcastReceive, True).start()
-		self._generalSocket = TSocket.createNewSocket(fakeRealIP, TAddress(fakeRealIP, TPorts.SEND_RECEIVE))
-		self._generalReceiveThread = TThread(self._generalReceive, True).start()
-		self._networkingThreads = {}
-		self._activeProtocols = {}
-		self._protocolHandler = ProtocolHandler(not isServer, self)
+		"""
+		Init
+
+		:param isServer bool: Is instance a server
+		:param fakeRealIP str: Fake ip of server or client
+
+		:returns self: Instance
+		"""
+		self._isServer = isServer # Save if server
+		self._ip = fakeRealIP # Save ip
+		self._broadcastSocket = TSocket.createNewSocket(fakeRealIP, TAddress("<broadcast>", TPorts.SERVER_BROADCAST)) # Create broadcasting socket
+		self._broadcastReceiveThread = SimpleThread(self._broadcastReceive, True).start() # Create broadcasting listening thread
+		self._generalSocket = TSocket.createNewSocket(fakeRealIP, TAddress(fakeRealIP, TPorts.SEND_RECEIVE)) # Create general data receiving socket
+		self._generalReceiveThread = SimpleThread(self._generalReceive, True).start() # Create general data listening thread
+		self._networkingThreads = {} # Currently active networking threads {thread name: thread instance}
+		self._activeProtocols = {} # Currently active protocol {"ip:port": Protocol instance}
+		self._protocolHandler = ProtocolHandler(not isServer, self) # Create protocol handler
 
 	def isIP(self, ipaddr: str = None):
-		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False
-		return re.match("((\\.)*\\d{1,3}){4}", ipaddr)
+		"""
+		Checks if a string is an ip (valid format)
+
+		:param ipaddr str: Possible ip address
+
+		:returns bool: If it is an ip address or not
+		"""
+		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False # If address is None type, isn't a string type, or is empty, return false
+		return re.match("((\\.)*\\d{1,3}){4}", ipaddr) # Check if the string matches a normal IPv4 address' format
 
 	def spawnThread(self, threadName: str = None, threadTarget = None, loop: bool = False, args = (), kwargs = {}):
-		self.closeThread(threadName)
-		T = TThread(threadTarget, loop = loop, *args, **kwargs)
-		self._networkingThreads[threadName] = T
-		return T
+		"""
+		Create a thread with a name
+
+		:param threadName str: The name of the thread
+		:param threadTarget function: The target function to call
+		:param loop bool: Whether the thread should loop
+		:param args tuple: Arguments for the thread
+		:param kwargs dict: Keyword arguments for the thread
+
+		:returns SimpleThread: The thread created
+		"""
+		self.closeThread(threadName) # Try to close a thread by the same name of the one we're creating
+		T = SimpleThread(threadTarget, loop = loop, *args, **kwargs) # Create instance of thread
+		self._networkingThreads[threadName] = T # Save thread to list of threads
+		return T # Return the thread
 
 	def closeThread(self, threadName: str = None):
-		try:
-			self._networkingThreads[threadName].stop()
-			del self._networkingThreads[threadName]
-			return True
-		except KeyError: return False
+		"""
+		Tries to close a thread by a name
+
+		:param threadName str: The name of the thread you want to close
+
+		:returns bool: If the thread was found
+		"""
+		try: # Try-except for finding thread
+			self._networkingThreads[threadName].stop() # Try to find thread at key: threadName and stop it
+			del self._networkingThreads[threadName] # Delete it from dictionary of networking threads
+			return True # Return true that thread was found by that name, doesn't mean thread has been terminated
+		except KeyError: return False # Return false if thread wasn't found (KeyError in dictionary of networking threads)
 
 	def spawnProtocol(self, recipient: TAddress = None, timeout = None, protocolClass = None, args = (), kwargs = {}):
 		proto = protocolClass(*args, **kwargs)
 		recip = str(recipient)
 		try: self._activeProtocols[recip].append(proto)
 		except KeyError: self._activeProtocols[recip] = [proto]
-		if type(timeout) == int: TThread(target = self._threadTimeout, loop = False,
+		if type(timeout) == int: SimpleThread(target = self._threadTimeout, loop = False,
 			args=(recip, proto, timeout)).start()
 		return proto
 
@@ -327,7 +461,8 @@ class TServer(TNetworkable):
 		self._broadcastProtoSaved = super().spawnProtocol(self._broadcastSocket._addr, None, Broadcast_IP, args = (0,))
 
 	def startBroadcasting(self):
-		super().spawnThread("Broadcasting", self._broadcastThread, True).start()
+		t = super().spawnThread("Broadcasting", self._broadcastThread, True)
+		t.start()
 
 	def _broadcastThread(self):
 		self._broadcastProtoSaved._step = 0
@@ -347,7 +482,7 @@ class TServer(TNetworkable):
 			if hndl[0] == 2:
 				super().invalidateProtocol(addr ,hndl[1])
 		if not (addr.addr[0] in self._clientsGot): return
-		TThread(threading, False, args=(self,)).start()
+		SimpleThread(threading, False, args=(self,)).start()
 
 class TClient(TNetworkable):
 
@@ -371,7 +506,7 @@ class TClient(TNetworkable):
 			self._broadcastSocket.close()
 			self._serversIP = TAddress(self._serversIP, TPorts.SEND_RECEIVE)
 			#self.keyExchange() <- Thread wouldn't normally be needed!
-			TThread(self.keyExchange, False, (), {}).start()
+			SimpleThread(self.keyExchange, False, (), {}).start()
 
 	def generalReceive(self, addr: TAddress = None, data: str = None):
 		if addr.addr[0] != self._serversIP.addr[0]: return
@@ -626,7 +761,6 @@ class Packet:
 		return type(Packet.fromString(packet)) == Packet
 
 	def __init__(self, method: str = None, protocolName: str = None, step: int = 0):
-		# Step is the step that the recieving service should do in the protocol
 		self._method = method
 		self._protocol = protocolName
 		self._step = step
