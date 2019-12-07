@@ -1,5 +1,4 @@
 import sys
-import time
 
 def close(pause: bool = False, msg: str = None):
 	"""
@@ -89,6 +88,6 @@ class Error:
 		:returns: None
 		"""
 		out = "Error Details:\n\tError Class: " + self._orgError[0].__name__ + ("\n\tError Msg: " + self._orgError[2] if len(self._orgError) > 2 else "") + "\n\tAdditional Information: \n\t\t" + self._info # Create message
-		if self._method == -1: kill(out) # If we should kill, kill
-		elif self._method == 0: close(False, out) # If we should instead close, close
+		if self._method == Codes.KILL: kill(out) # If we should kill, kill
+		elif self._method == Codes.EXIT: close(False, out) # If we should instead close, close
 		else: print("An error has occured but the program can sustain this error\n", out, sep = '') # If the program can sustain it, log it
