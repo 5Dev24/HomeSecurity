@@ -157,6 +157,18 @@ class TSocket:
 		TSocket.allSockets.append(sock) # Add socket to list of sockets
 		return sock # Return the new socket instance
 
+	@staticmethod
+	def _generateNonCollidingCallbackID():
+		"""
+		Generates a new callback id that isn't being currently used
+
+		:returns int: New callback id
+		"""
+		possible = rand.randint(-(2 ** 64), 2 ** 64) # Randomly generated callback id to prevent a socket from sending data to itself
+		while any(possible == sock._callbackID for sock in TSocket.allSockets): # While callback id collides with any other callback id
+			possible = rand.randint(-(2 ** 64), 2 ** 64) # Generate new random callback id
+		return possible # Return non colliding callback id
+
 	def __init__(self, ip: str = "127.0.0.1", addr: TAddress = None):
 		"""
 		Init
@@ -172,7 +184,7 @@ class TSocket:
 		self._lastDataReceived = None # No previous data has been received so make None
 		self._receiveEvent = Event() # Create event for data being received
 		self._receivers = 0 # Number of threads waiting for event
-		self._callbackID = rand.randint(-1 * (2 ** 32), 2 ** 32) # Randomly generated callback id to prevent a socket from sending data to itself
+		self._callbackID = TSocket._generateNonCollidingCallbackID() # Generate a new callback id
 
 	def __str__(self):
 		"""
@@ -253,7 +265,7 @@ Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, 
 
 		:returns bool: If the socket's address is not registered
 		"""
-		return not self._addr.registered
+		return not self._addr.registered # Return if the address of the socket isn't registered
 
 	def close(self):
 		"""
@@ -356,7 +368,7 @@ class TNetworkable:
 		self._generalSocket = TSocket.createNewSocket(fakeRealIP, TAddress(fakeRealIP, TPorts.SEND_RECEIVE)) # Create general data receiving socket
 		self._generalReceiveThread = SimpleThread(self._generalReceive, True).start() # Create general data listening thread
 		self._networkingThreads = {} # Currently active networking threads {thread name: thread instance}
-		self._activeProtocols = {} # Currently active protocol {"ip:port": Protocol instance}
+		self._activeProtocols = {} # Currently active protocol {"ip:port": [Protocol instance,]}
 		self._protocolHandler = ProtocolHandler(not isServer, self) # Create protocol handler
 
 	def isIP(self, ipaddr: str = None):
@@ -401,56 +413,133 @@ class TNetworkable:
 			return True # Return true that thread was found by that name, doesn't mean thread has been terminated
 		except KeyError: return False # Return false if thread wasn't found (KeyError in dictionary of networking threads)
 
-	def spawnProtocol(self, recipient: TAddress = None, timeout = None, protocolClass = None, args = (), kwargs = {}):
-		proto = protocolClass(*args, **kwargs)
-		recip = str(recipient)
-		try: self._activeProtocols[recip].append(proto)
-		except KeyError: self._activeProtocols[recip] = [proto]
+	def spawnProtocol(self, recipient: TAddress = None, timeout: int = None, protocolClass = None, args = (), kwargs = {}):
+		"""
+		Spawns a protocol and saves it as being created by the recipient
+
+		:param recipient TAddress: Who the other party is in the protocol
+		:param timeout int: Timeout to invalidate the protocol after timeout seconds
+		:param protocolClass type: The class of protocol to create instance of
+		:param args tuple: Arguments for protocol
+		:param kwargs dict: Keyword arguments for protocol
+
+		:returns Protocol: The protocol created
+		"""
+		proto = protocolClass(*args, **kwargs) # Create instance of class with args and kwargs
+		recip = str(recipient) # Get recipient as string
+		try: self._activeProtocols[recip].append(proto) # Try to add the protocol as part of the protocol list that this recipient has spawned
+		except KeyError: self._activeProtocols[recip] = [proto] # If no key exists for the recipient, create new one with list only containing the new protocol instance
 		if type(timeout) == int: SimpleThread(target = self._threadTimeout, loop = False,
-			args=(recip, proto, timeout)).start()
-		return proto
+			args=(recip, proto, timeout)).start() # If the timeout is an int, create a simple thread to invalidate it after timeout seconds
+		return proto # Return instance of protocol
 
 	def getSpawnedProtocol(self, recipient: TAddress = None, protocolClass = None):
-		recip = str(recipient)
-		try: self._activeProtocols[recip]
-		except KeyError: return None
-		for spawnedProtocol in self._activeProtocols[recip]:
-			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__name__.upper():
-				return spawnedProtocol
-		return None
+		"""
+		Gets a protocol that was created by the recipient
+
+		:param recipient TAddress: The address that caused the spawning of the protocol
+		:param protocolClass type: The class of the protocol
+
+		:returns Protocol: The protocol if it was found, else None
+		"""
+		recip = str(recipient) # Convert the recipient to a string
+		try: self._activeProtocols[recip] # Try to lookup the recip in the dictionary of active protocols
+		except KeyError: return None # If a KeyError was thrown from the key not existing in the dictionary then, return None
+		for spawnedProtocol in self._activeProtocols[recip]: # Loop through each active protocol as spawnedProtocol
+			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__name__.upper(): # If class names match
+				return spawnedProtocol # Return the found protocol
+		return None # Return None as no protocol was found
 
 	def invalidateProtocol(self, recipient: TAddress = None, protocolClass = None):
-		recip = str(recipient)
-		try: self._activeProtocols[recip]
-		except KeyError: return -1 # Unable to find recipient
-		for proto in self._activeProtocols[recip]:
-			if proto.__class__.__name__.upper() == protocolClass.__class__.__name__.upper():
-				del self._activeProtocols[recip][self._activeProtocols[recip].index(proto)]
-				return 1 # Deleted a protocol instance
-		return 0 # No work was done
+		"""
+		Marks a protocol as invalid and will remove it from use
+
+		:param recipient TAddress: The address that caused the intial spawning of the protocol
+		:param protocolClass type: The class of the protocol to invalidate
+
+		:returns int: Return exit code
+		"""
+		"""
+		Exit Codes:
+		   -1 -> The recipient wasn't found to have any protocols registered (Good)
+		    0 -> The recipient has created protocols but just not the one we're lookin' for (Good)
+		    1 -> The recipient had created the protocl(s) we were lookin' for and they/it were/was removed (Good)
+		"""
+		recip = str(recipient) # Convert the recipient to a string
+		try: self._activeProtocols[recip] # Try to lookup the value of the key: recip, in the dictionary of active protocols
+		except KeyError: return -1 # Unable to find recipient, return -1 as the recipient wasn't found
+		outCode = 0 # Returned to determine if work was done
+		for proto in self._activeProtocols[recip]: # Loop through each protocol for a recipient as proto
+			if proto.__class__.__name__.upper() == protocolClass.__class__.__name__.upper(): # If class names match
+				self._activeProtocols[recip].remove(proto) # Remove protocol from list of protocols
+				outCode += 1 # Increase output code by 1 as a protocol was invalidated
+		if outCode > 0: return 1 # If the output code is greater than 0 then return that at least 1 protocol was invalidated
+		else: return 0 # Return that no work was done (0)
 
 	def _threadTimeout(self, recipient: str = None, proto = None, timeout: float = 5):
-		time.sleep(timeout)
-		self.invalidateProtocol(recipient, proto)
+		"""
+		An internal method to be put into a thread for automatically invalidating protocol after a time period
+		Should not and cannot be called from main thread
+
+		:returns int: Return exit code
+		"""
+		"""
+		Exit Codes:
+		   -2 -> Fucntion was called from main thread (Bad)
+
+		Refer to invalidateProtocol's exit codes for any other exit codes for this function
+		"""
+		if currThread() is mainThread(): # If function has been called from main thread
+			print("An attempt was made to join a thread from the main python thread") # Debug info
+			return -2 # Exit function, return -2 error
+		time.sleep(timeout) # Sleep for timeout seconds
+		self.invalidateProtocol(recipient, proto) # Invalidate the protocol
 
 	def _broadcastReceive(self):
-		if self._broadcastSocket.closed():
-			self._broadcastReceiveThread.stop()
-			return
-		addr, data = self._broadcastSocket.receiveData()
-		if data is None or not len(data): return
-		self.broadcastReceive(addr, data)
+		"""
+		An internal function that listens for data being sent to the broadcasting socket of the networkable
+
+		:returns None: Nothing is returned
+		"""
+		if self._broadcastSocket.closed(): # If socket is closed
+			self._broadcastReceiveThread.stop() # Stop this thread
+			return # Exit function
+		addr, data = self._broadcastSocket.receiveData() # Wait until data is received
+		if data is None or not len(data): return # If data is invalid, exit function
+		self.broadcastReceive(addr, data) # Call, hopefully implemented, child function
 
 	def _generalReceive(self):
-		if self._generalSocket.closed():
-			self._generalReceiveThread.stop()
-			return
-		addr, data = self._generalSocket.receiveData()
-		if data is None or not len(data): return
-		self.generalReceive(addr, data)
+		"""
+		An internal function that listens for data being sent to the general socket of the networkable
 
-	def broadcastReceive(self, addr: TAddress = None, data: str = None): raise NotImplementedError()
-	def generalReceive(self, addr: TAddress = None, data: str = None): raise NotImplementedError()
+		:returns None: Nothing is returned
+		"""
+		if self._generalSocket.closed(): # If socket is closed
+			self._generalReceiveThread.stop() # Stop this thread
+			return # Exit function
+		addr, data = self._generalSocket.receiveData() # Wait until data is received
+		if data is None or not len(data): return # If data is invalid, exit function
+		self.generalReceive(addr, data) # Call, hopefully impelemented, child function
+
+	def broadcastReceive(self, addr: TAddress = None, data: str = None):
+		"""
+		A function that child classes must implement
+		It is called when data is received on the broadcasting socket of the networkable
+
+		:param addr TAddress: Sender of data
+		:param data str: The data sent
+		"""
+		raise NotImplementedError() # Raise error as function wasn't implemented by child class
+
+	def generalReceive(self, addr: TAddress = None, data: str = None):
+		"""
+		A function that child classes must implement
+		It is called when data is received on the general receiving socket of the networkable
+
+		:param addr TAddress: Sender of data
+		:param data str: The data sent
+		"""
+		raise NotImplementedError() # Raise error as function wasn't implemented by child class
 
 class TServer(TNetworkable):
 
