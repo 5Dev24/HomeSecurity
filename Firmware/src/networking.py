@@ -345,7 +345,7 @@ class SimpleThread:
 		if currThread() is mainThread(): # If function has been called from main thread
 			print("An attempt was made to join a thread from the main python thread") # Debug info
 			return [None, None] # return None
-		self._internal.join(timeout) # Wait for thread to terminal but added timeout
+		self._internalThread.join(timeout) # Wait for thread to terminal but added timeout
 
 class TNetworkable:
 	"""
@@ -542,6 +542,8 @@ class TNetworkable:
 		raise NotImplementedError() # Raise error as function wasn't implemented by child class
 
 class TServer(TNetworkable):
+	"""
+	"""
 
 	def __init__(self):
 		super().__init__(True, "192.168.6.1")
@@ -767,8 +769,9 @@ class Key_Exchange(Protocol):
 		super().__init__(step, 0, (2, 4), (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
 
 	def session(self, key):
-		seed = sha256((key.privKey() + str(rand.randint(-(2 ** 64 - 1), 2 ** 64 - 1))).encode("utf-8")).digest().hex()
-		rand.shuffle(shuffle := [c for c in seed])
+		seed = sha256((key.privKey() + str(rand.randint(-(2 ** 64), 2 ** 64))).encode("utf-8")).digest().hex()
+		shuffle = [c for c in seed]
+		rand.shuffle(shuffle)
 		return "".join([rand.choice(shuffle) for i in range(64)])
 
 	def aesKey(self):
