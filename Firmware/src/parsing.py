@@ -1,7 +1,6 @@
 import sys as S
 
 class ArgumentParser:
-
 	"""
 	Handles argument parsing
 	"""
@@ -10,10 +9,16 @@ class ArgumentParser:
 		"""
 		Init
 
-		:param doLog bool: If logging errors should be enabled or not
-		:param handler dict: The argument handler
+		Args:
+			doLog (bool): If logging errors should be enabled or not
+			handler (dict): The argument handler
 
-		:returns self: Instance
+		Attributes:
+			_doLog (bool): If the parser should log
+			_isHandledStorage (tuple): If each part of the handling is handled in the handler
+			_vars (dict): The handling variables
+			_handler (dict): The handling configuration
+			_parsedArgs (list): All of the arguments that have been parsed
 		"""
 		self._doLog = False if doLog is None else doLog # Should logging of errors be enabled
 		self._isHandledStorage = tuple([False]) * 6 # Create private handled storage
@@ -23,9 +28,10 @@ class ArgumentParser:
 
 	def __str__(self):
 		"""
-		To string
+		Converts the object to a string
 
-		:returns str: This classes data in a string format
+		Returns:
+			str: This classes data in a string format
 		"""
 		return "Handler: " + str(self._handler) + "\nHandle Storage: " + str(self._isHandledStorage) + "\
 			\nParsed Arguments: " + str(self._parsedArgs) + "\nVariables: " + str(self._vars) # Convert all data into strings and label them
@@ -34,18 +40,22 @@ class ArgumentParser:
 		"""
 		Handles the initial handler passed to this class
 
-		:param handler dict: The initial handler
+		Args:
+			handler (dict): The initial handler
 
-		:returns dict: The new handler
+		Returns:
+			dict: The new handler
 		"""
 
 		def isValidArgValueType(argValueType: str = ""):
 			"""
 			Checks for invalid argument types
 
-			:param argValueType str: The original argument string
+			Args:
+				argValueType (str): The original argument string
 
-			:returns bool: False if an invalid type was found, else True
+			Returns:
+				bool: False if an invalid type was found, else True
 			"""
 			for argType in argValueType.split("|"): # Split argument by |'s
 				if not (argType == "string" or argType == "int" or argType == "float" or argType == "boolean"): return False # If it isn't a valid argument type, return False
@@ -95,9 +105,11 @@ class ArgumentParser:
 		"""
 		Takes a type string and tries to break it down into all types
 
-		:param typeString str: The type string for a variable
+		Args:
+			typeString (str): The type string for a variable
 
-		:returns str: The generated type string
+		Returns:
+			str: The generated type string
 		"""
 		types = typeString # Get the variables type(s)
 		if '|' in types: # If types contains any |'s
@@ -115,7 +127,8 @@ class ArgumentParser:
 		"""
 		Generates the default help message for an argument parser
 
-		:returns str: The default help message
+		Returns:
+			str: The default help message
 		"""
 		out = S.argv[0] # Get name of program executed
 		if len(self._vars["all"]) > 0: # If vars conains any variables
@@ -143,9 +156,11 @@ class ArgumentParser:
 		"""
 		Used to get the default value of variables
 
-		:param argType str: The argument type string
+		Args:
+			argType (str): The argument type string
 
-		:returns object: The default value or None if a valid argument type wasn't found
+		Returns:
+			object: The default value or None if a valid argument type wasn't found
 		"""
 		types = typeString.split('|') # Get all valid argument types for a given argument
 		out = []
@@ -161,11 +176,13 @@ class ArgumentParser:
 		"""
 		Checks if a given value is correct for a variable
 
-		:param mode int: 0 = By type name, 1 = By object type
-		:param var str: The variable's name
-		:param typeToCheck object: The type
+		Args:
+			mode (int): 0 = By type name, 1 = By object type, default 0
+			var (str): The variable's name
+			typeToCheck (object): The type
 
-		:returns bool: If that the type is a valid type for the variable
+		Returns:
+			bool: If that the type is a valid type for the variable
 		"""
 		if var in self._vars["all"]: # If the varialbe is in the list of all variables
 			if mode == 0: # If in by type string
@@ -183,17 +200,21 @@ class ArgumentParser:
 		"""
 		Parses out a list of agruments
 
-		:param args list: List of arguments, all strings
+		Args:
+			args (list): List of arguments, all strings
 
-		:returns list: Parsed arguments ready to be executed
+		Returns:
+			list: Parsed arguments ready to be executed
 		"""
 		def unknownArgumentParse(arg: str = ""):
 			"""
 			Figures out which type the specific argument is based off of the string
 
-			:param arg str: The argument to decipher
+			Args:
+				arg (str): The argument to decipher
 
-			:return list: The type and the value (casted to proper type)
+			Returns:
+				list: The type and the value (casted to proper type)
 			"""
 			argType = "string" # Default to string
 			if len(arg) == 0: return None # If an empty string was sent, return None
@@ -252,9 +273,11 @@ class ArgumentParser:
 		"""
 		Testings if something is handled
 
-		:param toHandle str: The thing to check
+		Args:
+			toHandle (str): The thing to check
 
-		:returns bool: If it's handled or not, default False
+		Returns:
+			bool: If it's handled or not, default False
 		"""
 		toHandle = toHandle.lower() # Convert handle string to lowercase
 		if toHandle == "cmds": return self._isHandledStorage[0] # If it's cmds, return if it's handled
@@ -269,9 +292,11 @@ class ArgumentParser:
 		"""
 		Parse a list of arguments and if a command is present then disregard all other arguments
 
-		:param args list: The list of arguments
+		Args:
+			args (list): The list of arguments
 
-		:returns None: Nothing is returned
+		Returns:
+			None
 		"""
 		if not (type(args) is list): return # If the arguments aren't a list, don't do anything
 		args = self._parse(args) # Do main parse
@@ -286,7 +311,8 @@ class ArgumentParser:
 		Executes the list of parsed arguments
 		View source code for understanding of exit codes
 
-		:returns int: Exit code of the execution
+		Returns:
+			int: Exit code of the execution
 		"""
 		"""
 		Exit Codes:
@@ -304,9 +330,11 @@ class ArgumentParser:
 			"""
 			Gets a command from the handler
 
-			:param cmd str: The command
+			Args:
+				cmd (str): The command
 
-			:returns function/lambda: Returns the function/lambda to call or None if the command wasn't found
+			Returns:
+				function: Returns the function to call or None if the command wasn't found
 			"""
 			cmds = handler("cmds") # Get the dictionary of commands from handler
 			if cmd is None: return None # If the command is None, then return None
@@ -317,9 +345,11 @@ class ArgumentParser:
 			"""
 			Checks if a variable exists by string
 
-			:param var str: The variable's name
+			Args:
+				var (str): The variable's name
 
-			:returns bool: If the variable exists or not
+			Returns:
+				bool: If the variable exists or not
 			"""
 			for _var in self._vars["all"].items(): # Loop through all variables list as _var
 				if _var[0] == var: return True # If the name of the varaible and the passed name match, then return True
@@ -329,7 +359,8 @@ class ArgumentParser:
 			"""
 			Gets a list of all of the required variables that haven't been set
 
-			:returns list: A list of all not set required variables names and execpected type(s)
+			Returns:
+				list: A list of all not set required variables names and execpected type(s)
 			"""
 			args = [] # List of unset variables
 			for var in self._vars["required"].items(): # Loop through all required variables as var
@@ -343,7 +374,8 @@ class ArgumentParser:
 			"""
 			Gets if all of the required arguments were set
 
-			:returns bool: If all of the required arguments were set
+			Returns:
+				bool: If all of the required arguments were set
 			"""
 			return len(allNotSetVars()) == 0 # Return True if the number of not set arguments is 0, else False
 
@@ -387,9 +419,11 @@ class ArgumentParser:
 		"""
 		Reads a value, required or optional
 
-		:param var str: The variable to read
+		Args:
+			var (str): The variable to read
 
-		:returns obj: The varaibles value
+		Returns:
+			obj: The varaibles value
 		"""
 		if not (var in self._vars["all"]): return None # If the variable isn't in the all variables list, then return None
 		else: return self._vars["all"][var][1] # Return the value of the varaible if it exists
@@ -397,11 +431,14 @@ class ArgumentParser:
 	def wasVariableSet(self, var: str = ""):
 		"""
 		Determines if an optional variable was set or not, or even exists
+
 		View source code for understanding of the determined codes
 
-		:param var str: Possible variable name
+		Args:
+			var (str): Possible variable name
 
-		:returns int: The determined code
+		Returns:
+			int: The determined code
 		"""
 		"""
 		Determined Codes:
@@ -417,12 +454,15 @@ class ArgumentParser:
 	def writeVariable(self, var: str = "", value: object = None):
 		"""
 		Allows for set setting of a variable by name
+
 		View source code for understanding write codes
 
-		:param var str: The name of the variable
-		:param value object: The value to set to the variable to
+		Args:
+			var (str): The name of the variable
+			value (object): The value to set to the variable to
 
-		:returns int: The write code
+		Returns:
+			int: The write code
 		"""
 		"""
 		Write Codes:

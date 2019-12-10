@@ -4,10 +4,12 @@ def close(pause: bool = False, msg: str = None):
 	"""
 	Exists the program with a code of 0, prints a message and that it exited with code 0, and could pause before closing
 
-	:param pause bool: To pause before closing or not
-	:param msg str: The message to print
+	Args:
+		pause (bool): To pause before closing or not
+		msg (str): The message to print
 
-	:returns void: Doesn't as program closes
+	Returns:
+		Won't return as program terminates
 	"""
 	if msg is None: msg = "No message supplied" # If no message was given, set to a default one
 	print(msg + "\nTermination with exit code 0") # Print message and that the program terminated with exit code 0
@@ -18,9 +20,11 @@ def kill(msg: str = None):
 	"""
 	Kills a program with a code of 1, prints out an error message but may not be seen as there is no pausing, terminal needed
 
-	:param msg str: The message to print
+	Args:
+		msg (str): The message to print
 
-	:returns void: Doesn't as program closes
+	Returns:
+		Won't return as program terminates
 	"""
 	if msg is None: msg = "No message supplied" # If no message was given, set to a default one
 	print(msg + "\nTerminating with exit code 1") # Print message and that the program terminated with exit code 1
@@ -48,11 +52,15 @@ class Error:
 		"""
 		Init
 
-		:param originalError BaseException: The exception thrown
-		:param method int: The method for handling the error
-		:param additionalInfo str: Additional information about the error
+		Args:
+			originalError (BaseException): The exception thrown
+			method (int): The method for handling the error
+			additionalInfo (str): Additional information about the error
 
-		:returns self: Instance
+		Attributes:
+			_info (str): Additional information about the error
+			_method (int): The exit code
+			_orgError (list): Data on the underlying error
 		"""
 		if additionalInfo is None: additionalInfo = "" # If additional info is none, make it an empty string
 		self._info = additionalInfo # Save addition information
@@ -85,7 +93,8 @@ class Error:
 		"""
 		Handles an error after being created
 
-		:returns: None
+		Returns:
+			None
 		"""
 		out = "Error Details:\n\tError Class: " + self._orgError[0].__name__ + ("\n\tError Msg: " + self._orgError[2] if len(self._orgError) > 2 else "") + "\n\tAdditional Information: \n\t\t" + self._info # Create message
 		if self._method == Codes.KILL: kill(out) # If we should kill, kill
