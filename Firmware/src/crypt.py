@@ -18,14 +18,19 @@ CONSTS = {
 	"SERVER_RSA": 2**11, # RSA key length for servers
 	"RSA_PRIME": 101 # RSA prime
 }
+"""
+All constants used for encryption
+"""
 
 def FormatBytes(obj: object = None):
 	"""
 	Used to turn a bytearray to a string or to turn a string into a bytearray
 
-	:param obj object: A bytearray or string
+	Args:
+		obj (bytes/str): A bytearray or string
 
-	:returns bytearray/str: If a bytearray is passed, a string is returned. If a string is passed, a bytearray is returned
+	Returns:
+		bytearray/str: If a bytearray is passed, a string is returned. If a string is passed, a bytearray is returned
 	"""
 	if type(obj) == bytes: # If object type is bytearray
 		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj]) # Create a 2 letter pair to represent the value of the byte and return list of them merged
@@ -43,11 +48,14 @@ class AES:
 		"""
 		Init
 
-		:param key object: AES key to use, string or bytes list
+		Args:
+			key (object): AES key to use, string or bytes list
 
-		:raises: TypeError if the key is none or the length is less than 32
+		Attributes:
+			_key (bytes): AES key in a bytearray
 
-		:returns self: Instance
+		Raises:
+			TypeError: Raised if the key is none or the length is less than 32
 		"""
 		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (1)") # Make sure key something and that it's atleast 32 charcters long, else throw error
 		if type(key) != bytes: key = bytes(key, "utf-8") # If key isn't a bytearray, make it a bytearray with utf-8 encoding
@@ -57,12 +65,15 @@ class AES:
 		"""
 		Generates the key and salt for encryption/decrpyion
 
-		:param key bytes: Key to use
-		:param salt bytes: Salt to use
+		Args:
+			key (bytes): Key to use
+			salt (bytes): Salt to use
 
-		:raises: TypeError if the key is none or length is less than 32 or the salt is none
+		Raises:
+			TypeError: Raised if the key is none or length is less than 32 or the salt is none
 
-		:returns list: The key and salt
+		Returns:
+			list: The key and the salt
 		"""
 		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (2)") # If key is empty or isn't atleast 32 characters long, throw error
 		if salt is None: Error(TypeError(), Codes.KILL, "No salt for AES was sent") # If salt is empty, throw error
@@ -74,11 +85,14 @@ class AES:
 		"""
 		Adds padding to a message before encryption
 
-		:param msg str: The message to pad
+		Args:
+			msg (str): The message to pad
 
-		:raises: TypeError if the message is none or the length is zero
+		Raises:
+			TypeError: Raised if the message is none or the length is zero
 
-		:returns str: The padded message
+		Returns:
+			str: The padded message
 		"""
 		if msg is None or not len(msg): Error(TypeError(), Codes.KILL, "No message as passed for AES padding addition") # If message is None or empty, throw error
 		paddingBytes = len(msg) % CONSTS["AES_KEY_SIZE"] # Get number of bytes to pad
@@ -90,11 +104,14 @@ class AES:
 		"""
 		Removes padding from a decrypted message
 
-		:param msg bytes: The message, still in byte form
+		Args:
+			msg (bytes): The message, still in byte form
 
-		:raises: TypeError if the message is none or the length is zero
+		Raises:
+			TypeError: Raised if the message is none or the length is zero
 
-		:returns bytes: The message, minus the padding
+		Returns:
+			bytes: The message, minus the padding
 		"""
 		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "No message as passed for AES padding removal") # If message is none or length is less than expected padding, throw error
 		return msg[:-msg[-1]] # Remove padding and return message
@@ -103,11 +120,14 @@ class AES:
 		"""
 		Encrypts a message using the key
 
-		:param msg str: The message to encrypt
+		Args:
+			msg (str): The message to encrypt
 
-		:raises: TypeError if the message is none or the length is zero
+		Raises:
+			TypeError: Raised if the message is none or the length is zero
 
-		:returns bytes: The encrypted message
+		Returns:
+			bytes: The encrypted message
 		"""
 		if msg is None or not len(msg): Error(TypeError(), Codes.KILL, "Empty message as passed for AES encryption") # If message is None or it's empty, throw error
 		key, salt = self._generateCrypt(self._key, get_random_bytes(CONSTS["SALT_LENGTH"])) # Generate key from a random salt
@@ -119,11 +139,14 @@ class AES:
 		"""
 		Decrypts a message using the key
 
-		:param msg str: The message to decrypt
+		Args:
+			msg (str): The message to decrypt
 
-		:raises: TypeError if the message is none or the length is less than the salt
+		Raises:
+			TypeError: Raised if the message is none or the length is less than the salt
 
-		:returns str: The decrypted message
+		Returns:
+			str: The decrypted message
 		"""
 		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "Empty message as passed for AES decryption") # If message is empty of less than the salt length, throw error
 		key = self._generateCrypt(self._key, msg[:CONSTS["SALT_LENGTH"]])[0] # Get key for decryption
