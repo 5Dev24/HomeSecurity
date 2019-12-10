@@ -14,16 +14,23 @@ CONSTS = {
 	"SALT_LENGTH": 2**8, # Length of salt
 	"AES_KEY_SIZE": 144, # Length of AES keys
 	"KEY_ITERNATIONS": 2**16, # Times to use SHA256 on key
-	"CLIENT_RSA": 2**10,
-	"SERVER_RSA": 2**11,
-	"RSA_PRIME": 63
+	"CLIENT_RSA": 2**10, # RSA key length for clients
+	"SERVER_RSA": 2**11, # RSA key length for servers
+	"RSA_PRIME": 101 # RSA prime
 }
 
 def FormatBytes(obj: object = None):
-	if type(obj) == bytes:
-		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj])
-	elif type(obj) == str:
-		return bytes([Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)])
+	"""
+	Used to turn a bytearray to a string or to turn a string into a bytearray
+
+	:param obj object: A bytearray or string
+
+	:returns bytearray/str: If a bytearray is passed, a string is returned. If a string is passed, a bytearray is returned
+	"""
+	if type(obj) == bytes: # If object type is bytearray
+		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj]) # Create a 2 letter pair to represent the value of the byte and return list of them merged
+	elif type(obj) == str: # If object type is string
+		return bytes([Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)]) # Return a list of bytes after decoding letters into bytes
 
 class AES:
 	"""
@@ -43,7 +50,7 @@ class AES:
 		:returns self: Instance
 		"""
 		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (1)") # Make sure key something and that it's atleast 32 charcters long, else throw error
-		if type(key) != bytes: key = bytes(key, "utf-8")
+		if type(key) != bytes: key = bytes(key, "utf-8") # If key isn't a bytearray, make it a bytearray with utf-8 encoding
 		self._key = key # Save key as byte list
 
 	def _generateCrypt(self, key: bytes = None, salt: bytes = None):
@@ -144,15 +151,30 @@ class RSA:
 
 	@staticmethod
 	def removeExtraDetailOnKey(key: object = None):
-		if type(key) == bytes: key = key.decode("utf-8")
-		finalKey = [k for k in key.split("\n")]
-		del finalKey[0]
-		del finalKey[len(finalKey) - 1]
-		return "".join(finalKey)
+		"""
+		Removes the lines before and after a key that say if it's a public or private key
+
+		:param key object: The key object itself
+
+		:returns str: The key without the exit details
+		"""
+		if type(key) == bytes: key = key.decode("utf-8") # If key is a bytearray, decode it to a string
+		finalKey = [k for k in key.split("\n")] # Split on all newline characters
+		del finalKey[0] # Remove the first line
+		del finalKey[len(finalKey) - 1] # Remvoe the last line
+		return "".join(finalKey) # Merge all remaining lines together
 
 	@staticmethod
 	def addExtraDetailToKey(key: str = None, isPublic: bool = True):
-		return "-----BEGIN " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----\n" + key + "\n-----END " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----"
+		"""
+		Adds back if a key is public or private so that an RSA instance can be made from it
+
+		:param key str: The key without the details
+		:param isPublic bool: If the key is a public key
+
+		:returns str: The key with the details added back
+		"""
+		return "-----BEGIN " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----\n" + key + "\n-----END " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----" # Add back details to key at beginning and end
 
 	def __init__(self, isClients: bool = False, rsa: object = None):
 		"""
@@ -204,23 +226,23 @@ class RSA:
 		:returns str: The encrypted message
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption") # If message is empty, throw error
-		out = ""
-		for i in range(len(msg.encode("utf-8")) // 128 + 1):
-			out += FormatBytes(self._pkcs.encrypt(msg[i*128:(i+1)*128].encode("utf-8")))
-		return out
+		out = "" # Encrypted message
+		for i in range(len(msg.encode("utf-8")) // 128 + 1): # Loop through message in chunks of 128
+			out += FormatBytes(self._pkcs.encrypt(msg[i*128:(i+1)*128].encode("utf-8"))) # Encrypt a part of the message and encode the bytes to the system of bytes I created
+		return out # Return encrypted message
 
 	def decrypt(self, msg: str = None):
 		"""
 		Decrypts a string
 
-		:param msg bytes: The message to decrypt
+		:param msg str: The message to decrypt
 
 		:raises: TypeError if the msg is none or the length is 0
 
 		:returns str: The decrypted message
 		"""
-		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption")
-		out = ""
-		for i in range(len(msg.encode("utf-8")) // 512):
-			out += self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512])).decode("utf-8")
-		return out
+		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption") # If message is empty, throw errro
+		out = "" # Decrypted string
+		for i in range(len(msg.encode("utf-8")) // 512): # Loop through message in chunks of 512
+			out += self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512])).decode("utf-8") # Unformat the bytes, decrypt it, then decode to utf-8
+		return out # Return the decrypted string
