@@ -2,7 +2,7 @@ from .crypt import AES, RSA, FormatBytes
 from Crypto.Random import random as rand
 from hashlib import sha256
 from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
-import time, string, re, traceback, sys, base64
+import time, string, re, traceback, sys, base64, enum
 
 Characters = string.punctuation + string.digits + string.ascii_letters
 """
@@ -897,7 +897,7 @@ class ProtocolHandler:
 
 		def _server_Broadcast_IP():
 			"""
-			Internal function for handling a Broadcast_IP packet for server
+			Internal function for handling a Broadcast_IP packet for a server
 
 			Returns:
 				int: An exit code (see handlePacket's exit codes for reference)
@@ -918,44 +918,62 @@ class ProtocolHandler:
 			return 1 # Return that execution went well
 
 		def _client_Key_Exchange():
-			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
-			wasSpawnedPreviously = not spawned is None
-			if not wasSpawnedPreviously: return 0
-			if not spawned.isServersTurn(packet._step): return 0
-			if not spawned.isProperPacket(packet): return 0
-			if spawned._step != packet._step: return 0
-			if packet._step == 2:
-				serverPubKey = RSA.addExtraDetailToKey(packet.getDataAt(0), True)
-				spawned.keys[0] = RSA.new(False, serverPubKey)
-				spawned.createAESKey()
-			if packet._step == 4:
-				spawned.sessionIds[1] = spawned.keys[2].decrypt(packet.getDataAt(0))
-				spawned.step(self._instanceOfOwner._generalSocket, sentBy)
-				return 2
-			spawned.step(self._instanceOfOwner._generalSocket, sentBy)
-			return 1
+			"""
+			Internal function for handling a Key_Exchange packet for clients
+
+			Returns:
+				int: An exit code (see handlePacket's exit codes for reference)
+			"""
+			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange) # Get the spawned protocol
+			if spawned is None: return 0 # If Key_Exchange protocol instance wasn't previously spawned, return 0
+			if not spawned.isServersTurn(packet._step): return 0 # If the packet isn't from the server's turn, return 0
+			if not spawned.isProperPacket(packet): return 0 # If the packet's method isn't one that should be used, return 0
+			if spawned._step != packet._step: return 0 # If steps of the packet and protocol instance don't align, return 0
+			if packet._step == 2: # If packet step is 2
+				firstDataPoint = packet.getDataAt(0) # Get data at position 1
+				if firstDataPoint is None: return 0 # If data is None, return 0
+				serverPubKey = RSA.addExtraDetailToKey(firstDataPoint, True) # Add back detail to the key
+				spawned.keys[0] = RSA.new(False, serverPubKey) # Create new instance of RSA from key and save in protocol
+				spawned.createAESKey() # Create the AES key for cryptography
+			if packet._step == 4: # If packet step is 4
+				firstDataPoint = packet.getDataAt(0) # Get data at position 1
+				if firstDataPoint is None: return 0 # If data is None, return 0
+				spawned.sessionIds[1] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data from packet and save in session ids
+				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
+				return 2 # Return that the protocol has finished
+			spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
+			return 1 # Return that execution went well
 
 		def _server_Key_Exchange():
-			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange)
-			wasSpawnedPreviously = not spawned is None
-			if not wasSpawnedPreviously:
-				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 60, Key_Exchange, args=(1,))
-				serverRSA = RSA(False)
-				spawned.keys[0] = serverRSA
-			if spawned.isServersTurn(packet._step): return 0
-			if not spawned.isProperPacket(packet): return 0
-			if spawned._step != packet._step: return 0
-			if packet._step == 3:
-				decryptedClientKey = spawned.keys[0].decrypt(packet.getDataAt(0))
-				key = RSA.addExtraDetailToKey(decryptedClientKey, False)
-				spawned.keys[1] = RSA.new(True, key)
-				spawned.createAESKey()
-			if packet._step == 5:
-				spawned.sessionIds[0] = spawned.keys[2].decrypt(packet.getDataAt(0))
-				return 2
+			"""
+			Internal function for handling a Key_Exchange packet for a server
+
+			Returns:
+				int: An exit code (see handlePacket's exit codes for reference)
+			"""
+			spawned = self._instanceOfOwner.getSpawnedProtocol(sentBy, Key_Exchange) # Get the spawned protocol
+			if spawned is None: # If Key_Exchange protocol wasn't gotten
+				spawned = self._instanceOfOwner.spawnProtocol(sentBy, 60, Key_Exchange, args=(1,)) # Spawn instance of Key_Exchange
+				serverRSA = RSA(False) # Create instance of RSA for server
+				spawned.keys[0] = serverRSA # Save RSA instance in protocol
+			if spawned.isServersTurn(packet._step): return 0 # If the packet was from a server's turn, return 0
+			if not spawned.isProperPacket(packet): return 0 # If the packet's method isn't one that should be used, return 0
+			if spawned._step != packet._step: return 0 # If protocol step and packet's step don't align, return 0
+			if packet._step == 3: # If packet step is 3
+				firstDataPoint = packet.getDataAt(0) # Get data at position 1
+				if firstDataPoint is None: return 0 # If data at position 1 is None, return 0
+				decryptedClientKey = spawned.keys[0].decrypt(firstDataPoint) # Decrypt data point as RSA key
+				key = RSA.addExtraDetailToKey(decryptedClientKey, False) # Added back details to key
+				spawned.keys[1] = RSA.new(True, key) # Save key to protocol
+				spawned.createAESKey() # Create AES key for cryptography
+			if packet._step == 5: # If packet step is 5
+				firstDataPoint = packet.getDataAt(0) # Get data at position 1
+				if firstDataPoint is None: return 0 # If data is None, return 0
+				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
+				return 2 # Return that the protocol has finished
 			else:
-				spawned.step(self._instanceOfOwner._generalSocket, sentBy)
-				return 1
+				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
+				return 1 # Return that execution went well
 
 		if type(packet) != Packet: return (0, None) # Packet wasn't of type packet, exit 0
 		packetProto = packet._protocol # Get the packet's protocol
@@ -969,132 +987,292 @@ class ProtocolHandler:
 		else: return (-1, None) # No handle for the protocol of the packet so return -1
 
 class Protocol:
+	"""
+	The parent class for all protocols
+	"""
 
 	@staticmethod
-	def allProtocols(): return [_class.__name__.upper() for _class in Protocol.__subclasses__()]
+	def allProtocols():
+		"""
+		Gets all sub classes' names in all caps
 
-	@staticmethod
-	def protocolClassNameFromID(id: int = 0):
-		protos = Protocol.allProtocols()
-		if id < 0 or id > len(protos): return None
-		return protos[id]
+		Returns:
+			list: All sub classes' names
+		"""
+		return [_class.__name__.upper() for _class in Protocol.__subclasses__()] # Creates and returns a list of all sub classes' names made uppercase
 
 	@staticmethod
 	def protocolClassFromID(id: int = 0):
-		protos = Protocol.__subclasses__()
-		if id < 0 or id > len(protos): return None
-		return protos[id]
+		"""
+		Gets a class from an id
+
+		Args:
+			id (int): The id of the class
+
+		Returns:
+			class: The class of the protocol with id: id
+		"""
+		protos = Protocol.allProtocols() # Get all protocols
+		if id < 0 or id > len(protos): return None # If id out of range/bounds, return None
+		return protos[id] # Return protocol at index id
 
 	@staticmethod
 	def idFromProtocolName(name: str = None):
-		if name is None or type(name) != str or not (name.upper() in Protocol.allProtocols()): return -1
-		return Protocol.allProtocols().index(name)
+		"""
+		Gets the id from a protocol's name
 
-	def __init__(self, step: int = 0, totalSteps: int = 0, serverSteps: int = 0, packetMethods: list = None, *args, **kwargs):
-		self._step = step
-		self._packets = packetMethods
-		self._totalSteps = totalSteps
-		self._serverSteps = serverSteps
+		Args:
+			name (str): The name of the protocol
 
-	def isServersTurn(self, step: int = 0): return step in self._serverSteps
+		Returns:
+			int: The id of the protocol of the given name: name
+		"""
+		if name is None or type(name) != str or not (name.upper() in Protocol.allProtocols()): return -1 # If name isn't a string or isn't a protocl, return -1
+		return Protocol.allProtocols().index(name) # Return the index of the protocol by the name: name
 
-	def isProperPacket(self, pkt: object = None):
-		try: return pkt._method in self._packets[pkt._step - 1]
-		except IndexError: return False
+	def __init__(self, step: int = 0, serverSteps: tuple = tuple(), packetMethods: tuple = tuple()):
+		"""
+		Init
 
-	def step(self, sender: TSocket = None, receiver: TAddress = None, *args, **kwargs): raise NotImplementedError()
+		Args:
+			step (int): The current step of the protocol
+			serverSteps (tuple): All of the steps belonging to the server
+			packetMethods (tuple): All of the methods for each step
+
+		Attributes:
+			_step (int): The current step of the protocol
+			_serverSteps (tuple): All of the steps belonging to the server
+			_packets (tuple): All of the methods for each step
+		"""
+		self._step = step # Save protocol step
+		self._serverSteps = serverSteps # Save server's steps
+		self._packets = packetMethods # Save packet methods
+
+	def isServersTurn(self, step: int = 0):
+		"""
+		Determines if a step is a server's step
+
+		Args:
+			step (int): The step to check
+
+		Returns:
+			bool: True if the step is a server step, false otherwise
+		"""
+		return step in self._serverSteps # If the step is within the server step list
+
+	def isProperPacket(self, packet: object = None):
+		"""
+		Checks if a packet is of a correct method
+
+		Args:
+			packet (Packet): The packet object
+
+		Returns:
+			bool: True if the packet's method is one for its step, false otherwise
+		"""
+		try: return packet._method in self._packets[packet._step - 1] # Tries to return if the packet's method is in the list of method for a given step
+		except IndexError: return False # If a KeyError is raised, return false
+
+	def step(self, sender: TSocket = None, receiver: TAddress = None, *args, **kwargs):
+		"""
+		Step function that all sub classes must implement
+
+		Args:
+			sender (TSocket): The sending socket
+			receiver (TAddress): The reciever's address
+			args (tuple): Arguments for use in sub classes
+			kwargs (dict): Keyword arguments for use in sub classes
+
+		Raises:
+			NotImplementedError: Raised when function isn't implemented
+
+		Returns:
+			Doesn't as an error is raised
+		"""
+		raise NotImplementedError() # Raised because function wasn't implemented by sub class
 
 class Broadcast_IP(Protocol):
+	"""
+	The Broadcast_IP protocol class
+
+	Allows for the server to get a list of clients in order to do networking with them
+
+	Must always be done as no central server exists to do authentication
+	"""
 
 	def __init__(self, step: int = 0):
-		super().__init__(step, 3, (1, 3), (("DATA",), ("CONFIRM",), ("AGREE",)))
+		"""
+		Init
 
-	def step(self, sender: TSocket = None, receiver: TAddress = None, confirming: str = "(Unknown)"):
-		protoName = self.__class__.__name__.upper()
-		self._step += 1
+		Args:
+			step (int): The current step of the protocol
+
+		Attributes:
+			(see Attributes from Protocol)
+		"""
+		super().__init__(step, (1, 3), ((Method.DATA,), (Method.CONFIRM,), (Method.AGREE,))) # Pass protocol details to parent
+
+	def step(self, sender: TSocket = None, receiver: TAddress = None, confirming: str = "*"):
+		"""
+		The step function
+
+		Args:
+			sender (TSocket): The sender's socket
+			receiver (TAddress): The receiver's address
+			confirming (str): IP address that server is confirming it has
+
+		Returns:
+			None
+		"""
+		protoName = self.__class__.__name__.upper() # Converts this classes name to uppercase
+		self._step += 1 # Increment the current step
+
+		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Server
-			Packet("DATA", protoName, self._step).finalize(sender, receiver)
+			Packet(Method.DATA, protoName, self._step).finalize(sender, receiver)
+
 		elif self._step == 2: # Client
-			Packet("CONFIRM", protoName, self._step).finalize(sender, receiver)
+			Packet(Method.CONFIRM, protoName, self._step).finalize(sender, receiver)
+
 		elif self._step == 3: # Server
-			Packet("AGREE", protoName, self._step).addData(confirming).finalize(sender, receiver)
-		self._step += 1
+			Packet(Method.AGREE, protoName, self._step).addData(confirming).finalize(sender, receiver)
+
+		self._step += 1 # Increment the current step again
 
 class Key_Exchange(Protocol):
 
 	def __init__(self, step: int = 0):
-		self.keys = [None, None, None]
-		# 0 = Server RSA, 1 = Client RSA, 2 = Shared AES
-		self.previousIds = ["", ""]
-		self.sessionIds = ["", ""]
-		# 0 = Server uuid, Client uuid
-		super().__init__(step, 0, (2, 4), (("QUERY_DATA",), ("QUERY_RESPONSE",), ("DATA",), ("DATA",), ("DATA",)))
+		"""
+		Init
 
-	def session(self, key):
-		seed = sha256((key.privKey() + str(rand.randint(-(2 ** 64), 2 ** 64))).encode("utf-8")).digest().hex()
-		shuffle = [c for c in seed]
-		rand.shuffle(shuffle)
-		return "".join([rand.choice(shuffle) for i in range(64)])
+		Args:
+			step (int): The current step of the protocol
+
+		Attributes:
+			keys (list): Cryptography keys in order: Server's RSA, Client's RSA, Shared AES
+			previousIds (list): Previously used session ids: Server's uuid, Client's uuid
+			sessionIds (list): Current session ids: Server's uuid, Client's uuid
+			(see Attributes from Protocol)
+		"""
+		super().__init__(step, (2, 4), ((Method.QUERY,), (Method.RESPONSE,), (Method.DATA,), (Method.DATA,), (Method.DATA,))) # Pass protocol details to parent
+		self.keys = [None, None, None] # List of crypto keys
+		self.previousIds = ["", ""] # List of previous session ids
+		self.sessionIds = ["", ""] # List of current session ids
+
+	def session(self, key: RSA = None):
+		"""
+		Creates a random session uuid from an RSA
+
+		Args:
+			key (RSA): An instance of RSA to base the key off of
+
+		Returns:
+			str: The new uuid from the key
+		"""
+		seed = sha256((key.privKey() + str(rand.randint(-(2 ** 64), 2 ** 64))).encode("utf-8")).digest().hex() # Apply sha256 to the private key plus a random number
+		shuffle = [c for c in seed] # Create list of each character
+		rand.shuffle(shuffle) # Shuffle around the characters
+		return "".join([rand.choice(shuffle) for i in range(64)]) # Join a random character from the shuffled list, repeat this 64 times and return it
 
 	def aesKey(self):
-		return sha256((self.keys[0].pubKey() + self.keys[1].privKey() + self.previousIds[0] + self.previousIds[1]).encode("utf-8")).digest()
+		"""
+		Creates the AES key's key
+
+		Returns:
+			bytearray: The AES key
+		"""
+		return sha256((self.keys[0].pubKey() + self.keys[1].privKey() + self.previousIds[0] + self.previousIds[1]).encode("utf-8")).digest() # Generate key from Server Public RSA Key, Client Private RSA key, and the previous uuids
 
 	def createAESKey(self):
-		self.keys[2] = AES(self.aesKey())
+		"""
+		Creates an instance of AES and uses the key generated from aesKey
+
+		Returns:
+			None
+		"""
+		self.keys[2] = AES(self.aesKey()) # Saves the instance of AES to the keys
 
 	def step(self, sender: TSocket = None, receiver: TAddress = None):
-		protoName = self.__class__.__name__.upper()
-		self._step += 1
+		"""
+		The step function
+
+		Args:
+			sender (TSocket): The sender's socket
+			receiver (TAddress): The receiver's address
+
+		Returns:
+			None
+		"""
+		protoName = self.__class__.__name__.upper() # Converts this classes name to uppercase
+		self._step += 1 # Increment the current step
+
+		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Client
-			Packet("QUERY_DATA", protoName, self._step).finalize(sender, receiver)
+			Packet(Method.QUERY, protoName, self._step).finalize(sender, receiver)
+
 		elif self._step == 2: # Server
-			# Server get's their own public key (0)
-			Packet("QUERY_RESPONSE", protoName, self._step).addData(self.keys[0].pubKey()).finalize(sender, receiver)
+			Packet(Method.RESPONSE, protoName, self._step).addData(self.keys[0].pubKey()).finalize(sender, receiver)
+
 		elif self._step == 3: # Client
-			# Client encrypts their private key (1) with the server's public key (0)
-			Packet("DATA", protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
+			Packet(Method.DATA, protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
+
 		elif self._step == 4: # Server
 			self.sessionIds[1] = self.session(self.keys[1])
 			data = self.keys[2].encrypt(self.sessionIds[1])
-			Packet("DATA", protoName, self._step).addData(data).finalize(sender, receiver)
+			Packet(Method.DATA, protoName, self._step).addData(data).finalize(sender, receiver)
+
 		elif self._step == 5: # Client
 			self.sessionIds[0] = self.session(self.keys[0])
 			data = self.keys[2].encrypt(self.sessionIds[0])
-			Packet("DATA", protoName, self._step).addData(data).finalize(sender, receiver)
-		self._step += 1
+			Packet(Method.DATA, protoName, self._step).addData(data).finalize(sender, receiver)
+
+		self._step += 1 # Increment the current step again
+
+class Method(enum.Enum):
+	"""
+	All of the methods used in steps of a packet
+	"""
+
+	CONFIRM  = 1 # Used to ask to confirm
+	AGREE    = 2 # To affirm a confirm
+	DISAGREE = 3 # To deny a confirm
+	QUERY    = 4 # Used to request for data
+	RESPONSE = 5 # To give data back
+	DATA     = 6 # The generalized sending of data, unspecific
+
+	@staticmethod
+	def methodFromID(mtdID: int = None):
+		"""
+		Gets a method from an id
+
+		Args:
+			mtdID (int): The id of the method
+
+		Returns:
+			Method: The method if its found, else None
+		"""
+		try: return Method(mtdID)
+		except ValueError: return None
+
+	def __str__(self):
+		"""
+		Converts the method to a string
+
+		Returns:
+			str: The method name and value seperated by a "`"
+		"""
+		return f"{self.name}~{self.value}"
 
 class Packet:
-
-	Methods = {
-		"ERROR":         -1,
-		"CONFIRM":        1,
-		"AGREE":          2,
-		"DISAGREE":       3,
-		"QUERY_DATA":     4,
-		"QUERY_RESPONSE": 5,
-		"DATA":           6
-	}
-
-	@staticmethod
-	def methodFromString(mtdName: str = None):
-		if mtdName is None or len(mtdName) == 0 or not (mtdName in Packet.Methods.keys()): return -1
-		return Packet.Methods[mtdName]
-
-	@staticmethod
-	def stringFromMethod(mtdID: int = None):
-		if mtdID is None or mtdID < -1 or mtdID > len(Packet.Methods.keys()) - 1: return "ERROR"
-		for key, val in Packet.Methods.items():
-			if val == mtdID: return key
-		return "ERROR"
 
 	@staticmethod
 	def fromString(packet: str = None):
 		if packet is None or len(packet) < 8: return None
-		mtd = Packet.stringFromMethod(int(packet[:2]))
+		mtd = Packet.methodFromID(int(packet[:2]))
 		protoID = int(packet[2:4])
 		step = int(packet[4:6])
 		numberOfDataPoints = int(packet[6:8])
-		packetInstance = Packet(mtd, Protocol.protocolClassNameFromID(protoID), step)
+		packetInstance = Packet(mtd, Protocol.protocolClassFromID(protoID), step)
 		packetInstance._packetString = packet
 		offset = 0
 		for i in range(numberOfDataPoints):
@@ -1127,15 +1305,12 @@ class Packet:
 
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
-		if len(data) > 10000:
-			input("Data limit hit!")
-			return self
 		self._data.append(data)
 		return self
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
-		data = "" + opt(2, Packet.methodFromString(self._method)) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
+		data = "" + opt(2, self._method.value) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			if type(dataPoint) == str: dataPoint = dataPoint.encode("utf-8")
 			encodedData = base64.b64encode(dataPoint).decode("utf-8")

@@ -165,10 +165,12 @@ class RSA:
 		"""
 		Generate new RSA instance from a public key
 
-		:param isClients bool: If this is from a client
-		:param key str: The public key in any format
+		Args:
+			isClients (bool): If this is from a client
+			key (str): The public key in any format
 
-		:returns RSA: New instance spawned from a key
+		Returns:
+			RSA: New instance spawned from a key
 		"""
 		return RSA(isClients, _RSA.importKey(key)) # Create key
 
@@ -177,9 +179,11 @@ class RSA:
 		"""
 		Removes the lines before and after a key that say if it's a public or private key
 
-		:param key object: The key object itself
+		Args:
+			key (object): The key object itself
 
-		:returns str: The key without the exit details
+		Returns:
+			str: The key without the exit details
 		"""
 		if type(key) == bytes: key = key.decode("utf-8") # If key is a bytearray, decode it to a string
 		finalKey = [k for k in key.split("\n")] # Split on all newline characters
@@ -192,10 +196,12 @@ class RSA:
 		"""
 		Adds back if a key is public or private so that an RSA instance can be made from it
 
-		:param key str: The key without the details
-		:param isPublic bool: If the key is a public key
+		Args:
+			key (str): The key without the details
+			isPublic (bool): If the key is a public key
 
-		:returns str: The key with the details added back
+		Returns:
+			str: The key with the details added back
 		"""
 		return "-----BEGIN " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----\n" + key + "\n-----END " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----" # Add back details to key at beginning and end
 
@@ -203,10 +209,13 @@ class RSA:
 		"""
 		Init
 
-		:param isClients bool: If this is from a client
-		:param rsa RSA: A rsa instance from pycryptodome, not required
+		Args:
+			isClients (bool): If this is from a client
+			rsa (RSA): A rsa instance from pycryptodome, not required
 
-		:returns self: Instance
+		Attributes:
+			_rsa (RSA): The rsa instance
+			_pkcs (PKCS): The pkcs instance
 		"""
 		if rsa is None: self._rsa = _RSA.generate(CONSTS["CLIENT_RSA"] if isClients else CONSTS["SERVER_RSA"], e=getPrime(CONSTS["RSA_PRIME"])) # If no rsa was passed, generate new one
 		else: self._rsa = rsa # Save rsa if it was already created
@@ -216,7 +225,8 @@ class RSA:
 		"""
 		Gets the public key in open ssh format
 
-		:returns str: The public key
+		Returns:
+			str: The public key
 		"""
 		return RSA.removeExtraDetailOnKey(self._rsa.publickey().export_key("PEM")) # Returns the public key
 
@@ -224,7 +234,8 @@ class RSA:
 		"""
 		Gets the private key in open ssh format
 
-		:returns str: The private key
+		Returns:
+			str: The private key
 		"""
 		return RSA.removeExtraDetailOnKey(self._rsa.export_key("PEM")) # Returns the private key
 
@@ -232,9 +243,11 @@ class RSA:
 		"""
 		Checks if the input public key is the same as the one in this instance
 
-		:param key str: 
+		Args:
+			key (str): A key to check against
 
-		:returns bool: If they are the same key
+		Returns:
+			bool: If they are the same key
 		"""
 		return self.pubKey() == key # Compare the keys
 
@@ -242,11 +255,14 @@ class RSA:
 		"""
 		Encrypts a string
 
-		:param msg str: The message to encrypt
+		Args:
+			msg (str): The message to encrypt
 
-		:raises: TypeError if the msg is none or the length is 0
+		Raises:
+			TypeError: Raised if the msg is none or the length is 0
 
-		:returns str: The encrypted message
+		Returns:
+			str: The encrypted message
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption") # If message is empty, throw error
 		out = "" # Encrypted message
@@ -258,11 +274,14 @@ class RSA:
 		"""
 		Decrypts a string
 
-		:param msg str: The message to decrypt
+		Args:
+			msg (str): The message to decrypt
 
-		:raises: TypeError if the msg is none or the length is 0
+		Raises:
+			TypeError: Raised if the msg is none or the length is 0
 
-		:returns str: The decrypted message
+		Returns:
+			str: The decrypted message
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption") # If message is empty, throw errro
 		out = "" # Decrypted string
