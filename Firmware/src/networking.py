@@ -1,4 +1,4 @@
-from .crypt import AES, RSA, FormatBytes
+from .crypt import AES, RSA
 from Crypto.Random import random as rand
 from hashlib import sha256
 from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
@@ -940,6 +940,7 @@ class ProtocolHandler:
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[1] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data from packet and save in session ids
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
+				print("Client Done:", spawned.sessionIds[1])
 				return 2 # Return that the protocol has finished
 			spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
 			return 1 # Return that execution went well
@@ -970,7 +971,7 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
-				print("Done:", spawned.sessionIds[0])
+				print("Server Done:", spawned.sessionIds[0])
 				return 2 # Return that the protocol has finished
 			else:
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
@@ -1057,7 +1058,9 @@ class Protocol:
 		Returns:
 			bool: True if the packet's method is one for its step, false otherwise
 		"""
-		try: return packet._method in self._packets[packet._step - 1] # Tries to return if the packet's method is in the list of method for a given step
+		method = Method.methodFromID(packet._method) # Get method from the enum
+		if method is None: return False # If it wasn't found, return false
+		try: return method in self._packets[packet._step - 1] # Tries to return if the packet's method is in the list of method for a given step
 		except IndexError: return False # If a KeyError is raised, return false
 
 	def step(self, sender: TSocket = None, receiver: TAddress = None, *args, **kwargs):
@@ -1271,7 +1274,6 @@ class Packet:
 			step = int(packet[4:6]) # Get the step
 			numberOfDataPoints = int(packet[6:8]) # Get the number of data points in the packet
 			packetInstance = Packet(mtd, proto, step) # Create a packet object with this data
-			packetInstance._packetString = packet # Set the packet's built string to be the raw packet
 			offset = 0 # Current data read offset
 			for i in range(numberOfDataPoints): # Loop x times where x is the number of data points
 				del i # Remove unused i
@@ -1280,11 +1282,11 @@ class Packet:
 				data = base64.b64decode(rawData) # Decode the data from base64
 				try: # Catch error for decoding as utf-8
 					decodedUTF8 = data.decode("utf-8") # Try to decode the data as utf-8 data
-					data = decodedUTF8 # Write to data
-				except UnicodeDecodeError: # Error was thrown
-					data = str(data) # Just turn the bytes into a string so that all data points are strings, don't need another error thrown because of another error
-				packetInstance.addData(data) # Add data to packet
+					packetInstance.addData(decodedUTF8) # Add data to packet
+				except UnicodeDecodeError: pass # Error was thrown, ignore data
 				offset += 4 + dataLength # Increase offset
+			print("Packet's data:", packetInstance._data)
+			packetInstance.build() # Build the packet as it currently is
 			return packetInstance # Return the built packet
 		except (ValueError, IndexError, binascii.Error): # Error was thrown
 			return None # Return none as a part of the packet building process failed
@@ -1318,6 +1320,7 @@ class Packet:
 			_packetString (str): The built packet
 			_data (list): All data points added to the packet
 		"""
+		if type(method) is Method: method = method.value
 		self._method = method # Save method
 		self._protocol = protocol # Save protocol
 		self._step = step # Save step
@@ -1326,7 +1329,7 @@ class Packet:
 
 	def __str__(self):
 		return f"Method: {self._method}, Protocol: {self._protocol}, Step: {self._step}\
-, Current Packet String: \n{self._packetString}, Data: {self._data}"
+, Data: {self._data}, Current Packet String: {self._packetString}"
 
 	def addData(self, data: str = None):
 		if data is None or len(data) == 0: return self
@@ -1335,10 +1338,10 @@ class Packet:
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
-		data = "" + opt(2, self._method.value) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
+		data = "" + opt(2, self._method) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			if type(dataPoint) == str: dataPoint = dataPoint.encode("utf-8")
-			encodedData = base64.b64encode(dataPoint).decode("utf-8")
+			encodedData = base64.b64encode(dataPoint).decode("utf-8", "backslashreplace")
 			data += opt(4, len(encodedData) - 1) + encodedData
 		self._packetString = data
 		return self
@@ -1351,6 +1354,7 @@ class Packet:
 
 	def send(self, socket: TSocket = None, toSendItTo: TAddress = None):
 		if socket is None or self._packetString is None or len(self._packetString) == 0: return
+		print("Sending:", self._packetString)
 		socket.sendData(toSendItTo, self._packetString)
 		return self
 
