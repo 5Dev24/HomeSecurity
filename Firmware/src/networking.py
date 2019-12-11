@@ -2,7 +2,7 @@ from .crypt import AES, RSA, FormatBytes
 from Crypto.Random import random as rand
 from hashlib import sha256
 from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
-import time, string, re, traceback, sys, base64, enum
+import time, string, re, traceback, sys, base64, enum, binascii
 
 Characters = string.punctuation + string.digits + string.ascii_letters
 """
@@ -970,13 +970,14 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
+				print("Done:", spawned.sessionIds[0])
 				return 2 # Return that the protocol has finished
 			else:
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
 				return 1 # Return that execution went well
 
-		if type(packet) != Packet: return (0, None) # Packet wasn't of type packet, exit 0
-		packetProto = packet._protocol # Get the packet's protocol
+		if type(packet) is not Packet: return (0, None) # packet wasn't a Packet, exit 0
+		packetProto = Protocol.protocolClassNameFromID(packet._protocol) # Get the packet's protocol
 		isClient = not self._instanceOfOwner._isServer # Get if the owner is a client or not
 		if packetProto == "BROADCAST_IP": # If the packet's protocol is BROADCAST_IP
 			if isClient: return (_client_Broadcast_IP(), Broadcast_IP) # If it's the client, return the exit code from the client handle function and the protocol class
@@ -1002,7 +1003,7 @@ class Protocol:
 		return [_class.__name__.upper() for _class in Protocol.__subclasses__()] # Creates and returns a list of all sub classes' names made uppercase
 
 	@staticmethod
-	def protocolClassFromID(id: int = 0):
+	def protocolClassNameFromID(id: int = 0):
 		"""
 		Gets a class from an id
 
@@ -1013,22 +1014,8 @@ class Protocol:
 			class: The class of the protocol with id: id
 		"""
 		protos = Protocol.allProtocols() # Get all protocols
-		if id < 0 or id > len(protos): return None # If id out of range/bounds, return None
+		if id < 0 or id > len(protos) - 1: return None # If id out of range/bounds, return None
 		return protos[id] # Return protocol at index id
-
-	@staticmethod
-	def idFromProtocolName(name: str = None):
-		"""
-		Gets the id from a protocol's name
-
-		Args:
-			name (str): The name of the protocol
-
-		Returns:
-			int: The id of the protocol of the given name: name
-		"""
-		if name is None or type(name) != str or not (name.upper() in Protocol.allProtocols()): return -1 # If name isn't a string or isn't a protocl, return -1
-		return Protocol.allProtocols().index(name) # Return the index of the protocol by the name: name
 
 	def __init__(self, step: int = 0, serverSteps: tuple = tuple(), packetMethods: tuple = tuple()):
 		"""
@@ -1124,18 +1111,17 @@ class Broadcast_IP(Protocol):
 		Returns:
 			None
 		"""
-		protoName = self.__class__.__name__.upper() # Converts this classes name to uppercase
 		self._step += 1 # Increment the current step
 
 		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Server
-			Packet(Method.DATA, protoName, self._step).finalize(sender, receiver)
+			Packet(Method.DATA, 0, self._step).finalize(sender, receiver)
 
 		elif self._step == 2: # Client
-			Packet(Method.CONFIRM, protoName, self._step).finalize(sender, receiver)
+			Packet(Method.CONFIRM, 0, self._step).finalize(sender, receiver)
 
 		elif self._step == 3: # Server
-			Packet(Method.AGREE, protoName, self._step).addData(confirming).finalize(sender, receiver)
+			Packet(Method.AGREE, 0, self._step).addData(confirming).finalize(sender, receiver)
 
 		self._step += 1 # Increment the current step again
 
@@ -1203,28 +1189,27 @@ class Key_Exchange(Protocol):
 		Returns:
 			None
 		"""
-		protoName = self.__class__.__name__.upper() # Converts this classes name to uppercase
 		self._step += 1 # Increment the current step
 
 		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Client
-			Packet(Method.QUERY, protoName, self._step).finalize(sender, receiver)
+			Packet(Method.QUERY, 1, self._step).finalize(sender, receiver)
 
 		elif self._step == 2: # Server
-			Packet(Method.RESPONSE, protoName, self._step).addData(self.keys[0].pubKey()).finalize(sender, receiver)
+			Packet(Method.RESPONSE, 1, self._step).addData(self.keys[0].pubKey()).finalize(sender, receiver)
 
 		elif self._step == 3: # Client
-			Packet(Method.DATA, protoName, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
+			Packet(Method.DATA, 1, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
 
 		elif self._step == 4: # Server
 			self.sessionIds[1] = self.session(self.keys[1])
 			data = self.keys[2].encrypt(self.sessionIds[1])
-			Packet(Method.DATA, protoName, self._step).addData(data).finalize(sender, receiver)
+			Packet(Method.DATA, 1, self._step).addData(data).finalize(sender, receiver)
 
 		elif self._step == 5: # Client
 			self.sessionIds[0] = self.session(self.keys[0])
 			data = self.keys[2].encrypt(self.sessionIds[0])
-			Packet(Method.DATA, protoName, self._step).addData(data).finalize(sender, receiver)
+			Packet(Method.DATA, 1, self._step).addData(data).finalize(sender, receiver)
 
 		self._step += 1 # Increment the current step again
 
@@ -1264,40 +1249,80 @@ class Method(enum.Enum):
 		return f"{self.name}~{self.value}"
 
 class Packet:
+	"""
+	Used to be sent as data for steps in a protocol
+	"""
 
 	@staticmethod
 	def fromString(packet: str = None):
-		if packet is None or len(packet) < 8: return None
-		mtd = Packet.methodFromID(int(packet[:2]))
-		protoID = int(packet[2:4])
-		step = int(packet[4:6])
-		numberOfDataPoints = int(packet[6:8])
-		packetInstance = Packet(mtd, Protocol.protocolClassFromID(protoID), step)
-		packetInstance._packetString = packet
-		offset = 0
-		for i in range(numberOfDataPoints):
-			del i
-			dataLength = int(packet[8 + offset: 12 + offset]) + 1
-			rawData = packet[12 + offset: 12 + offset + dataLength]
-			data = base64.b64decode(rawData)
-			try:
-				decodedUTF8 = data.decode("utf-8")
-				data = decodedUTF8
-			except: pass
-			packetInstance.addData(data)
-			offset += 4 + dataLength
-		return packetInstance
+		"""
+		Tries to generate a packet from a string
+
+		Args:
+			packet (str): The raw packet
+
+		Returns:
+			Packet: The built packet, None if packet was an invalid format or decoded improperly
+		"""
+		if packet is None or len(packet) < 8: return None # IF packet is None or doesn't meet minimum packet length
+		try: # Catch errors from casting or base 64 decoding
+			mtd = int(packet[:2]) # Get the method
+			proto = int(packet[2:4]) # Get the protocol
+			step = int(packet[4:6]) # Get the step
+			numberOfDataPoints = int(packet[6:8]) # Get the number of data points in the packet
+			packetInstance = Packet(mtd, proto, step) # Create a packet object with this data
+			packetInstance._packetString = packet # Set the packet's built string to be the raw packet
+			offset = 0 # Current data read offset
+			for i in range(numberOfDataPoints): # Loop x times where x is the number of data points
+				del i # Remove unused i
+				dataLength = int(packet[8 + offset: 12 + offset]) + 1 # Find the length of the data
+				rawData = packet[12 + offset: 12 + offset + dataLength] # Read for that length of the data
+				data = base64.b64decode(rawData) # Decode the data from base64
+				try: # Catch error for decoding as utf-8
+					decodedUTF8 = data.decode("utf-8") # Try to decode the data as utf-8 data
+					data = decodedUTF8 # Write to data
+				except UnicodeDecodeError: # Error was thrown
+					data = str(data) # Just turn the bytes into a string so that all data points are strings, don't need another error thrown because of another error
+				packetInstance.addData(data) # Add data to packet
+				offset += 4 + dataLength # Increase offset
+			return packetInstance # Return the built packet
+		except (ValueError, IndexError, binascii.Error): # Error was thrown
+			return None # Return none as a part of the packet building process failed
 
 	@staticmethod
 	def isValidPacket(packet: str = None):
-		return type(Packet.fromString(packet)) == Packet
+		"""
+		Checks if a packet from a string was built successfully
 
-	def __init__(self, method: str = None, protocolName: str = None, step: int = 0):
-		self._method = method
-		self._protocol = protocolName
-		self._step = step
-		self._packetString = ""
-		self._data = []
+		Args:
+			packet (str): The raw packet
+
+		Returns:
+			bool: Whether or not the packet was built successfully
+		"""
+		return Packet.fromString(packet) is not None
+
+	def __init__(self, method: int = 0, protocol: int = 0, step: int = 0):
+		"""
+		Init
+
+		Args:
+			method (int): The method for the packet
+			protocol (int): The protocol for the packet
+			step (int): Current step of the protocol
+
+		Attributes:
+			_method (int): The method
+			_protocol (int): The protocol
+			_step (int): The step
+			_packetString (str): The built packet
+			_data (list): All data points added to the packet
+		"""
+		self._method = method # Save method
+		self._protocol = protocol # Save protocol
+		self._step = step # Save step
+		self._packetString = "" # Create empty packet string
+		self._data = [] # Create empty list of data points
 
 	def __str__(self):
 		return f"Method: {self._method}, Protocol: {self._protocol}, Step: {self._step}\
@@ -1310,7 +1335,7 @@ class Packet:
 
 	def build(self):
 		opt = lambda length, value: "0" * (length - len(str(value))) + str(value)
-		data = "" + opt(2, self._method.value) + opt(2, Protocol.idFromProtocolName(self._protocol)) + opt(2, self._step) + opt(2, len(self._data))
+		data = "" + opt(2, self._method.value) + opt(2, self._protocol) + opt(2, self._step) + opt(2, len(self._data))
 		for dataPoint in self._data:
 			if type(dataPoint) == str: dataPoint = dataPoint.encode("utf-8")
 			encodedData = base64.b64encode(dataPoint).decode("utf-8")
