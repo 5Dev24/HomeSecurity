@@ -1,7 +1,7 @@
 from os import listdir
 from os.path import abspath, isfile, isdir, join
 
-FILE_EXTENSION = ".dat"
+FILE_EXTENSION = ""
 
 class Folder:
 
@@ -41,7 +41,7 @@ class Folder:
 						searchReturn = search(join(parent, dir), direct, depth + 1)
 						if searchReturn[1] > 0:
 							out += "\n" + searchReturn[0]
-							foundfiles = searchReturn[1]
+							foundfiles += searchReturn[1]
 					else:
 						out += "\n" + "\t" * (depth) + dir + "\\"
 			if len(files) > 0:
