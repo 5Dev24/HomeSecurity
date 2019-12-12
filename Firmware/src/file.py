@@ -1,7 +1,7 @@
 from os import listdir
 from os.path import abspath, isfile, isdir, join
 
-FILE_EXTENSION = ""
+FILE_EXTENSION = ".dat"
 
 class Folder:
 
@@ -10,10 +10,14 @@ class Folder:
 		else: self.directory = abspath(ROOT.directory + directory) + "\\"
 
 	@property
+	def name(self):
+		return self.directory.split("\\")[::-1][1]
+
+	@property
 	def files(self):
 		try:
 			tmpFiles = listdir(self.directory)
-			return [f for f in tmpFiles if isfile(join(self.directory, f)) and f.endswith(FILE_EXTENSION)]
+			return [f for f in tmpFiles if f.endswith(FILE_EXTENSION) and isfile(join(self.directory, f))]
 		except PermissionError:
 			return list()
 
@@ -25,34 +29,35 @@ class Folder:
 		except PermissionError:
 			return list()
 
-	def printout(self, recursive: bool = False, depthStop: int = 3):
-		def search(parent: str = "", dir: str = "", depth: int = 0):
-			fold = Folder(join(parent, dir), True)
-			files = fold.files
-			dirs = fold.directories
-			foundfiles = len(files)
-			if depth == 0:
-				out = join(parent, dir) + "\\"
-			else:
-				out = "\t" * (depth) + dir + "\\"
-			if len(dirs) > 0:
-				for direct in dirs:
-					if depth < depthStop:
-						searchReturn = search(join(parent, dir), direct, depth + 1)
-						if searchReturn[1] > 0:
-							out += "\n" + searchReturn[0]
-							foundfiles += searchReturn[1]
-					else:
-						out += "\n" + "\t" * (depth) + dir + "\\"
-			if len(files) > 0:
-				for file in files:
-					out += "\n" + "\t" * (depth + 1) + file
-			return (out, foundfiles)
+	@property
+	def map(self):
+		return self._search()[0]
 
-		if recursive: depthStop = 0
-		return search(abspath(self.directory + "\\.."), self.directory.split("\\")[::-1][1])[0]
+	def _search(self, base: str = ""):
+		found = len(self.files)
+		output = {}
+		for direct in self.directories:
+			dir = Folder(join(self.directory, direct), True)
+			search = dir._search(self.name)
+			if search[1] > 0:
+				output[dir.name] = search[0]
+				found += search[1]
+		for file in self.files:
+			output[file] = None # None will be preplaced with a File object once everything for Folders is set up
+		return (output, found)
+
+	def __str__(self):
+		def search(name: str = "", term: dict = None, depth: int = 0):
+			out = "\n" + "\t" * depth + name + "\\"
+			for key, val in term.items():
+				if type(val) is dict: out += search(key, val, depth+1)
+				if val is None:
+					out += "\n" + "\t" * (depth + 1) + key
+			return out
+
+		return search(self.name, self.map).strip()
 
 	def __repr__(self):
-		return self.printout()
+		return self.__str__()
 
-ROOT = Folder(".", True)
+ROOT = Folder("..\\data", True)
