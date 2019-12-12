@@ -22,6 +22,19 @@ CONSTS = {
 All constants used for encryption
 """
 
+def FormatBytes(obj: object = None):
+	"""
+	Used to turn a bytearray to a string or to turn a string into a bytearray
+	Args:
+		obj (bytes/str): A bytearray or string
+	Returns:
+		bytearray/str: If a bytearray is passed, a string is returned. If a string is passed, a bytearray is returned
+	"""
+	if type(obj) == bytes: # If object type is bytearray
+		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj]) # Create a 2 letter pair to represent the value of the byte and return list of them merged
+	elif type(obj) == str: # If object type is string
+		return bytes([Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)]) # Return a list of bytes after decoding letters into bytes
+
 class AES:
 	"""
 	Handles all AES encryption
@@ -134,9 +147,9 @@ class AES:
 			str: The decrypted message
 		"""
 		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "Empty message as passed for AES decryption") # If message is empty of less than the salt length, throw error
-		key = self._generateCrypt(self._key, bytes(msg[:CONSTS["SALT_LENGTH"]], "utf-8"))[0] # Get key for decryption
+		key = self._generateCrypt(self._key, msg[:CONSTS["SALT_LENGTH"]])[0] # Get key for decryption
 		aes = _AES.new(key, _AES.MODE_ECB) # Create a new instance of AES from pycryptodome
-		return self._removePadding(aes.decrypt(bytes(msg[CONSTS["SALT_LENGTH"]:], "utf-8"))).decode("utf-8") # Decrypt the message, remove the padding, then decode to string in format utf-8
+		return self._removePadding(aes.decrypt(msg[CONSTS["SALT_LENGTH"]:])).decode("utf-8") # Decrypt the message, remove the padding, then decode to string in format utf-8
 
 class RSA:
 	"""
@@ -241,7 +254,7 @@ class RSA:
 		Encrypts a string
 
 		Args:
-			msg (str): The message to encrypt
+			msg (str/bytearray): The message to encrypt
 
 		Raises:
 			TypeError: Raised if the msg is none or the length is 0
@@ -251,8 +264,8 @@ class RSA:
 		"""
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption") # If message is empty, throw error
 		out = "" # Encrypted message
-		for i in range(len(msg.encode("utf-8")) // 128 + 1): # Loop through message in chunks of 128
-			out += self._pkcs.encrypt(msg[i*128:(i+1)*128].encode("utf-8")).decode("utf-8", "backslashreplace") # Encrypt a part of the message and encode the bytes to the system of bytes I created
+		for i in range(len(msg) // 128 + 1): # Loop through message in chunks of 128
+			out += FormatBytes(self._pkcs.encrypt(msg[i*128:(i+1)*128].encode("utf-8"))) # Encrypt a part of the message and encode the bytes to the system of bytes I created
 		return out # Return encrypted message
 
 	def decrypt(self, msg: str = None):
@@ -271,5 +284,5 @@ class RSA:
 		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption") # If message is empty, throw errro
 		out = "" # Decrypted string
 		for i in range(len(msg.encode("utf-8")) // 512): # Loop through message in chunks of 512
-			out += self._pkcs.decrypt(msg[i*512:(i+1)*512]).decode("utf-8") # Unformat the bytes, decrypt it, then decode to utf-8
+			out += self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512])).decode("utf-8", "blackslashreplace") # Unformat the bytes, decrypt it, then decode to utf-8
 		return out # Return the decrypted string
