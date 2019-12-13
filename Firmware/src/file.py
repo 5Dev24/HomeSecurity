@@ -3,15 +3,33 @@ from os.path import abspath, isfile, isdir, join
 
 FILE_EXTENSION = ".dat"
 
-class Folder:
+class File:
 
-	def __init__(self, directory: str = "", isAbsPath: bool = False):
-		if isAbsPath: self.directory = abspath(directory) + "\\"
-		else: self.directory = abspath(ROOT.directory + directory) + "\\"
+	@staticmethod
+	def fromFolder(folder: object = None, fileName: str = ""):
+		return File(folder.directory + fileName)
+
+	def __init__(self, file: str = ""):
+		self.file = abspath(file)
+		assert isfile(self.file), "File didn't lead to a file"
 
 	@property
 	def name(self):
-		return self.directory.split("\\")[::-1][1]
+		return self.file.split("\\")[::-1][0]
+
+class Folder:
+
+	@staticmethod
+	def fromFolder(folder: object = None, directory: str = ""):
+		return Folder(folder.directory + directory)
+
+	def __init__(self, directory: str = ""):
+		self.directory = abspath(directory) + "\\"
+		assert isdir(self.directory), "Directory didn't lead to a folder"
+
+	@property
+	def name(self):
+		return self.directory.split("\\")[::-1][1 if self.directory.endswith("\\") else 0]
 
 	@property
 	def files(self):
@@ -31,33 +49,32 @@ class Folder:
 
 	@property
 	def map(self):
-		return self._search()[0]
+		return self.search()[0]
 
-	def _search(self, base: str = ""):
+	def search(self):
 		found = len(self.files)
 		output = {}
 		for direct in self.directories:
-			dir = Folder(join(self.directory, direct), True)
-			search = dir._search(self.name)
+			dir = Folder.fromFolder(self, direct)
+			search = dir.search()
 			if search[1] > 0:
 				output[dir.name] = search[0]
 				found += search[1]
 		for file in self.files:
-			output[file] = None # None will be preplaced with a File object once everything for Folders is set up
+			output[file] = File.fromFolder(self, file)
 		return (output, found)
 
 	def __str__(self):
-		def search(name: str = "", term: dict = None, depth: int = 0):
+		def traverse(name: str = "", term: dict = None, depth: int = 0):
 			out = "\n" + "\t" * depth + name + "\\"
 			for key, val in term.items():
-				if type(val) is dict: out += search(key, val, depth+1)
-				if val is None:
+				if type(val) is dict: out += traverse(key, val, depth+1)
+				if type(val) is File:
 					out += "\n" + "\t" * (depth + 1) + key
 			return out
-
-		return search(self.name, self.map).strip()
+		return traverse(self.name, self.map).strip()
 
 	def __repr__(self):
 		return self.__str__()
 
-ROOT = Folder("..\\data", True)
+ROOT = Folder(".\\..\\data")
