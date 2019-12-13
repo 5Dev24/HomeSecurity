@@ -2,7 +2,8 @@ from .crypt import AES, RSA
 from Crypto.Random import random as rand
 from hashlib import sha256
 from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
-import time, string, re, traceback, sys, base64, enum, binascii
+from enum import Enum
+import time, string, re, traceback, sys, base64, binascii
 
 Characters = string.punctuation + string.digits + string.ascii_letters
 """
