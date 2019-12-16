@@ -5,14 +5,49 @@ from enum import Enum
 FILE_EXTENSION = ".dat"
 
 class AccessMode(Enum):
-	Read = 0,
-	Write = 1
+
+	Read = 0
+	Overwrite = 1
+	Append = 1
+
+	@staticmethod
+	def toMode(mode: object = None):
+		if mode == AccessMode.Read: return "r"
+		elif mode == AccessMode.Overwrite: return "w"
+		elif mode == AccessMode.Append: return "a"
+		else: return "r"
 
 class File:
 
 	@staticmethod
 	def fromFolder(folder: object = None, fileName: str = ""):
 		return File(folder.directory + fileName)
+
+	@staticmethod
+	def read(file: object = None):
+		if file is None: return None
+		return [line.strip() for line in file.readlines()]
+
+	@staticmethod
+	def write(file: object = None, line: str = None):
+		if file is None or line is None or type(line) is not str: return False
+		if line.count("\n") > 1: return False
+		written = file.write(line)
+		return written == len(line)
+
+	@staticmethod
+	def writeln(file: object = None, line: str = None):
+		if not line.endswith("\n"): line += "\n"
+		return File.write(file, line)
+
+	@staticmethod
+	def writelines(file: object = None, lines: list = None):
+		if file is None or lines is None or type(lines) is not list: return False
+		if not len(lines): return True
+		ret = False
+		for line in lines:
+			ret += File.writeln(file, line)
+		return not not ret
 
 	def __init__(self, file: str = ""):
 		self.file = abspath(file)
@@ -40,7 +75,7 @@ class File:
 		if func is None: return False
 		try:
 			if self.stats[mode.value + 1]:
-				f = open(self.file, "w" if mode == AccessMode.Write else "r")
+				f = open(self.file, AccessMode.toMode(mode))
 				return func(f, *args, **kwargs)
 			else: return False
 		except: return False
