@@ -1,6 +1,8 @@
 from os import listdir, access, R_OK, W_OK, F_OK
-from os.path import abspath, isfile, isdir, join, sep
+from os.path import abspath, isfile, isdir, join, sep, dirname
+from hashlib import sha256
 from enum import Enum
+from copy import deepcopy
 
 FILE_EXTENSION = ".dat"
 
@@ -22,6 +24,24 @@ class File:
 	@staticmethod
 	def fromFolder(folder: object = None, fileName: str = ""):
 		return File(folder.directory + fileName)
+
+	@staticmethod
+	def create(folder: object = None, fileName: str = ""):
+		file = folder.directory + fileName
+		f = None
+		try:
+			f = open(file, "w+")
+			return File(file)
+		except: return None
+		finally:
+			if f is not None: f.close()
+
+	@staticmethod
+	def getOrCreate(folder: object = None, fileName: str = ""):
+		if isfile(folder.directory + fileName):
+			return File.fromFolder(folder, fileName)
+		else:
+			return File.create(folder, fileName)
 
 	@staticmethod
 	def read(file: object = None):
@@ -59,9 +79,7 @@ class File:
 
 	@property
 	def src(self):
-		parts = self.file.split(sep)[:-1]
-		if len(parts) == 0: return sep
-		return sep.join(parts)
+		return dirname(self.file)
 
 	@property
 	def stats(self):
@@ -87,6 +105,60 @@ class File:
 
 	def __repr__(self):
 		return self.__str__()
+
+class FileFormat:
+
+	@staticmethod
+	def intialLoad(callingClass = None, lines: list = None):
+		linesCopy = lines[:]
+		try:
+			firstLine = lines[0]
+			id = int(firstLine[:1])
+			length = int(firstLine[1:6])
+			checkSum = firstLine[6:70]
+			data = []
+			del lines[0]
+			while not not len(lines):
+				data.append(lines[0])
+				del lines[0]
+			newCheckSum = sha256("".join(data).encode("utf-8")).digest().hex()
+			print("ID: ", id, ", Length: ", length, ", From File Checksum: ", checkSum, ", Generated File Checksum: ", newCheckSum, ", Data Read: ", data, sep="")
+			if checkSum != newCheckSum: return None
+			callingClass.internalLoad(linesCopy)
+		except ValueError: return None
+
+	@classmethod
+	def loadFrom(cls, file: File = None):
+		lines = file.obj(AccessMode.Read, File.read, (), {})
+		if lines is None or not len(lines): return None
+		FileFormat.intialLoad(cls, lines)
+
+	@classmethod
+	def internalLoad(cls, lines: list = None): raise NotImplementedError()
+
+	def __init__(self, id: int = 0):
+		self._id = id
+		self.data = []
+
+	def write(self, file: File = None):
+		pad = lambda var, length: "0" * (length - len(str(var))) + str(var)
+		dataLen = pad("".join(self.data), 4)
+		checkSum = sha256("".join(self.data).encode("utf-8")).digest().hex()
+		print("Overwriting")
+		print(file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{self._id}{dataLen}{checkSum}"}))
+		print("Appending")
+		print(file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data}))
+		print("Done")
+
+class KeyStorageFormat(FileFormat):
+
+	@classmethod
+	def internalLoad(cls, lines: list = None): pass
+
+	def __init__(self):
+		super().__init__(1)
+
+	def write(self, file: File = None): pass
 
 class Folder:
 
@@ -151,6 +223,6 @@ class Folder:
 		return traverse(self.name, self.map).strip()
 
 	def __repr__(self):
-		return self.__str__()
+		return self.directory
 
-FileSystem = Folder(f".{sep}..{sep}data")
+FileSystem = Folder(dirname(__file__) + f"{sep}..{sep}data")

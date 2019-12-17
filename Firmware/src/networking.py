@@ -1217,7 +1217,7 @@ class Key_Exchange(Protocol):
 
 		self._step += 1 # Increment the current step again
 
-class Method(enum.Enum):
+class Method(Enum):
 	"""
 	All of the methods used in steps of a packet
 	"""
