@@ -193,7 +193,7 @@ class Folder:
 		try:
 			tmpDirs = listdir(self.directory)
 			return [d for d in tmpDirs if isdir(join(self.directory, d))]
-		except PermissionError:
+		except (PermissionError, OSError):
 			return list()
 
 	@property
