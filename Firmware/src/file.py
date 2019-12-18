@@ -8,14 +8,14 @@ FILE_EXTENSION = ".dat"
 
 class AccessMode(Enum):
 
-	Read = 0
-	Overwrite = 1
-	Append = 1
+	Read = (0, 0)
+	Overwrite = (1, 1)
+	Append = (2, 1)
 
 	@staticmethod
 	def toMode(mode: object = None):
 		if mode == AccessMode.Read: return "r"
-		elif mode == AccessMode.Overwrite: return "w"
+		elif mode == AccessMode.Overwrite: return "w+"
 		elif mode == AccessMode.Append: return "a"
 		else: return "r"
 
@@ -89,10 +89,10 @@ class File:
 		f = None
 		if not self.stats[0]: return False
 		if type(mode) is not AccessMode: return False
-		if mode.value < 0 or mode.value > 1: return False
+		if mode.value[1] < 0 or mode.value[1] > 1: return False
 		if func is None: return False
 		try:
-			if self.stats[mode.value + 1]:
+			if self.stats[mode.value[1] + 1]:
 				f = open(self.file, AccessMode.toMode(mode))
 				return func(f, *args, **kwargs)
 			else: return False
@@ -116,11 +116,8 @@ class FileFormat:
 			id = int(firstLine[:1])
 			length = int(firstLine[1:6])
 			checkSum = firstLine[6:70]
-			data = []
 			del lines[0]
-			while not not len(lines):
-				data.append(lines[0])
-				del lines[0]
+			data = lines[:]
 			newCheckSum = sha256("".join(data).encode("utf-8")).digest().hex()
 			print("ID: ", id, ", Length: ", length, ", From File Checksum: ", checkSum, ", Generated File Checksum: ", newCheckSum, ", Data Read: ", data, sep="")
 			if checkSum != newCheckSum: return None
@@ -142,18 +139,20 @@ class FileFormat:
 
 	def write(self, file: File = None):
 		pad = lambda var, length: "0" * (length - len(str(var))) + str(var)
-		dataLen = pad("".join(self.data), 4)
-		checkSum = sha256("".join(self.data).encode("utf-8")).digest().hex()
-		print("Overwriting")
+		dataLen = pad(len("".join(self.data)), 4)
+		checkSum = self.generateCheckSum(self.data)
 		print(file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{self._id}{dataLen}{checkSum}"}))
-		print("Appending")
 		print(file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data}))
-		print("Done")
+
+	def generateCheckSum(self, data: list = None):
+		if data is None or type(data) is not list: return None
+		return sha256("".join(data).encode("utf-8")).digest().hex()
 
 class KeyStorageFormat(FileFormat):
 
 	@classmethod
-	def internalLoad(cls, lines: list = None): pass
+	def internalLoad(cls, lines: list = None):
+		pass
 
 	def __init__(self):
 		super().__init__(1)
