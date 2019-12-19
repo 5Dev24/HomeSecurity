@@ -109,29 +109,37 @@ class File:
 class FileFormat:
 
 	@staticmethod
+	def generateCheckSum(data: list = None):
+		if data is None or type(data) is not list: return None
+		return sha256("".join(data).encode("utf-8")).digest().hex()
+
+	@staticmethod
 	def intialLoad(callingClass = None, lines: list = None):
 		linesCopy = lines[:]
 		try:
 			firstLine = lines[0]
 			id = int(firstLine[:1])
-			length = int(firstLine[1:6])
-			checkSum = firstLine[6:70]
+			length = int(firstLine[1:5])
+			checkSum = firstLine[5:70]
 			del lines[0]
 			data = lines[:]
-			newCheckSum = sha256("".join(data).encode("utf-8")).digest().hex()
+			newCheckSum = FileFormat.generateCheckSum(data)
 			print("ID: ", id, ", Length: ", length, ", From File Checksum: ", checkSum, ", Generated File Checksum: ", newCheckSum, ", Data Read: ", data, sep="")
 			if checkSum != newCheckSum: return None
-			callingClass.internalLoad(linesCopy)
+			return callingClass.internalLoad(linesCopy)
 		except ValueError: return None
 
 	@classmethod
 	def loadFrom(cls, file: File = None):
 		lines = file.obj(AccessMode.Read, File.read, (), {})
 		if lines is None or not len(lines): return None
-		FileFormat.intialLoad(cls, lines)
+		return FileFormat.intialLoad(cls, lines)
 
 	@classmethod
-	def internalLoad(cls, lines: list = None): raise NotImplementedError()
+	def internalLoad(cls, lines: list = None):
+		tmp = FileFormat(0)
+		tmp.data = lines[1:]
+		return tmp
 
 	def __init__(self, id: int = 0):
 		self._id = id
@@ -140,13 +148,9 @@ class FileFormat:
 	def write(self, file: File = None):
 		pad = lambda var, length: "0" * (length - len(str(var))) + str(var)
 		dataLen = pad(len("".join(self.data)), 4)
-		checkSum = self.generateCheckSum(self.data)
-		print(file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{self._id}{dataLen}{checkSum}"}))
-		print(file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data}))
-
-	def generateCheckSum(self, data: list = None):
-		if data is None or type(data) is not list: return None
-		return sha256("".join(data).encode("utf-8")).digest().hex()
+		checkSum = FileFormat.generateCheckSum(self.data)
+		file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{self._id}{dataLen}{checkSum}"})
+		file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data})
 
 class KeyStorageFormat(FileFormat):
 

@@ -13,3 +13,5 @@ print("After:")
 print(testFile.obj(AccessMode.Read, File.read))
 
 print("Attempting to load:")
+testFormat = testFormat.loadFrom(testFile)
+print("Lines:\n", testFormat.data, sep="")
