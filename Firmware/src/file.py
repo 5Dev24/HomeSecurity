@@ -115,18 +115,21 @@ class FileFormat:
 
 	@staticmethod
 	def intialLoad(callingClass = None, lines: list = None):
-		linesCopy = lines[:]
 		try:
 			firstLine = lines[0]
 			id = int(firstLine[:1])
-			length = int(firstLine[1:5])
-			checkSum = firstLine[5:70]
-			del lines[0]
-			data = lines[:]
+			checkSum = firstLine[1:65]
+			data = lines[1:]
+
+			# Verify that callingClass is a subclass and that id matches on file to the class
+			if not issubclass(callingClass, FileFormat): return None
+			if callingClass.ID != id: return None
+
+			# Verify checksum
 			newCheckSum = FileFormat.generateCheckSum(data)
-			print("ID: ", id, ", Length: ", length, ", From File Checksum: ", checkSum, ", Generated File Checksum: ", newCheckSum, ", Data Read: ", data, sep="")
 			if checkSum != newCheckSum: return None
-			return callingClass.internalLoad(linesCopy)
+
+			return callingClass.internalLoad(firstLine, lines[1:])
 		except ValueError: return None
 
 	@classmethod
@@ -136,32 +139,38 @@ class FileFormat:
 		return FileFormat.intialLoad(cls, lines)
 
 	@classmethod
-	def internalLoad(cls, lines: list = None):
-		tmp = FileFormat(0)
-		tmp.data = lines[1:]
+	def internalLoad(cls, header: str = None, lines: list = None):
+		tmp = FileFormat()
+		tmp.data = lines
 		return tmp
 
-	def __init__(self, id: int = 0):
-		self._id = id
-		self.data = []
+	ID = 0
+
+	def __init__(self, data: list = None):
+		if data is None or type(data) is not list: data = list()
+		self.data = data
 
 	def write(self, file: File = None):
-		pad = lambda var, length: "0" * (length - len(str(var))) + str(var)
-		dataLen = pad(len("".join(self.data)), 4)
+		id = str(type(self).ID)[:1]
 		checkSum = FileFormat.generateCheckSum(self.data)
-		file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{self._id}{dataLen}{checkSum}"})
+		file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{id}{checkSum}"})
 		file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data})
 
-class KeyStorageFormat(FileFormat):
+class UUIDFormat(FileFormat):
 
 	@classmethod
-	def internalLoad(cls, lines: list = None):
+	def internalLoad(cls, header: str = None, lines: list = None):
 		pass
 
-	def __init__(self):
-		super().__init__(1)
+	ID = 1
 
-	def write(self, file: File = None): pass
+	def __init__(self, id: str = None, uuids: list = None):
+		super().__init__(uuids)
+		assert id is None or type(id) is not str, "No ID or an invalid ID"
+		self.id = id
+
+	def write(self, file: File = None):
+		pass
 
 class Folder:
 
