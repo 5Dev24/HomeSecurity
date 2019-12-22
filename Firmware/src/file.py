@@ -1,4 +1,4 @@
-from os import listdir, access, R_OK, W_OK, F_OK
+from os import listdir, access, R_OK, W_OK, F_OK, makedirs
 from os.path import abspath, isfile, isdir, join, sep, dirname
 from hashlib import sha256
 from enum import Enum
@@ -151,6 +151,7 @@ class FileFormat:
 		self.data = data
 
 	def write(self, file: File = None):
+		assert self.data is not None and type(data) is list, "Data was not a list"
 		id = str(type(self).ID)[:1]
 		checkSum = FileFormat.generateCheckSum(self.data)
 		file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{id}{checkSum}"})
@@ -177,6 +178,22 @@ class Folder:
 	@staticmethod
 	def fromFolder(folder: object = None, directory: str = ""):
 		return Folder(folder.directory + directory)
+
+	@staticmethod
+	def create(parent: object = None, folder: str = ""):
+		path = folder
+		if parent is not None and type(parent) is Folder: path = parent.directory + folder
+		if not isdir(path): makedirs(path)
+		return Folder(path)
+
+	@staticmethod
+	def getOrCreate(parent: object = None, folder: str = ""):
+		path = folder
+		if parent is not None and type(parent) is Folder: path = parent.directory + folder
+		if isdir(path):
+			return Folder.fromFolder(parent, folder)
+		else:
+			return Folder.create(parent, folder)
 
 	def __init__(self, directory: str = ""):
 		self.directory = abspath(directory) + sep
@@ -237,4 +254,5 @@ class Folder:
 	def __repr__(self):
 		return self.directory
 
-FileSystem = Folder(dirname(__file__) + f"{sep}..{sep}data")
+FileSystemPath = dirname(__file__) + f"{sep}..{sep}data"
+FileSystem = Folder.getOrCreate(None, FileSystemPath)
