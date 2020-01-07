@@ -3,6 +3,7 @@ from os.path import abspath, isfile, isdir, join, sep, dirname
 from hashlib import sha256
 from enum import Enum
 from copy import deepcopy
+from .logging import Log
 
 FILE_EXTENSION = ".dat"
 
@@ -65,8 +66,10 @@ class File:
 		if file is None or lines is None or type(lines) is not list: return False
 		if not len(lines): return True
 		ret = False
-		for line in lines:
-			ret += File.writeln(file, line)
+		for i in range(len(lines)):
+			line = str(lines)
+			if i == len(lines) - 1: ret += File.write(file, line)
+			else: ret += File.writeln(file, line)
 		return not not ret
 
 	def __init__(self, file: str = ""):
@@ -140,9 +143,7 @@ class FileFormat:
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		tmp = FileFormat()
-		tmp.data = lines
-		return tmp
+		return FileFormat(lines)
 
 	ID = 0
 
@@ -151,27 +152,27 @@ class FileFormat:
 		self.data = data
 
 	def write(self, file: File = None):
-		assert self.data is not None and type(data) is list, "Data was not a list"
+		assert self.data is not None and type(self.data) is list, "Data was not a list"
 		id = str(type(self).ID)[:1]
 		checkSum = FileFormat.generateCheckSum(self.data)
-		file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{id}{checkSum}"})
-		file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data})
+		if not len(self.data):
+			file.obj(AccessMode.Overwrite, File.write, (), {"line": f"{id}{checkSum}"})
+		else:
+			file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{id}{checkSum}"})
+			file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data})
 
-class UUIDFormat(FileFormat):
+class LogFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		pass
+		logs = []
+		for line in lines:
+			l = Log.fromString(line)
+			if l is not None and type(l) == Log:
+				logs.append(l)
+		return LogFormat(logs)
 
 	ID = 1
-
-	def __init__(self, id: str = None, uuids: list = None):
-		super().__init__(uuids)
-		assert id is None or type(id) is not str, "No ID or an invalid ID"
-		self.id = id
-
-	def write(self, file: File = None):
-		pass
 
 class Folder:
 
@@ -188,12 +189,8 @@ class Folder:
 
 	@staticmethod
 	def getOrCreate(parent: object = None, folder: str = ""):
-		path = folder
-		if parent is not None and type(parent) is Folder: path = parent.directory + folder
-		if isdir(path):
-			return Folder.fromFolder(parent, folder)
-		else:
-			return Folder.create(parent, folder)
+		if isdir(folder): return Folder(folder)
+		else: return Folder.create(parent, folder)
 
 	def __init__(self, directory: str = ""):
 		self.directory = abspath(directory) + sep

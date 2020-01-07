@@ -1248,7 +1248,7 @@ class Method(Enum):
 		Converts the method to a string
 
 		Returns:
-			str: The method name and value seperated by a "`"
+			str: The method name and value seperated by a "~"
 		"""
 		return f"{self.name}~{self.value}"
 
