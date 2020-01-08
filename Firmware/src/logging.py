@@ -21,18 +21,21 @@ class Log:
 		else:
 			try:
 				t = LogType(string[1:5])
-				return Log(string[7:15], string[16:24], t, string[26:])
+				l = Log(t, string[26:])
+				l.date = string[7:15]
+				l.time = string[16:24]
+				return Log(t, string[26:])
 			except ValueError: return None
 
-	def __init__(self, date: str = "", time: str = "", logType: LogType = LogType.Info, info: str = ""):
-		if date is None or type(date) != str or not len(date): date = Date()
-		if time is None or type(time) != str or not len(time): time = Time()
+	def __init__(self, logType: LogType = LogType.Info, info: str = ""):
 		if logType is None or type(logType) != LogType: logType = LogType.Info
 		if info is None or type(info) != str: info = "No Log Information Passed To Log"
-		self.date = date
-		self.time = time
 		self.logType = logType
 		self.info = info
+		self.date = Date()
+		self.time = Time()
+
+	def post(self): print(self)
 
 	def __str__(self):
 		return f"[{self.logType}] {self.date} {self.time}: {self.info}"
