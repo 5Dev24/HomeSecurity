@@ -3,7 +3,6 @@ from os.path import abspath, isfile, isdir, join, sep, dirname
 from hashlib import sha256
 from enum import Enum
 from copy import deepcopy
-from .logging import Log
 
 FILE_EXTENSION = ".dat"
 
@@ -28,6 +27,7 @@ class File:
 
 	@staticmethod
 	def create(folder: object = None, fileName: str = ""):
+		if not fileName.endswith(FILE_EXTENSION): fileName += FILE_EXTENSION
 		file = folder.directory + fileName
 		f = None
 		try:
@@ -39,6 +39,7 @@ class File:
 
 	@staticmethod
 	def getOrCreate(folder: object = None, fileName: str = ""):
+		if not fileName.endswith(FILE_EXTENSION): fileName += FILE_EXTENSION
 		if isfile(folder.directory + fileName):
 			return File.fromFolder(folder, fileName)
 		else:
@@ -67,12 +68,13 @@ class File:
 		if not len(lines): return True
 		ret = False
 		for i in range(len(lines)):
-			line = str(lines)
+			line = str(lines[i])
 			if i == len(lines) - 1: ret += File.write(file, line)
 			else: ret += File.writeln(file, line)
 		return not not ret
 
 	def __init__(self, file: str = ""):
+		if not file.endswith(FILE_EXTENSION): file += FILE_EXTENSION
 		self.file = abspath(file)
 		assert isfile(self.file), "File didn't lead to a file"
 
@@ -114,7 +116,7 @@ class FileFormat:
 	@staticmethod
 	def generateCheckSum(data: list = None):
 		if data is None or type(data) is not list: return None
-		return sha256("".join(data).encode("utf-8")).digest().hex()
+		return sha256("".join([str(d) for d in data]).encode("utf-8")).digest().hex()
 
 	@staticmethod
 	def intialLoad(callingClass = None, lines: list = None):
@@ -166,6 +168,7 @@ class LogFormat(FileFormat):
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
 		logs = []
+		from .logging import Log
 		for line in lines:
 			l = Log.fromString(line)
 			if l is not None and type(l) == Log:
@@ -173,6 +176,9 @@ class LogFormat(FileFormat):
 		return LogFormat(logs)
 
 	ID = 1
+
+	def __init__(self, logs: list = None):
+		super().__init__(logs)
 
 class Folder:
 
