@@ -25,7 +25,7 @@ class Log:
 
 	@staticmethod
 	def allLogs():
-		
+		pass
 
 	def LogFile():
 		return File.getOrCreate(FileSystem, "logs")
