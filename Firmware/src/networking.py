@@ -3,6 +3,7 @@ from Crypto.Random import random as rand
 from hashlib import sha256
 from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
 from enum import Enum
+from .logging import Log, LogType
 import time, string, re, traceback, sys, base64, binascii
 
 Characters = string.punctuation + string.digits + string.ascii_letters
@@ -941,7 +942,7 @@ class ProtocolHandler:
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[1] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data from packet and save in session ids
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
-				print("Client Done:", spawned.sessionIds[1])
+				Log(LogType.Info, f"Client ({self._instanceOfOwner._ip}) is done with Key Exchange ({spawned.sessionIds[1]})", False).post()
 				return 2 # Return that the protocol has finished
 			spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
 			return 1 # Return that execution went well
@@ -972,7 +973,7 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
-				print("Server Done:", spawned.sessionIds[0])
+				Log(LogType.Info, f"Server ({self._instanceOfOwner._ip}) is done with Key Exchange with {sentBy} ({spawned.sessionIds[0]})", False).post()
 				return 2 # Return that the protocol has finished
 			else:
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function

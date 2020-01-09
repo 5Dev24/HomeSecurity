@@ -154,7 +154,7 @@ class FileFormat:
 		self.data = data
 
 	def write(self, file: File = None):
-		assert self.data is not None and type(self.data) is list, "Data was not a list"
+		assert self.data is not None and type(self.data) != list, "Data was not a list"
 		id = str(type(self).ID)[:1]
 		checkSum = FileFormat.generateCheckSum(self.data)
 		if not len(self.data):

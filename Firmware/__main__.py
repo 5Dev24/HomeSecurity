@@ -3,7 +3,7 @@
 from src.networking import TServer, TClient
 
 def main():
-	for i in range(int(input())): TClient()
+	for i in range(int(input("How many clients? "))): TClient()
 	server = TServer()
 	server.startBroadcasting()
 

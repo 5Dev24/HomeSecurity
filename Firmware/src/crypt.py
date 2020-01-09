@@ -55,7 +55,9 @@ class AES:
 		Raises:
 			TypeError: Raised if the key is none or the length is less than 32
 		"""
-		if key is None or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (1)") # Make sure key something and that it's atleast 32 charcters long, else throw error
+		if key is None or len(key) < 32: # Make sure key something and that it's atleast 32 charcters long
+			Error(TypeError(), Codes.CONTINUE, "No key for AES was sent (1)") # Log error
+			return None # Return none so no instance is given
 		if type(key) is not bytes: key = bytes(key, "utf-8") # If key isn't a bytearray, make it a bytearray with utf-8 encoding
 		self._key = key # Save key as byte list
 
@@ -73,8 +75,12 @@ class AES:
 		Returns:
 			list: The key and the salt
 		"""
-		if type(key) is not bytes or len(key) < 32: Error(TypeError(), Codes.KILL, "No key for AES was sent (2)") # If key is empty or isn't atleast 32 characters long, throw error
-		if type(key) is not bytes: Error(TypeError(), Codes.KILL, "No salt for AES was sent") # If salt is empty, throw error
+		if type(key) is not bytes or len(key) < 32: # If key is empty or isn't atleast 32 characters long
+			Error(TypeError(), Codes.CONTINUE, "No key for AES was sent (2)") # Log error
+			return None # Return none
+		if type(key) is not bytes: # If salt is empty
+			Error(TypeError(), Codes.CONTINUE, "No salt for AES was sent") # Log error
+			return None # Return none
 		key += salt # Add the salt to the key
 		for i in range(CONSTS["KEY_ITERNATIONS"]): key = sha256(key).digest() # Push the key through sha256 x number of times
 		return [key, salt] # Return key salted and the salt used
@@ -92,7 +98,9 @@ class AES:
 		Returns:
 			str: The padded message
 		"""
-		if msg is None or not len(msg): Error(TypeError(), Codes.KILL, "No message as passed for AES padding addition") # If message is None or empty, throw error
+		if msg is None or not len(msg): # If message is None or empty
+			Error(TypeError(), Codes.KILL, "No message as passed for AES padding addition") # Log error
+			return None # Return none
 		paddingBytes = len(msg) % CONSTS["AES_KEY_SIZE"] # Get number of bytes to pad
 		paddingSize = CONSTS["AES_KEY_SIZE"] - paddingBytes # Get length of padding
 		msg += chr(paddingSize) * paddingSize # Pad using the character representation of the padding size, the padding size number of times
@@ -127,7 +135,9 @@ class AES:
 		Returns:
 			bytes: The encrypted message
 		"""
-		if msg is None or not len(msg): Error(TypeError(), Codes.KILL, "Empty message as passed for AES encryption") # If message is None or it's empty, throw error
+		if msg is None or not len(msg): # If message is None or it's empty
+			Error(TypeError(), Codes.CONTINUE, "Empty message as passed for AES encryption") # Log error
+			return None # Return none
 		key, salt = self._generateCrypt(self._key, get_random_bytes(CONSTS["SALT_LENGTH"])) # Generate key from a random salt
 		aes = _AES.new(key, _AES.MODE_ECB) # Create a new instance of AES from pycryptodome
 		encryptedText = aes.encrypt(bytes(self._addPadding(msg), "utf-8")) # Add padding to message and then encrypt it
@@ -146,7 +156,9 @@ class AES:
 		Returns:
 			str: The decrypted message
 		"""
-		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: Error(TypeError(), Codes.KILL, "Empty message as passed for AES decryption") # If message is empty of less than the salt length, throw error
+		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: # If message is empty of less than the salt length
+			Error(TypeError(), Codes.CONTINUE, "Empty message as passed for AES decryption") # Log error
+			return None # Return none
 		key = self._generateCrypt(self._key, msg[:CONSTS["SALT_LENGTH"]])[0] # Get key for decryption
 		aes = _AES.new(key, _AES.MODE_ECB) # Create a new instance of AES from pycryptodome
 		return self._removePadding(aes.decrypt(msg[CONSTS["SALT_LENGTH"]:])).decode("utf-8") # Decrypt the message, remove the padding, then decode to string in format utf-8
@@ -262,7 +274,9 @@ class RSA:
 		Returns:
 			str: The encrypted message
 		"""
-		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA encryption") # If message is empty, throw error
+		if msg is None or len(msg) == 0: # If message is empty
+			Error(TypeError(), Codes.CONTINUE, "No message was passed for RSA encryption") # Log error
+			return None # Return none
 		out = "" # Encrypted message
 		for i in range(len(msg) // 128 + 1): # Loop through message in chunks of 128
 			out += FormatBytes(self._pkcs.encrypt(msg[i*128:(i+1)*128].encode("utf-8"))) # Encrypt a part of the message and encode the bytes to the system of bytes I created
@@ -281,7 +295,9 @@ class RSA:
 		Returns:
 			str: The decrypted message
 		"""
-		if msg is None or len(msg) == 0: Error(TypeError(), Codes.KILL, "No message was passed for RSA decryption") # If message is empty, throw errro
+		if msg is None or len(msg) == 0: # If message is empty
+			Error(TypeError(), Codes.CONTINUE, "No message was passed for RSA decryption") # Log error
+			return None # Return none
 		out = "" # Decrypted string
 		for i in range(len(msg.encode("utf-8")) // 512): # Loop through message in chunks of 512
 			out += self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512])).decode("utf-8", "blackslashreplace") # Unformat the bytes, decrypt it, then decode to utf-8

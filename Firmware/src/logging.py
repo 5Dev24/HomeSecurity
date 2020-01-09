@@ -1,6 +1,7 @@
 from enum import Enum
 from datetime import datetime
 from .file import LogFormat, FileSystem, File
+from colorama import init, Fore, Back, Style
 
 def Now(): return datetime.now()
 def Time(): return Now().strftime("%H:%H:%S")
@@ -8,8 +9,9 @@ def Date(): return Now().strftime("%d/%m/%Y")
 
 class LogType(Enum):
 
-	Info = 0
-	Warn = 1
+	# Error Text Foreground, Message Text Foreground, Background of all Text
+	Info = (Fore.GREEN, Fore.WHITE, Back.BLACK)
+	Warn = (Fore.LIGHTRED_EX, Fore.YELLOW, Back.BLACK)
 
 	@staticmethod
 	def fromString(string: str = ""):
@@ -24,12 +26,14 @@ class LogType(Enum):
 class Log:
 
 	@staticmethod
-	def allLogs():
-		pass
+	def AllLogs():
+		return Log.Logs().data
 
+	@staticmethod
 	def LogFile():
 		return File.getOrCreate(FileSystem, "logs")
 
+	@staticmethod
 	def Logs():
 		logs = LogFormat.loadFrom(Log.LogFile())
 		if logs is None or type(logs) != LogFormat: logs = LogFormat()
@@ -55,11 +59,21 @@ class Log:
 		self.date = Date()
 		self.time = Time()
 		if save:
-			logs = Logs()
+			logs = Log.Logs()
 			logs.data.append(self)
-			logs.write(LogFile())
+			logs.write(Log.LogFile())
 
-	def post(self): print(self)
+	def post(self):
+		print(self.colored())
+		return self
+
+	def colored(self):
+		colors = self.logType.value[:]
+		return f"{colors[2]}{Fore.WHITE}{Style.BRIGHT}[{colors[0]}{self.logType.name}{Fore.WHITE}] \
+{self.date} {self.time}{Fore.CYAN}: {colors[1]}{self.info}{Style.RESET_ALL}"
 
 	def __str__(self):
-		return f"[{self.logType}] {self.date} {self.time}: {self.info}"
+		return f"[{self.logType.name}] {self.date} {self.time}: {self.info}"
+
+if __name__ != "__main__":
+	init()
