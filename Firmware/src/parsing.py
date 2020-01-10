@@ -382,7 +382,7 @@ class ArgumentParser:
 		pairIndex = 0 # Current index of parsed list
 		remaining = lambda: len(self._parsedArgs) - pairIndex # Gets the number of parsed arguments left to be executed
 		if remaining() == 0: # If there aren't any generated arguments
-			handler("none")() # Call the none function/lambda
+			if self._doLog: handler("none")() # Call the none function/lambda
 			return -2 # Return -2 as no work will be done
 		while pairIndex < len(self._parsedArgs): # Loop from 0 to the number of parsed arguments - 1
 			if pairIndex == 0 and remaining() == 1 and argType(pairIndex) == "cmd": # If it's the first index, there is only 1 remaining to be parsed and it's a cmd
@@ -404,7 +404,7 @@ class ArgumentParser:
 					return -1 # Return -1 as the executing stopped because an improper value was attempted to be used to change the variable's value
 			else:
 				if pairIndex == 0: # If the index is still at 0
-					handler("none")() # Call none function/lambda
+					if self._doLog: handler("none")() # Call none function/lambda
 					return -2 # Return -2 as nothing was executed
 				break # Exit Loop
 		if not areAllRequiredArgsSet(): # If not all required arguments have been set

@@ -180,6 +180,43 @@ class LogFormat(FileFormat):
 	def __init__(self, logs: list = None):
 		super().__init__(logs)
 
+class SessionIDFormat(FileFormat):
+
+	@classmethod
+	def internalLoad(cls, header: str = None, lines: list = None):
+		return SessionIDFormat(SessionIDFormat.listToDictionary(lines))
+
+	@staticmethod
+	def dictionaryToList(dictionary: dict = None):
+		if dictionary is None or type(dictionary) != dict: return None
+		out = []
+		for key, value in dictionary.items():
+			out.append(f"{key}:{value}")
+		return out
+
+	@staticmethod
+	def listToDictionary(_list: list = None):
+		if _list is None or type(_list) != list: return None
+		out = {}
+		for element in _list:
+			element = str(element)
+			if element.count(":") >= 1:
+				out[element.split(":")[0]] = ":".join(element.split(":")[1:])
+		return out
+
+	ID = 2
+
+	def __init__(self, ids: dict = None):
+		super().__init__(SessionIDFormat.dictionaryToList(ids))
+
+	@property
+	def ids(self):
+		_ids = self.data
+		if _ids is None or type(_ids) != list: return {}
+		_ids = SessionIDFormat.listToDictionary(_ids)
+		if _ids is None: return {}
+		return _ids
+
 class Folder:
 
 	@staticmethod
