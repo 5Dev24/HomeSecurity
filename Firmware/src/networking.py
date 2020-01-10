@@ -4,7 +4,7 @@ from hashlib import sha256
 from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
 from enum import Enum
 from .logging import Log, LogType
-import time, string, re, traceback, sys, base64, binascii
+import time, string, re, traceback, sys, base64, binascii, datetime
 
 Characters = string.punctuation + string.digits + string.ascii_letters
 """
@@ -821,6 +821,21 @@ class TClient(TNetworkable):
 		if hndl[0] == 2: # If exit code 2 is returned (see Exit codes)
 			super().invalidateProtocol(addr, hndl[1]) # Invalidate the protocol
 
+class SessionID:
+
+	@staticmethod
+	def Now():
+		return int(datetime.datetime.utcnow().timestamp() * 1000)
+
+	def __init__(self, id: str = "", timeCreated: int = SessionID.Now()):
+		if not timeCreated: timeCreated = SessionID.Now()
+		self.id = id
+		self.timeCreated = timeCreated
+
+	@property
+	def expired(self):
+		return SessionID.Now() - self.timeCreated > 600 * 1000 # Session expires after 600 seconds (10 minutes)
+
 class ProtocolHandler:
 	"""
 	Handles incoming packets
@@ -973,7 +988,7 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
-				Log(LogType.Info, f"Server ({self._instanceOfOwner._ip}) is done with Key Exchange with {sentBy} ({spawned.sessionIds[0]})", False).post()
+				Log(LogType.Info, f"Server ({self._instanceOfOwner._ip}) is done with Key Exchange with {sentBy.addr[0]} ({spawned.sessionIds[0]})", False).post()
 				return 2 # Return that the protocol has finished
 			else:
 				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
