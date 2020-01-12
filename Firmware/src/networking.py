@@ -827,7 +827,7 @@ class SessionID:
 	def Now():
 		return int(datetime.datetime.utcnow().timestamp() * 1000)
 
-	def __init__(self, id: str = "", timeCreated: int = SessionID.Now()):
+	def __init__(self, id: str = "", timeCreated: int = 0):
 		if not timeCreated: timeCreated = SessionID.Now()
 		self.id = id
 		self.timeCreated = timeCreated
