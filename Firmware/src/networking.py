@@ -4,6 +4,7 @@ from hashlib import sha256
 from threading import Thread, Timer, Event, current_thread as currThread, main_thread as mainThread
 from enum import Enum
 from .logging import Log, LogType
+from uuid import getnode
 import time, string, re, traceback, sys, base64, binascii, datetime
 
 Characters = string.punctuation + string.digits + string.ascii_letters
@@ -11,330 +12,24 @@ Characters = string.punctuation + string.digits + string.ascii_letters
 All of the punctuation, digits, and letters of english
 """
 
-class TPorts:
+def MyMac():
+	raw = getnode()[2:]
+	return ":".join([raw[i:i+2] for i in range(0, len(raw), 2)])
+
+class Ports:
 	"""
 	Theoretical ports used in simulation
 	"""
 
-	SEND_RECEIVE = 2 # Normal sending and receiving data
+	SEND_RECEIVE = 32001 # Normal sending and receiving data
 	"""
 	Port used for sending and receiving data for regular protocols that don't need to be done over broadcasting
 	"""
 
-	SERVER_BROADCAST = 4 # For send and receiveing data from a broadcast
+	SERVER_BROADCAST = 23002 # For send and receiveing data from a broadcast
 	"""
 	Port used for only sending and receiving data for the Broadcast_IP protocol to find clients
 	"""
-
-class TAddress:
-	"""
-	Theoretical addresses used to identify a socket/destination
-
-	Requires both an ip and a port
-	"""
-
-	allAddresses = [] # All registered addresses
-
-	@staticmethod
-	def isRegisteredAddress(addr: str = "", port: int = 0):
-		"""
-		Checks if an address on a port has been registered
-
-		Args:
-			addr (str): The address
-			port (int): The port
-
-		Returns:
-			bool: If the address is registered on that port
-		"""
-		for addr in TAddress.allAddresses: # Loop through all addresses
-			if addr.addr == (addr, port) and addr.registered: return True # If the ip, port, and the address is still registered then return true
-		return False # An address on the address and port was not found, return false
-
-	def __init__(self, ip: str = "", addr: str = "", port: int = 0):
-		"""
-		Init
-
-		Args:
-			ip (str): The ip to register the address
-			addr (str): The address to register on
-			port (int): The port to register with
-
-		Attributes:
-			trueIP (str): The ip of the spawner
-			addr (tuple): The ip address and the port number
-			registered (bool): If the address is currently registered
-		"""
-		self.trueIP = ip
-		self.addr = (addr, port) # Save address and port in tuple
-		self.registered = True # Set that this address is registered
-		TAddress.allAddresses.append(self) # Add this address to list of all addresses
-
-	def __str__(self):
-		"""
-		Converts the object to a string
-
-		Returns:
-			str: The format of ADDRESS:PORT
-		"""
-		return f"{self.addr[0]}:{self.addr[1]}"
-
-	def free(self):
-		"""
-		Unregisters an address, "frees" it up to be used by another
-
-		Returns:
-			None
-		"""
-		self.registered = False # Set that this address is no longer registered
-		TAddress.allAddresses.remove(self) # Remove this address from list of addresses
-
-class TData:
-	"""
-	Theoretical data that is sent over a socket
-	"""
-
-	def __init__(self, data: str = "", isBroadcast: bool = False):
-		"""
-		Init
-
-		Args:
-			data (str): The message
-			isBroadcast (bool): If this message is being broadcasted
-
-		Attributes:
-			data (str): The message
-			_read (bool): If the message has been read or not
-			_isBroadcast (bool): If this message is being broadcasted
-		"""
-		self.data = data # Save message
-		self._read = False # Set that it hasn't been read yet
-		self._isBroadcast = isBroadcast # Save if it's a broadcast
-
-	def __len__(self):
-		"""
-		Get length
-
-		Returns:
-			int: The length of the data
-		"""
-		return len(self.data) if (not self._read) or self._isBroadcast else 0 # if it has been read and isn't a broadcast, return 0 instead, else return data length
-
-	def get(self):
-		"""
-		Reads data
-
-		Returns:
-			str: The data if it hasn't been read or it is a broadcast, else None
-		"""
-		if self._read == False or self._isBroadcast: # If it hasn't been read or it is a broadcast
-			self._read = True # Set that the data has been read
-			return self.data # Return the data
-		return None # Return none
-
-class TSocket:
-	"""
-	Theoretical socket used to send data
-	"""
-
-	allSockets = [] # All sockets
-	"""
-	list: All sockets that are active
-	"""
-
-	@staticmethod
-	def sendDataProtected(sender: TAddress = None, receiver: TAddress = None, data: str = None):
-		"""
-		Send data directly to an address without using a socket, only two address and data
-
-		Args:
-			sender (TAddress): The sender's address
-			receiver (TAddress): The receiver's address
-			data (str): The data to send
-
-		Returns:
-			None
-		"""
-		for sock in TSocket.allSockets: # Loop through ever socket as sock
-			if sock._addr.registered and str(sock._addr) == str(receiver): # If socket is registered and it's address matches the receiver
-				# In a real situation, any socket could receive this message but we're assuming that a socket only accepts messages for itself
-				SimpleThread(target=sock.receive, args=(sender, TData(data, False))).start() # Start a thread to send data so one socket can't hold up everything
-				return # End loop as socket was sent message
-
-	@staticmethod
-	def getSocket(getterIP: str = "127.0.0.1", addr: TAddress = None):
-		"""
-		Get a socket with the address: addr and who is getting it, getterIP
-
-		Args:
-			getterIP (str): IP of socket get caller
-			addr (TAddress): The address to lookup
-
-		Returns:
-			TSocket: The found socket or a newly created one, or if getterIP isn't type str, then return None
-		"""
-		for sock in TSocket.allSockets: # Loop through ever socket as sock
-			if sock._addr == addr: # If the socket's address matches the address to find
-				return sock # Return the socket
-		if type(getterIP) != str: return None #  If getterIP isn't type string, then return None
-		return TSocket.createNewSocket(getterIP, addr) # If getterIP passed type check, then create a new socket and return it
-
-	@staticmethod
-	def createNewSocket(spawnerIP: str = "127.0.0.1", addr: TAddress = None):
-		"""
-		Creates a new socket for address addr from the spawner ip of spawnerIP
-
-		Args:
-			spawnerIP (str): IP of create new socket caller
-			addr (TAddress): The address to create the socket for
-
-		Returns:
-			TSocket: The socket created
-		"""
-		sock = TSocket(spawnerIP, addr) # Create new instance of socket
-		TSocket.allSockets.append(sock) # Add socket to list of sockets
-		return sock # Return the new socket instance
-
-	@staticmethod
-	def _generateNonCollidingCallbackID():
-		"""
-		Generates a new callback id that isn't being currently used
-
-		Returns:
-			int: New callback id
-		"""
-		possible = rand.randint(-(2 ** 64), 2 ** 64) # Randomly generated callback id to prevent a socket from sending data to itself
-		while any(possible == sock._callbackID for sock in TSocket.allSockets): # While callback id collides with any other callback id
-			possible = rand.randint(-(2 ** 64), 2 ** 64) # Generate new random callback id
-		return possible # Return non colliding callback id
-
-	def __init__(self, ip: str = "127.0.0.1", addr: TAddress = None):
-		"""
-		Init
-
-		Args:
-			ip (str): IP that socket was spawned from
-			addr (TAddress): Address for the socket
-
-		Attributes:
-			_spawnedFrom (str): IP of creator
-			_addr (TAddress): Address for the socket
-			_dataHistory (list): A list of all previously received data, max length of 25
-			_lastDataReceived (list): The last data received
-			_receiveEvent (Event): The event that is triggered when data is received
-			_receivers (int): Number of threads listening for data to be received, shouldn't exceed 1
-			_callbackID (int): ID to prevent socket from sending data to itself
-		"""
-		self._spawnedFrom = ip # Save ip
-		self._addr = addr # Save address
-		self._dataHistroy = [] # Create an empty data history
-		self._lastDataReceived = None # No previous data has been received so make None
-		self._receiveEvent = Event() # Create event for data being received
-		self._receivers = 0 # Number of threads waiting for event
-		self._callbackID = TSocket._generateNonCollidingCallbackID() # Generate a new callback id
-
-	def __str__(self):
-		"""
-		Converts this object to a string
-
-		Returns:
-			str: Data about the object: address, data histroy, last data received, event status, receivers, and callback id
-		"""
-		return f"Address: {self._addr}, Data History: {self._dataHistroy}, Last Data Received: {self._lastDataReceived}, \
-Receive Event Set: {self._receiveEvent.is_set()}, Receivers: {self._receivers}, and Callback ID: {self._callbackID}" # All data from socket in string format
-
-	def receive(self, addr: TAddress = None, data: TData = None):
-		"""
-		Internal function other sockets use to tell another socket that they've received data
-
-		Args:
-			addr (TAddress): Sender's address
-			data (TData): Data send by sender
-
-		Returns:
-			None
-		"""
-		if self.closed(): return # If socket has been closed, cease execution
-		if type(data) is not TData: return # If data type isn't TData, exit
-		data = data.get() # Read data that was sent
-		if data is None: # If None was returned then that means that the data has been A) read previously or B) was set to be None
-			print("Data was already read before we received it, was this meant broadcasted message?") # Debug info
-			return # Exit
-		self._dataHistroy.append([addr, data]) # Added this to the data history
-		while len(self._dataHistroy) > 25: del self._dataHistroy[0] # While the length of the data history is greater than 25, remove the first entry
-		self._lastDataReceived = [addr, data] # Set the last received data to be the address and data
-		timeout = 0 # Set timeout for mutliple receives being called at once
-		while self._receiveEvent.is_set() and timeout < 3: # While the event is set and the timeout is less than 3
-			time.sleep(.05) # Wait .05 seconds
-			timeout += 1 # Increase timeout by 1
-		if timeout == 3: return # If timeout == 3 then the receiveData wasn't called in time
-		self._receiveEvent.set() # Set the event so receiveData listeners can read new data
-
-	def receiveData(self):
-		"""
-		Function to call to halt thread until data has been received by socket
-
-		This method should be called outside of the main thread
-
-		Function will return None if it is called from main thread
-
-		Returns:
-			list: Sender's address and sender's data sent
-		"""
-		if self.closed(): return [None, None] # If socket has been closed, return None
-		if currThread() is mainThread(): # If function has been called from main python thread
-			print("An attempt was made to join a thread from the main python thread") # Debug info
-			return [None, None] # Return None
-		if self._receivers >= 1: # If receivers is greater than 1
-			print("2+ Threads Listening For Data!") # Debug info
-			return [None, None] # Return None
-		got = None # Currently gotten data
-		self._receivers += 1 # Increase number of receivers as now one has started a possibly infinite loop
-		while got is None: # While gotten data is None
-			self._receiveEvent.wait() # Wait for event to be set
-			got = self._lastDataReceived # Set the data gotten to be the data last received
-		self._lastDataReceived = None # Set last data received to be None
-		self._receiveEvent.clear() # Reset event
-		self._receivers -= 1 # Remove this listener from total receivers
-		return got # Return the gotten data
-
-	def sendData(self, receiver: TAddress = None, data: str = None):
-		"""
-		Send data to another address
-
-		Args:
-			receiver (TAddress): The address to send data to
-			data (str): The data to send
-
-		Returns:
-			None
-		"""
-		if self.closed(): return # If this socket has been closed, cease execution
-		if receiver.addr[0] == "<broadcast>": # If the receiving address is a broadcast
-			for sock in TSocket.allSockets: # Loop through every socket as sock
-				if sock._addr.registered and sock._addr.addr == self._addr.addr and sock._callbackID != self._callbackID: # If socket is registered, matches address, and callback doesn't equal this sockets
-					sock.receive(self._addr, TData(data, True)) # Send data to the socket
-		else: TSocket.sendDataProtected(self._addr, receiver, data) # If address isn't a broadcast, use send data protected
-
-	def closed(self):
-		"""
-		Gets if the socket has been closed
-
-		Returns:
-			bool: If the socket's address is not registered
-		"""
-		return not self._addr.registered # Return if the address of the socket isn't registered
-
-	def close(self):
-		"""
-		Closes a socket, prevents furture calls to the socket
-
-		Returns:
-			None
-		"""
-		self._addr.free() # Free socket's address
-		if self in TSocket.allSockets: # If this socket is in list of all sockets
-			TSocket.allSockets.remove(self) # Remove this socket from list of all sockets
 
 class SimpleThread:
 	"""
@@ -430,41 +125,13 @@ class SimpleThread:
 			return # Exit function
 		self._internalThread.join(timeout) # Wait for thread to terminal but added timeout
 
-class TNetworkable:
+class Networkable:
 	"""
 	An object that uses networking (server and client)
 	"""
 
-	def __init__(self, isServer: bool = False, fakeRealIP: str = None):
-		"""
-		Init
-
-		Args:
-			isServer (bool): Is instance a server
-			fakeRealIP (str): Fake ip of server or client
-
-		Attributes:
-			_isServer (bool): If this is a server or not
-			_ip (str): The ip address of this networkable
-			_broadcastSocket (TSocket): The broadcasting socket
-			_broadcastReceiveThread (SimpleThread): Thread for receiving data from the broadcasting socket
-			_generalSocket (TSocket): The general socket
-			_generalReceiveThread (SimpleThread): Thread for receiving data from the general socket
-			_networkingThreads (dict): All currently active networking threads
-			_activeProtocols (dict): All currently active protocols
-			_protocolHandler (ProtocolHandler): Handler for packets for protocols
-		"""
-		self._isServer = isServer # Save if server
-		self._ip = fakeRealIP # Save ip
-		self._broadcastSocket = TSocket.createNewSocket(fakeRealIP, TAddress(fakeRealIP, "<broadcast>", TPorts.SERVER_BROADCAST)) # Create broadcasting socket
-		self._broadcastReceiveThread = SimpleThread(self._broadcastReceive, True).start() # Create broadcasting listening thread
-		self._generalSocket = TSocket.createNewSocket(fakeRealIP, TAddress(fakeRealIP, fakeRealIP, TPorts.SEND_RECEIVE)) # Create general data receiving socket
-		self._generalReceiveThread = SimpleThread(self._generalReceive, True).start() # Create general data listening thread
-		self._networkingThreads = {} # Currently active networking threads {thread name: thread instance}
-		self._activeProtocols = {} # Currently active protocol {"ip:port": [Protocol instance,]}
-		self._protocolHandler = ProtocolHandler(self) # Create protocol handler
-
-	def isIP(self, ipaddr: str = None):
+	@staticmethod
+	def isIP(ipaddr: str = None):
 		"""
 		Checks if a string is an ip (valid format)
 
@@ -476,6 +143,39 @@ class TNetworkable:
 		"""
 		if ipaddr is None or type(ipaddr) != str or not len(ipaddr): return False # If address is None type, isn't a string type, or is empty, return false
 		return re.match("((\\.)*\\d{1,3}){4}", ipaddr) # Check if the string matches a normal IPv4 address' format
+
+	def __init__(self, isServer: bool = False):
+		"""
+		Init
+
+		Args:
+			isServer (bool): Is instance a server
+			fakeRealIP (str): Fake ip of server or client
+
+		Attributes:
+			_isServer (bool): If this is a server or not
+			_ip (str): The ip address of this networkable
+			_broadcastSocket (socket.socket): The broadcasting socket
+			_broadcastReceiveThread (SimpleThread): Thread for receiving data from the broadcasting socket
+			_generalSocket (socket.socket): The general socket
+			_generalReceiveThread (SimpleThread): Thread for receiving data from the general socket
+			_networkingThreads (dict): All currently active networking threads
+			_activeProtocols (dict): All currently active protocols
+			_protocolHandler (ProtocolHandler): Handler for packets for protocols
+			MacAddress (str): The devices MAC address
+		"""
+		self._isServer = isServer # Save if server
+		self._broadcastSocket = None # Create broadcasting socket
+		self._broadcastReceiveThread = SimpleThread(self._broadcastReceive, True).start() # Create broadcasting listening thread
+		self._generalSocket = None # Create general data receiving socket
+		self._generalReceiveThread = SimpleThread(self._generalReceive, True).start() # Create general data listening thread
+		self._networkingThreads = {} # Currently active networking threads {thread name: thread instance}
+		self._activeProtocols = {} # Currently active protocol {"ip:port": [Protocol instance,]}
+		self._protocolHandler = ProtocolHandler(self) # Create protocol handler
+
+	@property
+	def MacAddress(self):
+		return MyMac()
 
 	def spawnThread(self, threadName: str = None, threadTarget = None, loop: bool = False, args = tuple(), kwargs = {}):
 		"""
@@ -512,12 +212,12 @@ class TNetworkable:
 			return True # Return true that thread was found by that name, doesn't mean thread has been terminated
 		except KeyError: return False # Return false if thread wasn't found (KeyError in dictionary of networking threads)
 
-	def spawnProtocol(self, recipient: TAddress = None, timeout: int = None, protocolClass = None, args = tuple(), kwargs = {}):
+	def spawnProtocol(self, recipient: str = None, timeout: int = None, protocolClass = None, args = tuple(), kwargs = {}):
 		"""
 		Spawns a protocol and saves it as being created by the recipient
 
 		Args:
-			recipient (TAddress): Who the other party is in the protocol
+			recipient (str): Who the other party is in the protocol
 			timeout (int): Timeout to invalidate the protocol after timeout seconds
 			protocolClass (type): The class of protocol to create instance of
 			args (tuple): Arguments for protocol
@@ -527,38 +227,36 @@ class TNetworkable:
 			Protocol: The protocol created
 		"""
 		proto = protocolClass(*args, **kwargs) # Create instance of class with args and kwargs
-		recip = str(recipient) # Get recipient as string
-		try: self._activeProtocols[recip].append(proto) # Try to add the protocol as part of the protocol list that this recipient has spawned
-		except KeyError: self._activeProtocols[recip] = [proto] # If no key exists for the recipient, create new one with list only containing the new protocol instance
+		try: self._activeProtocols[recipient].append(proto) # Try to add the protocol as part of the protocol list that this recipient has spawned
+		except KeyError: self._activeProtocols[recipient] = [proto] # If no key exists for the recipient, create new one with list only containing the new protocol instance
 		if type(timeout) == int: SimpleThread(target = self._threadTimeout, loop = False,
-			args=(recip, proto, timeout)).start() # If the timeout is an int, create a simple thread to invalidate it after timeout seconds
+			args=(recipient, proto, timeout)).start() # If the timeout is an int, create a simple thread to invalidate it after timeout seconds
 		return proto # Return instance of protocol
 
-	def getSpawnedProtocol(self, recipient: TAddress = None, protocolClass = None):
+	def getSpawnedProtocol(self, recipient: str = None, protocolClass = None):
 		"""
 		Gets a protocol that was created by the recipient
 
 		Args:
-			recipient (TAddress): The address that caused the spawning of the protocol
+			recipient (str): The address that caused the spawning of the protocol
 			protocolClass (type): The class of the protocol
 
 		Returns:
 			Protocol: The protocol if it was found, else None
 		"""
-		recip = str(recipient) # Convert the recipient to a string
-		try: self._activeProtocols[recip] # Try to lookup the recip in the dictionary of active protocols
+		try: self._activeProtocols[recipient] # Try to lookup the recipient in the dictionary of active protocols
 		except KeyError: return None # If a KeyError was thrown from the key not existing in the dictionary then, return None
-		for spawnedProtocol in self._activeProtocols[recip]: # Loop through each active protocol as spawnedProtocol
+		for spawnedProtocol in self._activeProtocols[recipient]: # Loop through each active protocol as spawnedProtocol
 			if spawnedProtocol.__class__.__name__.upper() == protocolClass.__name__.upper(): # If class names match
 				return spawnedProtocol # Return the found protocol
 		return None # Return None as no protocol was found
 
-	def invalidateProtocol(self, recipient: TAddress = None, protocolClass = None):
+	def invalidateProtocol(self, recipient: str = None, protocolClass = None):
 		"""
 		Marks a protocol as invalid and will remove it from use
 
 		Args:
-			recipient (TAddress): The address that caused the intial spawning of the protocol
+			recipient (str): The address that caused the intial spawning of the protocol
 			protocolClass (type): The class of the protocol to invalidate
 
 		Returns:
@@ -570,13 +268,12 @@ class TNetworkable:
 		    0 -> The recipient has created protocols but just not the one we're lookin' for (Good)
 		    1 -> The recipient had created the protocl(s) we were lookin' for and they/it were/was removed (Good)
 		"""
-		recip = str(recipient) # Convert the recipient to a string
-		try: self._activeProtocols[recip] # Try to lookup the value of the key: recip, in the dictionary of active protocols
+		try: self._activeProtocols[recipient] # Try to lookup the value of the key: recip, in the dictionary of active protocols
 		except KeyError: return -1 # Unable to find recipient, return -1 as the recipient wasn't found
 		outCode = 0 # Returned to determine if work was done
-		for proto in self._activeProtocols[recip]: # Loop through each protocol for a recipient as proto
+		for proto in self._activeProtocols[recipient]: # Loop through each protocol for a recipient as proto
 			if proto.__class__.__name__.upper() == protocolClass.__class__.__name__.upper(): # If class names match
-				self._activeProtocols[recip].remove(proto) # Remove protocol from list of protocols
+				self._activeProtocols[recipient].remove(proto) # Remove protocol from list of protocols
 				outCode += 1 # Increase output code by 1 as a protocol was invalidated
 		if outCode > 0: return 1 # If the output code is greater than 0 then return that at least 1 protocol was invalidated
 		else: return 0 # Return that no work was done (0)
@@ -630,14 +327,14 @@ class TNetworkable:
 		if data is None or not len(data): return # If data is invalid, exit function
 		self.generalReceive(addr, data) # Call, hopefully impelemented, child function
 
-	def broadcastReceive(self, addr: TAddress = None, data: str = None):
+	def broadcastReceive(self, addr: str = None, data: str = None):
 		"""
 		A function that child classes must implement
 
 		It is called when data is received on the broadcasting socket of the networkable
 
 		Args:
-			addr (TAddress): Sender of data
+			addr (str): Sender of data
 			data (str): The data sent
 
 		Returns:
@@ -648,13 +345,13 @@ class TNetworkable:
 		"""
 		raise NotImplementedError() # Raise error as function wasn't implemented by child class
 
-	def generalReceive(self, addr: TAddress = None, data: str = None):
+	def generalReceive(self, addr: str = None, data: str = None):
 		"""
 		A function that child classes must implement
 		It is called when data is received on the general receiving socket of the networkable
 
 		Args:
-			addr (TAddress): Sender of data
+			addr (str): Sender of data
 			data (str): The data sent
 
 		Returns:
@@ -665,26 +362,29 @@ class TNetworkable:
 		"""
 		raise NotImplementedError() # Raise error as function wasn't implemented by child class
 
-class TServer(TNetworkable):
+class Server(Networkable):
 	"""
 	The server object
 
 	Handles server side related things
 	"""
 
-	def __init__(self):
+	def __init__(self, clients: int = 0):
 		"""
 		Init
+
+		Args:
+			clients (int): Number of clients to wait for in Broadcast_IP protocol
 
 		Attributes:
 			expectedClients (int): Number of clients expected
 			_clientsGot (list): List of ip addresses from clients
 			_broadcastProtoSaved (Broadcast_IP): Broadcast_IP protocol instance
 		"""
-		super().__init__(True, "192.168.6.1") # Tell networking that I am a server and my ip is 192.168.6.1
-		self.expectedClients = TClient.Clients # Set expected clients to be the current number of created ones
+		super().__init__(True) # Tell networking that I am a server
+		self.expectedClients = clients # Set expected clients to be the current number of created ones
 		self._clientsGot = [] # List of clients gotten from Broadcast_IP protocol
-		self._broadcastProtoSaved = super().spawnProtocol(self._broadcastSocket._addr, None, Broadcast_IP, args = (0,)) # Broadcast ip protocol instance
+		self._broadcastProtoSaved = super().spawnProtocol("<broadcast>", None, Broadcast_IP, args = (0,)) # Broadcast ip protocol instance
 
 	def startBroadcasting(self):
 		"""
@@ -706,15 +406,15 @@ class TServer(TNetworkable):
 			None
 		"""
 		self._broadcastProtoSaved._step = 0 # Sets the step to be 0 (will be incremented to 1)
-		self._broadcastProtoSaved.step(self._broadcastSocket, self._broadcastSocket._addr) # Call step function
+		self._broadcastProtoSaved.step("<broadcast>") # Call step function
 		time.sleep(5) # Wait 5 seconds
 
-	def broadcastReceive(self, addr: TAddress = None, data: str = None):
+	def broadcastReceive(self, addr: str = None, data: str = None):
 		"""
 		Implementation from parent class to handle data received from the broadcasting socket
 
 		Args:
-			addr (TAddress): Sender address
+			addr (str): Sender address
 			data (str): Data sent
 
 		Returns:
@@ -723,15 +423,15 @@ class TServer(TNetworkable):
 		hndl = self._protocolHandler.incomingPacket(data, addr) # Call the packet handler to handle the packet
 		if hndl[0] == 2: # If packet handler returned 2 (see Exit Codes)
 			super().closeThread("Broadcasting") # Close broadcasting thread
-			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP) # Invalidate Broadcast_IP protocol
+			super().invalidateProtocol("<broadcast>", Broadcast_IP) # Invalidate Broadcast_IP protocol
 			self._broadcastSocket.close() # Close broadcasting socket
 
-	def generalReceive(self, addr: TAddress = None, data: str = None):
+	def generalReceive(self, addr: str = None, data: str = None):
 		"""
 		Implementation from parent class to handled data received from the general receiving socket
 
 		Args:
-			addr (TAddress): Sender address
+			addr (str): Sender address
 			data (str): Data received
 
 		Returns:
@@ -751,16 +451,11 @@ class TServer(TNetworkable):
 		if not (addr.addr[0] in self._clientsGot): return # If address isn't from the found client list then exit function
 		SimpleThread(threading, False, args=(self,)).start() # Create threaded handler and start thread
 
-class TClient(TNetworkable):
+class Client(Networkable):
 	"""
 	The client object
 
 	Handles client side related things
-	"""
-
-	Clients = 0 # Current number of clients
-	"""
-	int: Total number of clients
 	"""
 
 	def __init__(self):
@@ -768,10 +463,9 @@ class TClient(TNetworkable):
 		Init
 
 		Attributes:
-			_serversIP (TAddress): The server's ip address
+			_serversIP (str): The server's ip address
 		"""
-		TClient.Clients += 1 # Increase number of total clients
-		super().__init__(False, "192.168.6." + str(TClient.Clients + 1)) # Tell parent that you're a client and your ip
+		super().__init__(False) # Tell parent that you're a client and your ip
 		self._serversIP = None # Server's ip address, gotten after Broadcast_IP finishes
 
 	def keyExchange(self):
@@ -784,14 +478,14 @@ class TClient(TNetworkable):
 		ex = super().spawnProtocol(self._serversIP, None, Key_Exchange, args = (0,)) # Create an instance of the Key_Exchange protocol
 		clientRSA = RSA(True) # Generate a new rsa key (client)
 		ex.keys[1] = clientRSA # Save rsa key to key list in protocol
-		ex.step(self._generalSocket, self._serversIP) # Call first step in key exchange
+		ex.step(self._serversIP) # Call first step in key exchange
 
-	def broadcastReceive(self, addr: TAddress = None, data: str = None):
+	def broadcastReceive(self, addr: str = None, data: str = None):
 		"""
 		Implemented function from parent class to handle packets on broadcasting socket
 
 		Args:
-			addr (TAddress): Sender's address
+			addr (str): Sender's address
 			data (str): Data sender sent
 
 		Returns:
@@ -799,13 +493,13 @@ class TClient(TNetworkable):
 		"""
 		hndl = self._protocolHandler.incomingPacket(data, addr) # Handle packet
 		if hndl[0] == 2: # If exit code is 2 (see Exit codes)
-			super().invalidateProtocol(str(self._broadcastSocket._addr), Broadcast_IP) # Invalidate the broadcast ip protocol
+			super().invalidateProtocol("<broadcast>", Broadcast_IP) # Invalidate the broadcast ip protocol
 			self._broadcastSocket.close() # Close the broadcasting socket
-			self._serversIP = TAddress(self._ip, self._serversIP.trueIP, TPorts.SEND_RECEIVE) # Set server's ip to be a TAddress
+			self._serversIP = self._serversIP # Set server's ip to be a TAddress
 			#self.keyExchange() <- Thread wouldn't normally be needed!
 			SimpleThread(self.keyExchange, False, (), {}).start() # Start key exchange protocol
 
-	def generalReceive(self, addr: TAddress = None, data: str = None):
+	def generalReceive(self, addr: str = None, data: str = None):
 		"""
 		Implemented function from parent class to handle general packets
 
@@ -843,25 +537,25 @@ class ProtocolHandler:
 	Verifies if a packet is legit and if steps should be done because of it
 	"""
 
-	def __init__(self, selfInstance: TNetworkable = None):
+	def __init__(self, selfInstance: Networkable = None):
 		"""
 		Init
 
 		Args:
-			selfInstance (TNetworkable): The instance of a client or server
+			selfInstance (Networkable): The instance of a client or server
 
 		Attributes:
-			_instanceOfOwner (TNetworkable): The instance of the object that created this object
+			_instanceOfOwner (Networkable): The instance of the object that created this object
 		"""
 		self._instanceOfOwner = selfInstance # Save owner
 
-	def incomingPacket(self, packet: str = None, sentBy: TAddress = None):
+	def incomingPacket(self, packet: str = None, sentBy: str = None):
 		"""
 		Handles incoming packets
 
 		Args:
 			packet (str): The raw packet
-			sentBy (TAddress): The address to send data back to
+			sentBy (str): The address to send data back to
 
 		Returns:
 			int: An exit code
@@ -877,13 +571,13 @@ class ProtocolHandler:
 		if type(packet) != str or not Packet.isValidPacket(packet): return -2 # If packet isn't a string or isn't a valid packet, return -2
 		return self._handlePacket(Packet.fromString(packet), sentBy) # Return exit code from the internal handler returns
 
-	def _handlePacket(self, packet: object = None, sentBy: TAddress = None):
+	def _handlePacket(self, packet: object = None, sentBy: str = None):
 		"""
 		Internal packet handler
 
 		Args:
 			packet (object): The packet object
-			sentBy (TAddress): the address to send data back to
+			sentBy (str): the address to send data back to
 
 		Returns:
 			int: An exit code (see handlePacket's exit codes for reference)
@@ -903,13 +597,13 @@ class ProtocolHandler:
 			if not spawned.isProperPacket(packet): return 0 # If the packet's method isn't one that should be used, return 0
 			if spawned._step != packet._step: return 0 # If the steps of the packet and protocol object don't align, return 0
 			if packet._step == 1: # If the packet's step is 1
-				self._instanceOfOwner._serversIP = TAddress(sentBy.trueIP, sentBy.trueIP, TPorts.SERVER_BROADCAST) # Save the server's ip to be the sender of the packet
+				self._instanceOfOwner._serversIP = sentBy # Save the server's ip to be the sender of the packet
 			if packet._step == 3: # If the packet's step is 3
 				maybeMyIP = packet.getDataAt(0) # Get first data point
 				if maybeMyIP == self._instanceOfOwner._ip: return 2 # If it is my ip, return 2
 				else:
 					self._instanceOfOwner.invalidateProtocol(sentBy, Broadcast_IP) # Invalid protocol but don't return 2 as protocol didn't finish, just failed
-			else: spawned.step(self._instanceOfOwner._broadcastSocket, sentBy) # If step isn't 3, call step function
+			else: spawned.step(sentBy) # If step isn't 3, call step function
 			return 1 # Return that execution went well
 
 		def _server_Broadcast_IP():
@@ -925,12 +619,11 @@ class ProtocolHandler:
 			if not spawned.isProperPacket(packet): return 0 # If the packet's method isn't one that should be used, return 0
 			if spawned._step != packet._step: return 0 # If steps of the packet and protocol instance don't align, return 0
 			if packet._step == 2: # If packet step is 2
-				ip = sentBy.trueIP # Get ip address of sender (string form)
-				if ip not in self._instanceOfOwner._clientsGot: # If ip isn't in the list of clients gotten so far
-					self._instanceOfOwner._clientsGot.append(ip) # Added ip to list of clients
-				spawned.step(self._instanceOfOwner._broadcastSocket, sentBy, ip) # Call step function and confirm an ip
+				if sentBy not in self._instanceOfOwner._clientsGot: # If ip isn't in the list of clients gotten so far
+					self._instanceOfOwner._clientsGot.append(sentBy) # Added ip to list of clients
+				spawned.step(sentBy) # Call step function and confirm an ip
 				spawned._step = 2 # Reset step to 2 to allow for another client to start confirm process
-			else: spawned.step(self._instanceOfOwner._broadcastSocket, sentBy) # Call step function
+			else: spawned.step(sentBy) # Call step function
 			if len(self._instanceOfOwner._clientsGot) >= self._instanceOfOwner.expectedClients: return 2 # Return 2 when number of client gotten is greater than or equal to the number of expected clients
 			return 1 # Return that execution went well
 
@@ -956,10 +649,10 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[1] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data from packet and save in session ids
-				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
-				Log(LogType.Info, f"Client ({self._instanceOfOwner._ip}) is done with Key Exchange ({spawned.sessionIds[1]})", False).post()
+				spawned.step(sentBy) # Call step function
+				Log(LogType.Info, f"Client ({self._instanceOfOwner.MacAddress}) is done with Key Exchange ({spawned.sessionIds[1]})", False).post()
 				return 2 # Return that the protocol has finished
-			spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
+			spawned.step(sentBy) # Call step function
 			return 1 # Return that execution went well
 
 		def _server_Key_Exchange():
@@ -988,10 +681,10 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
-				Log(LogType.Info, f"Server ({self._instanceOfOwner._ip}) is done with Key Exchange with {sentBy.addr[0]} ({spawned.sessionIds[0]})", False).post()
+				Log(LogType.Info, f"Server ({self._instanceOfOwner.MacAddress}) is done with Key Exchange with {sentBy} ({spawned.sessionIds[0]})", False).post()
 				return 2 # Return that the protocol has finished
 			else:
-				spawned.step(self._instanceOfOwner._generalSocket, sentBy) # Call step function
+				spawned.step(sentBy) # Call step function
 				return 1 # Return that execution went well
 
 		if type(packet) is not Packet: return (0, None) # packet wasn't a Packet, exit 0
@@ -1080,13 +773,12 @@ class Protocol:
 		try: return method in self._packets[packet._step - 1] # Tries to return if the packet's method is in the list of method for a given step
 		except IndexError: return False # If a KeyError is raised, return false
 
-	def step(self, sender: TSocket = None, receiver: TAddress = None, *args, **kwargs):
+	def step(self, receiver: str = None, *args, **kwargs):
 		"""
 		Step function that all sub classes must implement
 
 		Args:
-			sender (TSocket): The sending socket
-			receiver (TAddress): The reciever's address
+			receiver (str): The reciever's address
 			args (tuple): Arguments for use in sub classes
 			kwargs (dict): Keyword arguments for use in sub classes
 
@@ -1119,13 +811,12 @@ class Broadcast_IP(Protocol):
 		"""
 		super().__init__(step, (1, 3), ((Method.DATA,), (Method.CONFIRM,), (Method.AGREE,))) # Pass protocol details to parent
 
-	def step(self, sender: TSocket = None, receiver: TAddress = None, confirming: str = "*"):
+	def step(self, receiver: str = None, confirming: str = "*"):
 		"""
 		The step function
 
 		Args:
-			sender (TSocket): The sender's socket
-			receiver (TAddress): The receiver's address
+			receiver (str): The receiver's address
 			confirming (str): IP address that server is confirming it has
 
 		Returns:
@@ -1135,13 +826,13 @@ class Broadcast_IP(Protocol):
 
 		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Server
-			Packet(Method.DATA, 0, self._step).finalize(sender, receiver)
+			Packet(Method.DATA, 0, self._step).finalize(receiver)
 
 		elif self._step == 2: # Client
-			Packet(Method.CONFIRM, 0, self._step).finalize(sender, receiver)
+			Packet(Method.CONFIRM, 0, self._step).finalize(receiver)
 
 		elif self._step == 3: # Server
-			Packet(Method.AGREE, 0, self._step).addData(confirming).finalize(sender, receiver)
+			Packet(Method.AGREE, 0, self._step).addData(confirming).finalize(receiver)
 
 		self._step += 1 # Increment the current step again
 
@@ -1198,13 +889,12 @@ class Key_Exchange(Protocol):
 		"""
 		self.keys[2] = AES(self.aesKey()) # Saves the instance of AES to the keys
 
-	def step(self, sender: TSocket = None, receiver: TAddress = None):
+	def step(self, receiver: str = None):
 		"""
 		The step function
 
 		Args:
-			sender (TSocket): The sender's socket
-			receiver (TAddress): The receiver's address
+			receiver (str): The receiver's address
 
 		Returns:
 			None
@@ -1213,23 +903,23 @@ class Key_Exchange(Protocol):
 
 		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Client
-			Packet(Method.QUERY, 1, self._step).finalize(sender, receiver)
+			Packet(Method.QUERY, 1, self._step).finalize(receiver)
 
 		elif self._step == 2: # Server
-			Packet(Method.RESPONSE, 1, self._step).addData(self.keys[0].pubKey()).finalize(sender, receiver)
+			Packet(Method.RESPONSE, 1, self._step).addData(self.keys[0].pubKey()).finalize(receiver)
 
 		elif self._step == 3: # Client
-			Packet(Method.DATA, 1, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(sender, receiver)
+			Packet(Method.DATA, 1, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(receiver)
 
 		elif self._step == 4: # Server
 			self.sessionIds[1] = self.session(self.keys[1])
 			data = self.keys[2].encrypt(self.sessionIds[1])
-			Packet(Method.DATA, 1, self._step).addData(data).finalize(sender, receiver)
+			Packet(Method.DATA, 1, self._step).addData(data).finalize(receiver)
 
 		elif self._step == 5: # Client
 			self.sessionIds[0] = self.session(self.keys[0])
 			data = self.keys[2].encrypt(self.sessionIds[0])
-			Packet(Method.DATA, 1, self._step).addData(data).finalize(sender, receiver)
+			Packet(Method.DATA, 1, self._step).addData(data).finalize(receiver)
 
 		self._step += 1 # Increment the current step again
 
@@ -1399,30 +1089,28 @@ class Packet:
 		try: return self._data[index] # Try to return data at an index
 		except IndexError: return None # Return none as data requested was at an invalid index
 
-	def send(self, socket: TSocket = None, toSendItTo: TAddress = None):
+	def send(self, reciever: str = None):
 		"""
 		Sends the packet's string to an address
 
 		Args:
-			socket (TSocket): The socket to send from
-			toSendItTo (TAddress): The address to send the data to
+			reciever (str): The address to send the data to
 
 		Returns:
 			Packet: The packet
 		"""
-		if socket is None or self._packetString is None or len(self._packetString) == 0: return # If socket is none, packet string is none, or the length of the packet is 0, then return none
-		socket.sendData(toSendItTo, self._packetString) # Send the data to an address from a socket
+		if self._packetString is None or len(self._packetString) == 0: return # If socket is none, packet string is none, or the length of the packet is 0, then return none
+		#socket.sendData(toSendItTo, self._packetString) # Send the data to an address from a socket
 		return self # Return self
 
-	def finalize(self, socket: TSocket = None, toSendItTo: TAddress = None):
+	def finalize(self, reciever: str = None):
 		"""
 		Calls both build then send, works as a shortcut
 
 		Args:
-			socket (TSocket): The socket to send from
-			toSendItTo (TAddress): The address to send the data to
+			reciever (str): The address to send the data to
 
 		Returns:
 			Packet: The packet
 		"""
-		return self.build().send(socket, toSendItTo) # Builds the packet, sends the packet, then returns self
+		return self.build().send(reciever) # Builds the packet, sends the packet, then returns self

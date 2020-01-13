@@ -7,14 +7,20 @@ StartFile=/home/pi/ISM-2019-2020/Firmware/start.sh
 sudo apt update
 sudo apt -y upgrade
 
+# Make sure python 3.x is installed
+sudo apt -y install python3
+
 # Install pip so we can install requirements
 sudo apt -y install python3-pip
 
-# Clear up and excess packages
-sudo apt -y autoremove
+# Install pybluez linux dependancies
+sudo apt -y install pkg-config libboost-python-dev libboost-thread-dev libbluetooth-dev libglib2.0-dev python-dev
 
 # Install firmware's modules
 sudo pip3 install -r /home/pi/ISM-2019-2020/Firmware/requirements.txt
+
+# Clear up excess packages
+sudo apt -y autoremove
 
 # Check if service file exists, if it does: delete it
 if [ -f "$ServiceFile" ]
