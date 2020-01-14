@@ -162,7 +162,6 @@ class Networkable:
 			_networkingThreads (dict): All currently active networking threads
 			_activeProtocols (dict): All currently active protocols
 			_protocolHandler (ProtocolHandler): Handler for packets for protocols
-			MacAddress (str): The devices MAC address
 		"""
 		self._isServer = isServer # Save if server
 		self._broadcastSocket = None # Create broadcasting socket
@@ -172,10 +171,6 @@ class Networkable:
 		self._networkingThreads = {} # Currently active networking threads {thread name: thread instance}
 		self._activeProtocols = {} # Currently active protocol {"ip:port": [Protocol instance,]}
 		self._protocolHandler = ProtocolHandler(self) # Create protocol handler
-
-	@property
-	def MacAddress(self):
-		return MyMac()
 
 	def spawnThread(self, threadName: str = None, threadTarget = None, loop: bool = False, args = tuple(), kwargs = {}):
 		"""
@@ -650,7 +645,7 @@ class ProtocolHandler:
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[1] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data from packet and save in session ids
 				spawned.step(sentBy) # Call step function
-				Log(LogType.Info, f"Client ({self._instanceOfOwner.MacAddress}) is done with Key Exchange ({spawned.sessionIds[1]})", False).post()
+				Log(LogType.Info, f"Client ({MyMac()}) is done with Key Exchange ({spawned.sessionIds[1]})", False).post()
 				return 2 # Return that the protocol has finished
 			spawned.step(sentBy) # Call step function
 			return 1 # Return that execution went well
@@ -681,7 +676,7 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
-				Log(LogType.Info, f"Server ({self._instanceOfOwner.MacAddress}) is done with Key Exchange with {sentBy} ({spawned.sessionIds[0]})", False).post()
+				Log(LogType.Info, f"Server ({MyMac()}) is done with Key Exchange with {sentBy} ({spawned.sessionIds[0]})", False).post()
 				return 2 # Return that the protocol has finished
 			else:
 				spawned.step(sentBy) # Call step function

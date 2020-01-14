@@ -1,7 +1,16 @@
 #!/bin/bash
 
+# Check for sudo privileges
+if (( EUID != 0 ))
+then
+	echo "This installer must be ran with sudo" 1>&2
+	exit 1
+fi
+
+# Declare variables
 ServiceFile=/lib/systemd/system/ISM-2019-2020.service
 StartFile=/home/pi/ISM-2019-2020/Firmware/start.sh
+DataFolder=/home/pi/ISM-2019-2020/Firmware/data/
 
 # Update system
 sudo apt update
@@ -52,8 +61,20 @@ sudo chmod 644 "$ServiceFile"
 sudo systemctl daemon-reload
 sudo systemctl enable ISM-2019-2020.service
 
+# Get new device id
+read -p "Device ID: " DeviceID
+
+# Delete old data folder
+sudo rm -rf "$DataFolder"
+
+# Create data folder
+sudo mkdir "$DataFolder"
+
 # Make start.sh file executable
 sudo chmod +x "$StartFile"
+
+# Start start.sh
+sudo "$StartFile --install -id $DeviceID"
 
 # Restart system
 sudo reboot

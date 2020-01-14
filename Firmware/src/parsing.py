@@ -316,11 +316,13 @@ class ArgumentParser:
 		"""
 		"""
 		Exit Codes:
+			2 -> Executed successfully and a found command was executed (Good)
 			1 -> Executed successfully and nothing went wrong (Good)
 			0 -> Terminated because only a command was run (Good)
 		   -1 -> An invalid type was attemped to be used to set a variable's value (Bad)
 		   -2 -> Nothing was executed/the parsed arguments did nothing when executed (Bad)
 		   -3 -> Not all required arguments were set to values (Bad)
+		   -4 -> An error occured when executing a command (Bad)
 		"""
 		parsed = lambda index: self._parsedArgs[index] # Gets the parsed argument at an index
 		handler = lambda index: self._handler[index] # Gets the handler by an index
@@ -384,14 +386,21 @@ class ArgumentParser:
 		if remaining() == 0: # If there aren't any generated arguments
 			if self._doLog: handler("none")() # Call the none function/lambda
 			return -2 # Return -2 as no work will be done
+		cmdToExecute = None
 		while pairIndex < len(self._parsedArgs): # Loop from 0 to the number of parsed arguments - 1
-			if pairIndex == 0 and remaining() == 1 and argType(pairIndex) == "cmd": # If it's the first index, there is only 1 remaining to be parsed and it's a cmd
-				if not (getHandlerCmd(argValue(pairIndex)) is None): # If the cmd is a registered one
-					cmd = argValue(pairIndex) # Get the current command
-					if cmd.lower() == "help": print(getHandlerCmd(cmd)()) # If it's the help command, excecute the help command handler and print what is returned
-					else: getHandlerCmd(cmd)() # Execute handler for command
-				elif self._doLog: print("Invalid argument \"--" + argValue(pairIndex) + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
-				return 0 # Return 0 as the executing stopped because of a command was called
+			if argType(pairIndex) == "cmd": # Command argument was found
+				cmd = argValue(pairIndex) # Get the current command
+				if pairIndex == 0 and remaining() == 1: # If it's the first index, there is only 1 remaining to be parsed and it's a cmd
+					if not (getHandlerCmd(argValue(pairIndex)) is None): # If the cmd is a registered one
+						try: # Catch errors
+							if cmd.lower() == "help": print(getHandlerCmd(cmd)()) # If it's the help command, excecute the help command handler and print what is returned
+							else: getHandlerCmd(cmd)() # Execute handler for command
+						except: # Error was thrown
+							return -4
+					elif self._doLog: print("Invalid argument \"--" + argValue(pairIndex) + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
+					return 0 # Return 0 as the executing stopped because of a command was called
+				else: # Command was found but it isn't the only token to evalutate
+					cmdToExecute = cmd # Set it as a command to execute once all tokens have been executed
 			elif remaining() >= 2 and doesVariableExist(argValue(pairIndex)): # If the remaining parsed is greater than or equal to 2 and the variable of the current index is a variable's name
 				if self._isValidValueFor(0, argValue(pairIndex), argType(pairIndex + 1)): # If a proper value being used to set the variable
 					self._vars["all"][argValue(pairIndex)][1] = argValue(pairIndex + 1) # Set the variable's value to be the new value
@@ -413,6 +422,12 @@ class ArgumentParser:
 				for arg in allNotSetVars(): # Loop through all the unset variables' names and type(s)
 					print(arg[0], "\t->\t", arg[1], sep = "") # Print out variable's name and type(s)
 			return -3 # Return -3 as not all required variables were set
+		if cmdToExecute is not None: # There is a command to execute
+			try: # Catch errors
+				cmdToExecute() # Call command
+				return 0 # Command executed successfully
+			except: # If error is thrown
+				return -4 # An error was thrown
 		return 1 # Return 1 as the executing didn't run into any problems
 
 	def readVariable(self, var: str = ""):

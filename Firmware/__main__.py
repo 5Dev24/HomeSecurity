@@ -2,10 +2,18 @@
 
 import sys, builtins
 from src.parsing import ArgumentParser
-from src.networking import TServer, TClient
+from src.networking import Server, Client
 
 def main():
-	parser = ArgumentParser(False, { "vars" : { "optional": { "debug": "boolean" } } })
+	parser = ArgumentParser(False, {
+		"cmds": {
+			"install" : lambda: install()
+		},
+		"vars" : {
+			"required": { "server": "boolean" },
+			"optional": { "debug": "boolean" }
+		}
+	})
 	parser.parse(sys.argv[1:])
 	parser.execute()
 
@@ -14,8 +22,13 @@ def main():
 	if debug:
 		print("Debugging enabled!")
 
-	for i in range(int(input("How many clients? "))): TClient()
-	server = TServer()
-	server.startBroadcasting()
+	if parser.readVariable("server"):
+		server = Server()
+		server.startBroadcasting()
+	else:
+		Client()
+
+def install():
+	pass
 
 if __name__ == "__main__": main()
