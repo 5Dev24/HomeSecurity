@@ -31,6 +31,16 @@ sudo pip3 install -r /home/pi/ISM-2019-2020/Firmware/requirements.txt
 # Clear up excess packages
 sudo apt -y autoremove
 
+# Get if this is a server or a client
+echo "Is this a server or a client?"
+select ServerClient in "Server" "Client"
+Server=false
+
+case "$ServerClient" in
+    Server) Server=true;;
+    Client) Server=false;;
+esac
+
 # Check if service file exists, if it does: delete it
 if [ -f "$ServiceFile" ]
 then
@@ -74,7 +84,7 @@ sudo mkdir "$DataFolder"
 sudo chmod +x "$StartFile"
 
 # Start start.sh
-sudo "$StartFile --install -id $DeviceID"
+sudo "$StartFile --install -id '$DeviceID' -server $Server"
 
 # Restart system
 sudo reboot

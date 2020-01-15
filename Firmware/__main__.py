@@ -11,7 +11,7 @@ def main():
 		},
 		"vars" : {
 			"required": { "server": "boolean" },
-			"optional": { "debug": "boolean" }
+			"optional": { "debug": "boolean", "id": "string" }
 		}
 	})
 	parser.parse(sys.argv[1:])
@@ -22,13 +22,16 @@ def main():
 	if debug:
 		print("Debugging enabled!")
 
-	if parser.readVariable("server"):
-		server = Server()
-		server.startBroadcasting()
-	else:
-		Client()
+	deviceID = parser.readVariable("id")
+	print("Device ID:", deviceID)
+
+	#if parser.readVariable("server"):
+	#	server = Server()
+	#	server.startBroadcasting()
+	#else:
+	#	Client()
 
 def install():
-	pass
+	print("Install called")
 
 if __name__ == "__main__": main()

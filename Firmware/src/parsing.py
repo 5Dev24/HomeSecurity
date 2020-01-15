@@ -63,7 +63,7 @@ class ArgumentParser:
 
 		handled = [False] * 6 # A list of which parts were handled by the initial handler
 		output = {
-				"cmds": { "help": self._autoGenerateHelpMsg },
+				"cmds": { "help": lambda: print(self._autoGenerateHelpMsg) },
 				"vars": { "required": {}, "optional": {} },
 				"none": lambda: print("Use --help to see a list of options")
 		} # Default handler with all possible parts created
@@ -217,13 +217,13 @@ class ArgumentParser:
 				list: The type and the value (casted to proper type)
 			"""
 			argType = "string" # Default to string
-			if len(arg) == 0: return None # If an empty string was sent, return None
+			if len(arg) == 0: return ["string", ""] # If an empty string was sent, return an empty string
 			if arg.startswith("-") and not arg.startswith("--"): return ["var", arg[1:].lower()] # If argument starts with only a signle '-', then return that it's a variable and remove the '-'
 			elif arg.startswith("--"): return ["cmd", arg[2:].lower()] # If argument starts with two '-', then return that it's a command and remove the '--' from the beginning
 			elif arg.lower() == "true" or arg.lower() == "false": return ["boolean", arg.lower() == "true"] # If argument is 'true' or 'false' (not case sensitive), then return it's a boolean and the boolean value
 			else:
 				try:
-					num = -1 # Default to -1
+					num = None # Default to -1
 					if arg.count(".") == 1: # If there is only a single '.' in the string
 						num = float(arg) # Case to float
 						argType = "float" # Set type to float if no exception was raised
@@ -238,7 +238,7 @@ class ArgumentParser:
 
 		newArgs = [] # List of new arguments after checking for simple strings
 		for arg in args: # Loop through each argument as arg
-			if ' ' in arg: newArgs.append('"' + arg + '"') # If there is a space (that means it was a string), then add it to the argument list with quotes around it
+			if ' ' in arg: newArgs.append("'" + arg + "'") # If there is a space (that means it was a string), then add it to the argument list with quotes around it
 			else: newArgs.append(arg) # If it doesn't have a space then just keep it as is
 		args = ' '.join(newArgs) # Rejoin all of the arguments with a space as a separator
 		inString = False # If a string is currently being read
@@ -249,13 +249,13 @@ class ArgumentParser:
 		out = [] # The new list of executable arguments
 		while index < len(args): # While the index isn't outside of the argument list
 			char = args[index] # The current character
-			if char == '"': # If character is a '"'
+			if char == "'": # If character is a '
 				if prevChar != '\\': # If the previous character isn't a '\'
 					inString = not inString # Invert the inString value
 					if not inString: # If the string has ended
 						out.append(["string", string]) # Add the argument type of string and the string to the output list
 						string = "" # Reset the string value
-				else: string = string[:len(string) - 1] + '"' # If the previous string was a '|' then remove the previous character and add a '"'
+				else: string = string[:len(string) - 1] + "'" # If the previous string was a '|' then remove the previous character and add a '"'
 			elif inString: string += char # If currently in a string and a '"' isn't the current character then add the character to the string
 			elif char == ' ' and not inString: # If a space occured and it isn't a string
 				newArg = unknownArgumentParse(arg) # Try to parse this unknown argument
@@ -299,14 +299,9 @@ class ArgumentParser:
 			None
 		"""
 		if not (type(args) is list): return # If the arguments aren't a list, don't do anything
-		args = self._parse(args) # Do main parse
-		for arg in args: # Loop through each argument as arg
-			if arg[0] == "cmd": # If the argument's type is cmd
-				self._parsedArgs = [arg] # Override the entire list of arguments with only the command
-				return # Stop parsing
-		self._parsedArgs = args # Write the list of arguments to the final list if there was no command present
+		self._parsedArgs = self._parse(args) # Write the list of arguments to the final list
 
-	def execute(self):
+	def execute(self, ignoreArguemntRequirements: bool = False):
 		"""
 		Executes the list of parsed arguments
 		View source code for understanding of exit codes
@@ -390,17 +385,17 @@ class ArgumentParser:
 		while pairIndex < len(self._parsedArgs): # Loop from 0 to the number of parsed arguments - 1
 			if argType(pairIndex) == "cmd": # Command argument was found
 				cmd = argValue(pairIndex) # Get the current command
-				if pairIndex == 0 and remaining() == 1: # If it's the first index, there is only 1 remaining to be parsed and it's a cmd
-					if not (getHandlerCmd(argValue(pairIndex)) is None): # If the cmd is a registered one
+				if not (getHandlerCmd(cmd) is None): # It's a cmd
+					if pairIndex == 0 and remaining() == 1: # If it's the first index, there is only 1 remaining to be parsed
 						try: # Catch errors
-							if cmd.lower() == "help": print(getHandlerCmd(cmd)()) # If it's the help command, excecute the help command handler and print what is returned
+							if cmd.lower() == "help": getHandlerCmd(cmd)() # If it's the help command, excecute the help command handler and print what is returned
 							else: getHandlerCmd(cmd)() # Execute handler for command
 						except: # Error was thrown
 							return -4
-					elif self._doLog: print("Invalid argument \"--" + argValue(pairIndex) + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
-					return 0 # Return 0 as the executing stopped because of a command was called
-				else: # Command was found but it isn't the only token to evalutate
-					cmdToExecute = cmd # Set it as a command to execute once all tokens have been executed
+					else: # Command was found but it isn't the only token to evalutate
+						cmdToExecute = getHandlerCmd(cmd) # Set it as a command to execute once all tokens have been executed
+						pairIndex += 1 # Skip over 1 index
+				elif self._doLog: print("Invalid argument \"--" + cmd + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
 			elif remaining() >= 2 and doesVariableExist(argValue(pairIndex)): # If the remaining parsed is greater than or equal to 2 and the variable of the current index is a variable's name
 				if self._isValidValueFor(0, argValue(pairIndex), argType(pairIndex + 1)): # If a proper value being used to set the variable
 					self._vars["all"][argValue(pairIndex)][1] = argValue(pairIndex + 1) # Set the variable's value to be the new value
@@ -416,7 +411,7 @@ class ArgumentParser:
 					if self._doLog: handler("none")() # Call none function/lambda
 					return -2 # Return -2 as nothing was executed
 				break # Exit Loop
-		if not areAllRequiredArgsSet(): # If not all required arguments have been set
+		if not ignoreArguemntRequirements and not areAllRequiredArgsSet(): # If argument requirements shouldn't be ignored and not all required arguments have been set
 			if self._doLog: # If logging is enabled
 				print("Not all required value have been set!\nNeed the following values to be set") # Print the not all of the required arguments have been set
 				for arg in allNotSetVars(): # Loop through all the unset variables' names and type(s)
