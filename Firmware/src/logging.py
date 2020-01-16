@@ -11,12 +11,14 @@ class LogType(Enum):
 
 	# Error Text Foreground, Message Text Foreground, Background of all Text
 	Info = (Fore.GREEN, Fore.WHITE, Back.BLACK)
+	Data = (Fore.CYAN, Fore.LIGHTBLACK_EX, Back.BLACK)
 	Warn = (Fore.LIGHTRED_EX, Fore.YELLOW, Back.BLACK)
 
 	@staticmethod
 	def fromString(string: str = ""):
 		string = string.lower()
 		if string == "info": return LogType.Info
+		elif string == "data": return LogType.Data
 		elif string == "warn": return LogType.Warn
 		else: return None
 

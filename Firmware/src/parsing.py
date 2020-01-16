@@ -63,7 +63,7 @@ class ArgumentParser:
 
 		handled = [False] * 6 # A list of which parts were handled by the initial handler
 		output = {
-				"cmds": { "help": lambda: print(self._autoGenerateHelpMsg) },
+				"cmds": { "help": lambda: print(self._autoGenerateHelpMsg()) },
 				"vars": { "required": {}, "optional": {} },
 				"none": lambda: print("Use --help to see a list of options")
 		} # Default handler with all possible parts created
@@ -78,6 +78,7 @@ class ArgumentParser:
 		if "none" in handler: handled[5] = True # If the none key is found, then set that it's handled
 		self._isHandledStorage = tuple(handled) # Convert the handled list to a tuple and save it to the handled storage
 		if handled[0]: output["cmds"] = handler["cmds"] # If cmds was handled, set output cmds to the handler cmds
+		if not handled[1]: output["cmds"]["help"] = lambda: print(self._autoGenerateHelpMsg()) # If help cmd doesn't exist, add default
 		if handled[2]: # If vars was handled
 			output["vars"] = handler["vars"] # Set output vars to handler vars
 			if handled[3]: # If required arguments was handled
@@ -217,10 +218,10 @@ class ArgumentParser:
 				list: The type and the value (casted to proper type)
 			"""
 			argType = "string" # Default to string
-			if len(arg) == 0: return ["string", ""] # If an empty string was sent, return an empty string
+			if len(arg) == 0: return None # If an empty string was sent, return a None
 			if arg.startswith("-") and not arg.startswith("--"): return ["var", arg[1:].lower()] # If argument starts with only a signle '-', then return that it's a variable and remove the '-'
 			elif arg.startswith("--"): return ["cmd", arg[2:].lower()] # If argument starts with two '-', then return that it's a command and remove the '--' from the beginning
-			elif arg.lower() == "true" or arg.lower() == "false": return ["boolean", arg.lower() == "true"] # If argument is 'true' or 'false' (not case sensitive), then return it's a boolean and the boolean value
+			elif arg.lower() in ("true", "false"): return ["boolean", arg.lower() == "true"] # If argument is 'true' or 'false' (not case sensitive), then return it's a boolean and the boolean value
 			else:
 				try:
 					num = None # Default to -1
@@ -390,6 +391,7 @@ class ArgumentParser:
 						try: # Catch errors
 							if cmd.lower() == "help": getHandlerCmd(cmd)() # If it's the help command, excecute the help command handler and print what is returned
 							else: getHandlerCmd(cmd)() # Execute handler for command
+							return 2
 						except: # Error was thrown
 							return -4
 					else: # Command was found but it isn't the only token to evalutate
@@ -413,9 +415,9 @@ class ArgumentParser:
 				break # Exit Loop
 		if not ignoreArguemntRequirements and not areAllRequiredArgsSet(): # If argument requirements shouldn't be ignored and not all required arguments have been set
 			if self._doLog: # If logging is enabled
-				print("Not all required value have been set!\nNeed the following values to be set") # Print the not all of the required arguments have been set
+				print("Not all required value have been set!\nThe following values to be set:") # Print the not all of the required arguments have been set
 				for arg in allNotSetVars(): # Loop through all the unset variables' names and type(s)
-					print(arg[0], "\t->\t", arg[1], sep = "") # Print out variable's name and type(s)
+					print('\t', arg[0], "\t->\t", arg[1], sep = "") # Print out variable's name and type(s)
 			return -3 # Return -3 as not all required variables were set
 		if cmdToExecute is not None: # There is a command to execute
 			try: # Catch errors
