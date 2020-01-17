@@ -13,17 +13,17 @@ def main():
 	if debug:
 		print("Debugging enabled!")
 
-	if code < 0: # If executing the parser returns a bad exit code
-		print("Bad parse code", code) # Display the a bad parse code appeared
-		return # Exit
+	if code < 0: return # Exit
 
-	print("Starting!")
+	if code == 0:
+		isServer = parser.readVariable("server")
+		print("Starting as a", "server" if isServer else "client")
 
-	#if parser.readVariable("server"):
-	#	server = Server()
-	#	server.startBroadcasting()
-	#else:
-	#	Client()
+		builtins.ISSERVER = isServer
+		if isServer:
+			Server().startBroadcasting()
+		else:
+			Client()
 
 def install():
 	print("Installing")
@@ -38,14 +38,21 @@ def install():
 		return
 
 	from src.logging import Log, LogType
-	Log(LogType.Data, "Device ID is " + deviceID + " and Install Type is " + ("Server" if serverInstall else "Client") + "Install").post()
+	Log(LogType.Install, "Device ID is " + deviceID + " and Install Type is " + ("Server" if serverInstall else "Client") + " Install").post()
+
+def logs():
+	from src.logging import Log
+	print("Dumping 100 logs")
+	for l in Log.AllLogs()[:100]:
+		l.post()
 
 parser = None
 
 if __name__ == "__main__":
 	parser = ArgumentParser(True, {
 		"cmds": {
-			"install" : lambda: install()
+			"install" : lambda: install(),
+			"logs": lambda: logs()
 		},
 		"vars" : {
 			"required": { "server": "boolean" },

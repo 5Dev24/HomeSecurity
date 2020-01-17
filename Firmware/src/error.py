@@ -13,7 +13,7 @@ def close(pause: bool = False, msg: str = None):
 		Won't return as program terminates
 	"""
 	if msg is None: msg = "No message supplied" # If no message was given, set to a default one
-	Log(LogType.Warn, msg + "\nTermination with exit code 0").post() # Create log and post
+	Log(LogType.Error, msg + "\nTermination with exit code 0").post() # Create log and post
 	sys.exit(0) # Exit program with exit code 0
 
 def kill(msg: str = None):
@@ -27,7 +27,7 @@ def kill(msg: str = None):
 		Won't return as program terminates
 	"""
 	if msg is None: msg = "No message supplied" # If no message was given, set to a default one
-	Log(LogType.Warn, msg + "\nTermination with exit code 1").post() # Create log and post
+	Log(LogType.Error, msg + "\nTermination with exit code 1").post() # Create log and post
 	sys.exit(1) # Exit program with exit code 1
 
 class Codes:
@@ -99,4 +99,4 @@ class Error:
 		out = "Error Details:\n\tError Class: " + self._orgError[0].__name__ + ("\n\tError Msg: " + self._orgError[2] if len(self._orgError) > 2 else "") + "\n\tAdditional Information: \n\t\t" + self._info # Create message
 		if self._method == Codes.KILL: kill(out) # If we should kill, kill
 		elif self._method == Codes.EXIT: close(False, out) # If we should instead close, close
-		else: Log("An error has occured but the program can sustain this error\n" + out).post() # If the program can sustain it, log it
+		else: Log(LogType.Warn, "An error has occured but the program can sustain this error\n" + out).post() # If the program can sustain it, log it

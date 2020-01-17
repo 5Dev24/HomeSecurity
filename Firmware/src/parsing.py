@@ -422,7 +422,7 @@ class ArgumentParser:
 		if cmdToExecute is not None: # There is a command to execute
 			try: # Catch errors
 				cmdToExecute() # Call command
-				return 0 # Command executed successfully
+				return 2 # Command executed successfully
 			except: # If error is thrown
 				return -4 # An error was thrown
 		return 1 # Return 1 as the executing didn't run into any problems

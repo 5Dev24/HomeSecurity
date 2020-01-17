@@ -11,15 +11,17 @@ class LogType(Enum):
 
 	# Error Text Foreground, Message Text Foreground, Background of all Text
 	Info = (Fore.GREEN, Fore.WHITE, Back.BLACK)
-	Data = (Fore.CYAN, Fore.LIGHTBLACK_EX, Back.BLACK)
+	Install = (Fore.CYAN, Fore.LIGHTBLACK_EX, Back.BLACK)
 	Warn = (Fore.LIGHTRED_EX, Fore.YELLOW, Back.BLACK)
+	Error = (Fore.LIGHTRED_EX, Fore.LIGHTRED_EX, Back.BLACK)
 
 	@staticmethod
 	def fromString(string: str = ""):
 		string = string.lower()
 		if string == "info": return LogType.Info
-		elif string == "data": return LogType.Data
+		elif string == "install": return LogType.Install
 		elif string == "warn": return LogType.Warn
+		elif string == "error": return LogType.Error
 		else: return None
 
 	def __str__(self):
@@ -46,10 +48,14 @@ class Log:
 		if string is None or type(string) != str or len(string) < 26: return None
 		else:
 			try:
-				t = LogType.fromString(string[1:5])
-				l = Log(t, string[28:], False)
-				l.date = string[7:17]
-				l.time = string[18:26]
+				tIndex = 2
+				tTmp = None
+				while tTmp is None:
+					tIndex += 1
+					tTmp = LogType.fromString(string[1:tIndex])
+				l = Log(tTmp, string[tIndex + 23:], False)
+				l.date = string[tIndex + 2:tIndex + 12]
+				l.time = string[tIndex + 13:tIndex + 21]
 				return l
 			except ValueError: return None
 
