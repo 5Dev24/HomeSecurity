@@ -16,6 +16,9 @@ def MyMac():
 	raw = getnode()[2:]
 	return ":".join([raw[i:i+2] for i in range(0, len(raw), 2)])
 
+def GetMyDeviceID():
+	pass
+
 class Ports:
 	"""
 	Theoretical ports used in simulation

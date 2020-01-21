@@ -63,14 +63,13 @@ class ArgumentParser:
 
 		handled = [False] * 6 # A list of which parts were handled by the initial handler
 		output = {
-				"cmds": { "help": lambda: print(self._autoGenerateHelpMsg()) },
+				"cmds": { "help": { "invoke": lambda: print(self._autoGenerateHelpMsg()), "description": "Outputs a basic help menu" } },
 				"vars": { "required": {}, "optional": {} },
 				"none": lambda: print("Use --help to see a list of options")
 		} # Default handler with all possible parts created
 		if handler is None: return output # If the handler is None then return the default handler
 		if "cmds" in handler: # If the cmds key is found
 			handled[0] = True # Set that the cmds is handled
-			if "help" in handler["cmds"]: handled[1] = True # If the help command is set, then set that the help command is handled
 		if "vars" in handler: # If the vars key is found
 			handled[2] = True # Set that the vars is handled
 			if "required" in handler["vars"]: handled[3] = True # If the required key is found within the vars value, then set that it's handled
@@ -78,7 +77,10 @@ class ArgumentParser:
 		if "none" in handler: handled[5] = True # If the none key is found, then set that it's handled
 		self._isHandledStorage = tuple(handled) # Convert the handled list to a tuple and save it to the handled storage
 		if handled[0]: output["cmds"] = handler["cmds"] # If cmds was handled, set output cmds to the handler cmds
-		if not handled[1]: output["cmds"]["help"] = lambda: print(self._autoGenerateHelpMsg()) # If help cmd doesn't exist, add default
+		if not handled[1]: output["cmds"]["help"] = { # If help cmd doesn't exist
+				"invoke": lambda: print(self._autoGenerateHelpMsg()), # Add default invoke
+				"description": "Outputs a basic help menu" # Add default description
+			}
 		if handled[2]: # If vars was handled
 			output["vars"] = handler["vars"] # Set output vars to handler vars
 			if handled[3]: # If required arguments was handled
@@ -131,8 +133,18 @@ class ArgumentParser:
 		Returns:
 			str: The default help message
 		"""
-		out = S.argv[0] # Get name of program executed
+		out = "" # Output variable
+		if len(self._handler["cmds"]) > 0: # If and commands exist
+			out += "Commands:"
+			for cmdName, cmdData in self._handler["cmds"].items(): # Loop through each command
+				if cmdData is not None and type(cmdData) == dict and "description" in cmdData: # Check if data is valid
+					desc = cmdData["description"] # Get command description
+					out += f"\t{cmdName}: {desc}\n" # Add command info to output
 		if len(self._vars["all"]) > 0: # If vars conains any variables
+			if not len(out): # If output is empty
+				out += S.argv[0] # Get name of program executed
+			else:
+				out += "\n" + S.argv[0] # Get name of program executed
 			required = len(self._vars["required"]) > 0 # If there are any required arguments
 			optional = len(self._vars["optional"]) > 0 # If there are any optional arguments
 			if required: # If there are required arguments
@@ -319,11 +331,12 @@ class ArgumentParser:
 		   -2 -> Nothing was executed/the parsed arguments did nothing when executed (Bad)
 		   -3 -> Not all required arguments were set to values (Bad)
 		   -4 -> An error occured when executing a command (Bad)
+		   -5 -> An invalid commmand was attempted to be called (Bad)
+		   -6 -> Unable to assign a value to an argument that doens't exist (Bad)
 		"""
 		parsed = lambda index: self._parsedArgs[index] # Gets the parsed argument at an index
 		handler = lambda index: self._handler[index] # Gets the handler by an index
-		argType = lambda index: parsed(index)[0] # Gets the argument type of an argument by an index
-		argValue = lambda index: parsed(index)[1] # Gets the value of an argument by an index
+		argData = lambda index: parsed(index) # Gets an arguments data
 		def getHandlerCmd(cmd: str = ""):
 			"""
 			Gets a command from the handler
@@ -384,35 +397,41 @@ class ArgumentParser:
 			return -2 # Return -2 as no work will be done
 		cmdToExecute = None
 		while pairIndex < len(self._parsedArgs): # Loop from 0 to the number of parsed arguments - 1
-			if argType(pairIndex) == "cmd": # Command argument was found
-				cmd = argValue(pairIndex) # Get the current command
-				if not (getHandlerCmd(cmd) is None): # It's a cmd
+			argT, argV = argData(pairIndex) # Argument type and value
+			if argT == "cmd": # Command argument was found
+				cmd = getHandlerCmd(argV)
+				if type(cmd) == dict: # It's a cmd
 					if pairIndex == 0 and remaining() == 1: # If it's the first index, there is only 1 remaining to be parsed
 						try: # Catch errors
-							if cmd.lower() == "help": getHandlerCmd(cmd)() # If it's the help command, excecute the help command handler and print what is returned
-							else: getHandlerCmd(cmd)() # Execute handler for command
+							cmd["invoke"]() # Execute handler for command
 							return 2
 						except: # Error was thrown
 							return -4
 					else: # Command was found but it isn't the only token to evalutate
-						cmdToExecute = getHandlerCmd(cmd) # Set it as a command to execute once all tokens have been executed
+						cmdToExecute = cmd["invoke"] # Set it as a command to execute once all tokens have been executed
 						pairIndex += 1 # Skip over 1 index
-				elif self._doLog: print("Invalid argument \"--" + cmd + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
-			elif remaining() >= 2 and doesVariableExist(argValue(pairIndex)): # If the remaining parsed is greater than or equal to 2 and the variable of the current index is a variable's name
-				if self._isValidValueFor(0, argValue(pairIndex), argType(pairIndex + 1)): # If a proper value being used to set the variable
-					self._vars["all"][argValue(pairIndex)][1] = argValue(pairIndex + 1) # Set the variable's value to be the new value
-					self._vars["all"][argValue(pairIndex)][3] = True # Set that the variable has been changed
-					pairIndex += 2 # Skip over 2 indexes
-					continue # Goto next element
+				elif self._doLog:
+					print("Invalid argument \"--" + argV + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
+					return -5
+			elif remaining() >= 2 and argT == "var": # If the remaining parsed is greater than or equal to 2 and the variable of the current index is a variable
+				if doesVariableExist(argV):
+					tmpT, tmpV = argData(pairIndex + 1)
+					if self._isValidValueFor(0, argV, tmpT): # If a proper value being used to set the variable
+						self._vars["all"][argV][1] = tmpV # Set the variable's value to be the new value
+						self._vars["all"][argV][3] = True # Set that the variable has been changed
+						pairIndex += 2 # Skip over 2 indexes
+						continue # Goto next element
+					else:
+						if self._doLog: print("Invalid value type for variable " + argV + ",\nexpected " + self._vars["all"][argV][0] + " but got " + tmpT) # Print that an invalid variable type was used if logging is enabled
+						return -1 # Return -1 as the executing stopped because an improper value was attempted to be used to change the variable's value
 				else:
-					if self._doLog: print("Invalid value type for variable " + argValue(pairIndex) + ",\
-					\nexpected " + self._vars["all"][argValue(pairIndex)][0] + " but got " + argType(pairIndex + 1)) # Print that an invalid variable type was used if logging is enabled
-					return -1 # Return -1 as the executing stopped because an improper value was attempted to be used to change the variable's value
+					if self._doLog: print("Unknown variable \"", argV, '"', sep="")
+					return -6
+			elif pairIndex == 0: # If the index is still at 0
+				if self._doLog: handler("none")() # Call none function/lambda
+				return -2 # Return -2 as nothing was executed
 			else:
-				if pairIndex == 0: # If the index is still at 0
-					if self._doLog: handler("none")() # Call none function/lambda
-					return -2 # Return -2 as nothing was executed
-				break # Exit Loop
+				break
 		if not ignoreArguemntRequirements and not areAllRequiredArgsSet(): # If argument requirements shouldn't be ignored and not all required arguments have been set
 			if self._doLog: # If logging is enabled
 				print("Not all required value have been set!\nThe following values to be set:") # Print the not all of the required arguments have been set

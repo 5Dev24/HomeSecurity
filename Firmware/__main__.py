@@ -43,7 +43,7 @@ def install():
 def logs():
 	from src.logging import Log
 	print("Dumping 100 logs")
-	for l in Log.AllLogs()[:100]:
+	for l in Log.AllLogs()[-100:]:
 		l.post()
 
 parser = None
@@ -51,8 +51,14 @@ parser = None
 if __name__ == "__main__":
 	parser = ArgumentParser(True, {
 		"cmds": {
-			"install" : lambda: install(),
-			"logs": lambda: logs()
+			"install" : {
+				"invoke": install,
+				"description": "Does firmware side intalling, but doesn't do the entire install"
+			},
+			"logs": {
+				"invoke": logs,
+				"description": "Displays the last 100 logs"
+			}
 		},
 		"vars" : {
 			"required": { "server": "boolean" },

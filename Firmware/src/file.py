@@ -184,7 +184,28 @@ class SessionIDFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		return SessionIDFormat(SessionIDFormat.listToDictionary(lines))
+		return SessionIDFormat(Utils.listToDictionary(lines))
+
+	ID = 2
+
+	def __init__(self, ids: dict = None):
+		super().__init__(Utils.dictionaryToList(ids))
+
+	@property
+	def ids(self):
+		_ids = self.data
+		if _ids is None or type(_ids) != list: return {}
+		_ids = Utils.listToDictionary(_ids)
+		if _ids is None: return {}
+		return _ids
+
+class DeviceInfoFormat(FileFormat):
+
+	@classmethod
+	def internalLoad(cls, header: str = None, lines: list = None):
+		return DeviceInfoFormat()
+
+class Utils:
 
 	@staticmethod
 	def dictionaryToList(dictionary: dict = None):
@@ -203,19 +224,6 @@ class SessionIDFormat(FileFormat):
 			if element.count(":") >= 1:
 				out[element.split(":")[0]] = ":".join(element.split(":")[1:])
 		return out
-
-	ID = 2
-
-	def __init__(self, ids: dict = None):
-		super().__init__(SessionIDFormat.dictionaryToList(ids))
-
-	@property
-	def ids(self):
-		_ids = self.data
-		if _ids is None or type(_ids) != list: return {}
-		_ids = SessionIDFormat.listToDictionary(_ids)
-		if _ids is None: return {}
-		return _ids
 
 class Folder:
 
