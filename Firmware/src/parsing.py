@@ -405,7 +405,7 @@ class ArgumentParser:
 						try: # Catch errors
 							cmd["invoke"]() # Execute handler for command
 							return 2
-						except: # Error was thrown
+						except: # Error was thrown=
 							return -4
 					else: # Command was found but it isn't the only token to evalutate
 						cmdToExecute = cmd["invoke"] # Set it as a command to execute once all tokens have been executed
@@ -439,11 +439,11 @@ class ArgumentParser:
 					print('\t', arg[0], "\t->\t", arg[1], sep = "") # Print out variable's name and type(s)
 			return -3 # Return -3 as not all required variables were set
 		if cmdToExecute is not None: # There is a command to execute
-			try: # Catch errors
-				cmdToExecute() # Call command
-				return 2 # Command executed successfully
-			except: # If error is thrown
-				return -4 # An error was thrown
+			#try: # Catch errors
+			cmdToExecute() # Call command
+			return 2 # Command executed successfully
+			#except: # If error is thrown
+			#	return -4 # An error was thrown
 		return 1 # Return 1 as the executing didn't run into any problems
 
 	def readVariable(self, var: str = ""):

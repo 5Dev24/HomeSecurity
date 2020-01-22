@@ -35,7 +35,7 @@ class Log:
 
 	@staticmethod
 	def LogFile():
-		return File.getOrCreate(FileSystem, "logs")
+		return File.GetOrCreate(FileSystem, "logs")
 
 	@staticmethod
 	def Logs():

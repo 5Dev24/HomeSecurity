@@ -13,7 +13,10 @@ def main():
 	if debug:
 		print("Debugging enabled!")
 
-	if code < 0: return # Exit
+	if code < 0:
+		if debug:
+			print("Device failed to start, parse code", code)
+		return # Exit
 
 	if code == 0:
 		isServer = parser.readVariable("server")
@@ -33,12 +36,23 @@ def install():
 	if len(deviceID) < 10:
 		print("Invalid device ID")
 		return
+
 	if type(serverInstall) is not bool:
 		print("Invalid server argument")
 		return
 
 	from src.logging import Log, LogType
 	Log(LogType.Install, "Device ID is " + deviceID + " and Install Type is " + ("Server" if serverInstall else "Client") + " Install").post()
+
+	from src.file import DeviceInfoFormat, FileSystem, File
+	if File.Exists(FileSystem, "deviceinfo.dat"):
+		deviceInfoFile = File.GetOrCreate(FileSystem, "deviceinfo.dat")
+		DeviceInfoFormat = DeviceInfoFormat.loadFrom(deviceInfoFile)
+		Log(LogType.Install, "Device appears to have already been setup previously, cancelling install").post()
+	else:
+		deviceInfoFile = File.Create(FileSystem, "deviceinfo.dat")
+		deviceInfoFormat = DeviceInfoFormat({"id": deviceID, "server": str(serverInstall)})
+		deviceInfoFormat.write(deviceInfoFile)
 
 def logs():
 	from src.logging import Log

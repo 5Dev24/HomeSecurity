@@ -22,28 +22,33 @@ class AccessMode(Enum):
 class File:
 
 	@staticmethod
-	def fromFolder(folder: object = None, fileName: str = ""):
+	def FromFolder(folder: object = None, fileName: str = ""):
 		return File(folder.directory + fileName)
 
 	@staticmethod
-	def create(folder: object = None, fileName: str = ""):
+	def Exists(folder: object = None, file: str = ""):
+		if folder is None: return isfile(abspath(file))
+		else: return isfile(abspath(folder.directory + file))
+
+	@staticmethod
+	def Create(folder: object = None, fileName: str = ""):
 		if not fileName.endswith(FILE_EXTENSION): fileName += FILE_EXTENSION
-		file = folder.directory + fileName
+		file = (folder.directory if folder is not None else "") + fileName
 		f = None
 		try:
-			f = open(file, "w+")
+			f = open(file, "w")
 			return File(file)
 		except: return None
 		finally:
 			if f is not None: f.close()
 
 	@staticmethod
-	def getOrCreate(folder: object = None, fileName: str = ""):
+	def GetOrCreate(folder: object = None, fileName: str = ""):
 		if not fileName.endswith(FILE_EXTENSION): fileName += FILE_EXTENSION
 		if isfile(folder.directory + fileName):
-			return File.fromFolder(folder, fileName)
+			return File.FromFolder(folder, fileName)
 		else:
-			return File.create(folder, fileName)
+			return File.Create(folder, fileName)
 
 	@staticmethod
 	def read(file: object = None):
@@ -158,10 +163,12 @@ class FileFormat:
 		id = str(type(self).ID)[:1]
 		checkSum = FileFormat.generateCheckSum(self.data)
 		if not len(self.data):
-			file.obj(AccessMode.Overwrite, File.write, (), {"line": f"{id}{checkSum}"})
+			return file.obj(AccessMode.Overwrite, File.write, (), {"line": f"{id}{checkSum}"})
 		else:
-			file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{id}{checkSum}"})
-			file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data})
+			rtn = False
+			rtn += file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{id}{checkSum}"})
+			rtn += file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data})
+			return rtn == 2
 
 class LogFormat(FileFormat):
 
@@ -203,7 +210,18 @@ class DeviceInfoFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		return DeviceInfoFormat()
+		return DeviceInfoFormat(Utils.listToDictionary(lines))
+
+	ID = 3
+
+	def __init__(self, info: dict = None):
+		super().__init__(Utils.dictionaryToList(info))
+
+	def get(self, name):
+		_data = Utils.listToDictionary(self.data)
+		if name in _data:
+			return _data[name]
+		else: return None
 
 class Utils:
 
@@ -228,20 +246,25 @@ class Utils:
 class Folder:
 
 	@staticmethod
-	def fromFolder(folder: object = None, directory: str = ""):
+	def FromFolder(folder: object = None, directory: str = ""):
 		return Folder(folder.directory + directory)
 
 	@staticmethod
-	def create(parent: object = None, folder: str = ""):
+	def Create(parent: object = None, folder: str = ""):
 		path = folder
-		if parent is not None and type(parent) is Folder: path = parent.directory + folder
-		if not isdir(path): makedirs(path)
+		if parent is not None: path = parent.directory + path
+		if not isdir(abspath(path)): makedirs(abspath(path))
 		return Folder(path)
 
 	@staticmethod
-	def getOrCreate(parent: object = None, folder: str = ""):
-		if isdir(folder): return Folder(folder)
-		else: return Folder.create(parent, folder)
+	def Exists(parent: object = None, folder: str = ""):
+		if parent is None: return isdir(abspath(folder + sep))
+		else: return isdir(abspath(parent.directory + folder + sep))
+
+	@staticmethod
+	def GetOrCreate(parent: object = None, folder: str = ""):
+		if Folder.Exists(parent, folder): return Folder(folder)
+		else: return Folder.Create(parent, folder)
 
 	def __init__(self, directory: str = ""):
 		self.directory = abspath(directory) + sep
@@ -280,13 +303,13 @@ class Folder:
 	def search(self):
 		output = {}
 		for direct in self.directories:
-			dir = Folder.fromFolder(self, direct)
+			dir = Folder.FromFolder(self, direct)
 			search = dir.search()
 			if search is not None:
 				output[dir.name] = search
 		if len(self.files) == 0 and len(output.keys()) == 0: return None
 		for file in self.files:
-			output[file] = File.fromFolder(self, file)
+			output[file] = File.FromFolder(self, file)
 		return output
 
 	def __str__(self):
@@ -303,4 +326,4 @@ class Folder:
 		return self.directory
 
 FileSystemPath = dirname(__file__) + f"{sep}..{sep}data"
-FileSystem = Folder.getOrCreate(None, FileSystemPath)
+FileSystem = Folder.GetOrCreate(None, FileSystemPath)
