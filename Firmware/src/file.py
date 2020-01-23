@@ -1,4 +1,4 @@
-from os import listdir, access, R_OK, W_OK, F_OK, makedirs
+from os import listdir, access, R_OK, W_OK, F_OK, makedirs, remove
 from os.path import abspath, isfile, isdir, join, sep, dirname
 from hashlib import sha256
 from enum import Enum
@@ -29,6 +29,19 @@ class File:
 	def Exists(folder: object = None, file: str = ""):
 		if folder is None: return isfile(abspath(file))
 		else: return isfile(abspath(folder.directory + file))
+
+	@staticmethod
+	def Delete(folder: object = None, file: str = ""):
+		path = file
+		if folder is not None: path = folder.directory + path
+		path = abspath(path)
+		if isfile(path):
+			try:
+				remove(path)
+				return isfile(path)
+			except OSError:
+				return False
+		return False
 
 	@staticmethod
 	def Create(folder: object = None, fileName: str = ""):
@@ -218,10 +231,12 @@ class DeviceInfoFormat(FileFormat):
 		super().__init__(Utils.dictionaryToList(info))
 
 	def get(self, name):
-		_data = Utils.listToDictionary(self.data)
-		if name in _data:
+		_data = self.data
+		if _data is None or type(_data) != list: return None
+		_data = Utils.listToDictionary(_data)
+		if _data is not None and type(_data) == dict and name in _data:
 			return _data[name]
-		else: return None
+		return None
 
 class Utils:
 

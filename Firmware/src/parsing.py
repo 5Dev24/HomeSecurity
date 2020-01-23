@@ -139,12 +139,12 @@ class ArgumentParser:
 			for cmdName, cmdData in self._handler["cmds"].items(): # Loop through each command
 				if cmdData is not None and type(cmdData) == dict and "description" in cmdData: # Check if data is valid
 					desc = cmdData["description"] # Get command description
-					out += f"\t{cmdName}: {desc}\n" # Add command info to output
+					out += f"\n\t{cmdName}: {desc}" # Add command info to output
 		if len(self._vars["all"]) > 0: # If vars conains any variables
 			if not len(out): # If output is empty
 				out += S.argv[0] # Get name of program executed
 			else:
-				out += "\n" + S.argv[0] # Get name of program executed
+				out += "\n\n" + S.argv[0] # Get name of program executed
 			required = len(self._vars["required"]) > 0 # If there are any required arguments
 			optional = len(self._vars["optional"]) > 0 # If there are any optional arguments
 			if required: # If there are required arguments

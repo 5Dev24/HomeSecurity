@@ -19,6 +19,10 @@ def MyMac():
 def GetMyDeviceID():
 	pass
 
+def CleanDeviceID(deviceID: str = None):
+	if deviceID is None or type(deviceID) != str or not len(deviceID): return ""
+	return "".join([c for c in deviceID if c in "0123456789abcdef"])
+
 class Ports:
 	"""
 	Theoretical ports used in simulation

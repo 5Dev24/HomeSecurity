@@ -11,7 +11,7 @@ class LogType(Enum):
 
 	# Error Text Foreground, Message Text Foreground, Background of all Text
 	Info = (Fore.GREEN, Fore.WHITE, Back.BLACK)
-	Install = (Fore.CYAN, Fore.LIGHTBLACK_EX, Back.BLACK)
+	Install = (Fore.CYAN, Fore.LIGHTBLUE_EX, Back.BLACK)
 	Warn = (Fore.LIGHTRED_EX, Fore.YELLOW, Back.BLACK)
 	Error = (Fore.LIGHTRED_EX, Fore.LIGHTRED_EX, Back.BLACK)
 
