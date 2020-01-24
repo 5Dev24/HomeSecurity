@@ -1,8 +1,8 @@
 #!usr/bin/python3
 
-import sys, builtins
+import sys, builtins, re
 from src.parsing import ArgumentParser
-from src.networking import Server, Client, CleanDeviceID
+from src.networking import Server, Client
 
 def main():
 	parser.parse(sys.argv[1:])
@@ -18,15 +18,15 @@ def main():
 			print("Device failed to start, parse code", code)
 		return # Exit
 
-	if code == 0:
+	if code == 1:
 		from src.logging import Log, LogType
 
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
-			decvID, decvServer = deviceData[1:]
-			Log(LogType.Info, "Device id is %s and device is a %s" % (decvID, "server" if decvServer else "client")).post()
-			builtins.ISSERVER = decvServer
-			if decvServer:
+			devcID, devcServer = deviceData[1:]
+			Log(LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).post()
+			builtins.ISSERVER = devcServer
+			if devcServer:
 				Server().startBroadcasting()
 			else:
 				Client()
@@ -40,12 +40,12 @@ def _readDeviceInfo():
 		deviceInfoFile = File.GetOrCreate(FileSystem, "deviceinfo.dat")
 		deviceInfoFormat = DeviceInfoFormat.loadFrom(deviceInfoFile)
 		devcID = deviceInfoFormat.get("id")
-		decvServer = deviceInfoFormat.get("server")
-		if decvServer is not None: decvServer = decvServer.lower() == "true"
-		if devcID is None or decvServer is None:
+		devcServer = deviceInfoFormat.get("server")
+		if devcServer is not None: devcServer = devcServer.lower() == "true"
+		if devcID is None or devcServer is None:
 			return (False,)
 		else:
-			return (True, CleanDeviceID(decvID), decvServer)
+			return (True, devcID, devcServer)
 	else:
 		return (False,)
 
@@ -56,32 +56,29 @@ def install():
 	force = parser.readVariable("force")
 	if force is None: force = False
 
-	if len(deviceID) != 17 or len(deviceID) != 15 or len(deviceID) != 12:
+	if len(deviceID) != 17 and len(deviceID) != 15 and len(deviceID) != 12:
 		print("Invalid device ID")
 		return
 
-	deviceID = CleanDeviceID(deviceID)
+	deviceID = re.sub(r"[:.-]", "", deviceID)
 
 	if type(serverInstall) is not bool:
 		print("Invalid server argument")
 		return
 
 	from src.logging import Log, LogType
-	Log(LogType.Install, "Device ID is " + deviceID + " and Install Type is " + ("Server" if serverInstall else "Client") + " Install").post()
 
 	deviceData = _readDeviceInfo()
 	shouldInstall = False
-	if deviceID[0] == True:
+	if deviceID[0] and not force:
 		devcID, devcServer = deviceData[1:]
 		if devcID == deviceID and devcServer == serverInstall:
 			Log(LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).post()
 		elif devcID == deviceID:
 			Log(LogType.Install, "Device was already setup as " + devcID).post()
-		elif devcServer == serverInstall:
-			Log(LogType.Install, "Device was already setup as a " + ("server" if devcServer else "client")).post()
 		else: shouldInstall = True
 	else: shouldInstall = True
-	if shouldInstall:
+	if shouldInstall or force:
 		from src.file import DeviceInfoFormat, FileSystem, File
 		File.Delete(FileSystem, "deviceinfo.dat")
 		deviceInfoFile = File.Create(FileSystem, "deviceinfo.dat")

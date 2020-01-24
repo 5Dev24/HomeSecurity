@@ -404,7 +404,7 @@ class ArgumentParser:
 					if pairIndex == 0 and remaining() == 1: # If it's the first index, there is only 1 remaining to be parsed
 						try: # Catch errors
 							cmd["invoke"]() # Execute handler for command
-							return 2
+							return 0
 						except: # Error was thrown=
 							return -4
 					else: # Command was found but it isn't the only token to evalutate
@@ -439,11 +439,11 @@ class ArgumentParser:
 					print('\t', arg[0], "\t->\t", arg[1], sep = "") # Print out variable's name and type(s)
 			return -3 # Return -3 as not all required variables were set
 		if cmdToExecute is not None: # There is a command to execute
-			#try: # Catch errors
-			cmdToExecute() # Call command
-			return 2 # Command executed successfully
-			#except: # If error is thrown
-			#	return -4 # An error was thrown
+			try: # Catch errors
+				cmdToExecute() # Call command
+				return 2 # Command executed successfully
+			except: # If error is thrown
+				return -4 # An error was thrown
 		return 1 # Return 1 as the executing didn't run into any problems
 
 	def readVariable(self, var: str = ""):
@@ -497,13 +497,13 @@ class ArgumentParser:
 		"""
 		"""
 		Write Codes:
-			1 -> Variable exists and was written to sucessfully
+			0 -> Variable exists and was written to sucessfully
 		   -1 -> Variable exists but an invalid type was attempt to be used to set it to
 		   -2 -> Variable doesn't exist
 		"""
 		if self.wasVariableSet(var) >= 0: # If the variable exists
 			if self._isValidValueFor(1, var, value): # If value is a valid type to set the variable's value to
 				self._vars["all"][var][1] = value # Set the variables value
-				return 1 # Return 1 as everything worked
+				return 0 # Return 0 as everything worked
 			else: return -1 # Return -1 as an invalid type was used
 		else: return -2 # Return -2 as the variable doesn't exist

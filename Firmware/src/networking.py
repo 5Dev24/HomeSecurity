@@ -12,16 +12,15 @@ Characters = string.punctuation + string.digits + string.ascii_letters
 All of the punctuation, digits, and letters of english
 """
 
-def MyMac():
-	raw = getnode()[2:]
-	return ":".join([raw[i:i+2] for i in range(0, len(raw), 2)])
+def DeviceID():
+	return hex(getnode())[2:].upper()
 
-def GetMyDeviceID():
-	pass
+def HumanDeviceID():
+	id = DeviceID()
+	return ":".join([id[i:i+2] for i in range(0, len(id), 2)]).upper()
 
-def CleanDeviceID(deviceID: str = None):
-	if deviceID is None or type(deviceID) != str or not len(deviceID): return ""
-	return "".join([c for c in deviceID if c in "0123456789abcdef"])
+def CleanedDeviceID():
+	return "".join([c for c in DeviceID() if c.lower() in "0123456789abcdef"]).upper()
 
 class Ports:
 	"""
@@ -652,7 +651,7 @@ class ProtocolHandler:
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[1] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data from packet and save in session ids
 				spawned.step(sentBy) # Call step function
-				Log(LogType.Info, f"Client ({MyMac()}) is done with Key Exchange ({spawned.sessionIds[1]})", False).post()
+				Log(LogType.Info, f"Client ({DeviceID()}) is done with Key Exchange ({spawned.sessionIds[1]})", False).post()
 				return 2 # Return that the protocol has finished
 			spawned.step(sentBy) # Call step function
 			return 1 # Return that execution went well
@@ -683,7 +682,7 @@ class ProtocolHandler:
 				firstDataPoint = packet.getDataAt(0) # Get data at position 1
 				if firstDataPoint is None: return 0 # If data is None, return 0
 				spawned.sessionIds[0] = spawned.keys[2].decrypt(firstDataPoint) # Decrypt data as a session key
-				Log(LogType.Info, f"Server ({MyMac()}) is done with Key Exchange with {sentBy} ({spawned.sessionIds[0]})", False).post()
+				Log(LogType.Info, f"Server ({DeviceID()}) is done with Key Exchange with {sentBy} ({spawned.sessionIds[0]})", False).post()
 				return 2 # Return that the protocol has finished
 			else:
 				spawned.step(sentBy) # Call step function
