@@ -1,4 +1,6 @@
 import sys as S
+S.path.append("../")
+from codes import Parsing
 
 class ArgumentParser:
 	"""
@@ -324,15 +326,10 @@ class ArgumentParser:
 		"""
 		"""
 		Exit Codes:
-			2 -> Executed successfully and a found command was executed (Good)
-			1 -> Executed successfully and nothing went wrong (Good)
 			0 -> Terminated because only a command was run (Good)
-		   -1 -> An invalid type was attemped to be used to set a variable's value (Bad)
-		   -2 -> Nothing was executed/the parsed arguments did nothing when executed (Bad)
-		   -3 -> Not all required arguments were set to values (Bad)
-		   -4 -> An error occured when executing a command (Bad)
-		   -5 -> An invalid commmand was attempted to be called (Bad)
-		   -6 -> Unable to assign a value to an argument that doens't exist (Bad)
+			1 -> Executed successfully and nothing went wrong (Good)
+			2 -> Executed successfully and a found command was executed (Good)
+			Refer to codes file for any other exit codes
 		"""
 		parsed = lambda index: self._parsedArgs[index] # Gets the parsed argument at an index
 		handler = lambda index: self._handler[index] # Gets the handler by an index
@@ -394,7 +391,7 @@ class ArgumentParser:
 		remaining = lambda: len(self._parsedArgs) - pairIndex # Gets the number of parsed arguments left to be executed
 		if remaining() == 0: # If there aren't any generated arguments
 			if self._doLog: handler("none")() # Call the none function/lambda
-			return -2 # Return -2 as no work will be done
+			return Parsing.NO_EXECUTION # Return
 		cmdToExecute = None
 		while pairIndex < len(self._parsedArgs): # Loop from 0 to the number of parsed arguments - 1
 			argT, argV = argData(pairIndex) # Argument type and value
@@ -404,15 +401,15 @@ class ArgumentParser:
 					if pairIndex == 0 and remaining() == 1: # If it's the first index, there is only 1 remaining to be parsed
 						try: # Catch errors
 							cmd["invoke"]() # Execute handler for command
-							return 0
-						except: # Error was thrown=
-							return -4
+							return Parsing.SUCESS_AFTER_COMMAND # Return
+						except: # Error was thrown
+							return Parsing.ERROR_THROWN # Return
 					else: # Command was found but it isn't the only token to evalutate
 						cmdToExecute = cmd["invoke"] # Set it as a command to execute once all tokens have been executed
 						pairIndex += 1 # Skip over 1 index
 				elif self._doLog:
-					print("Invalid argument \"--" + argV + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
-					return -5
+					print("Invalid command \"--" + argV + "\", use --help to see a list of commands") # Print invalid argument message as the command doesn't exist if logging is enabled
+					return Parsing.NO_COMMAND # Return
 			elif remaining() >= 2 and argT == "var": # If the remaining parsed is greater than or equal to 2 and the variable of the current index is a variable
 				if doesVariableExist(argV):
 					tmpT, tmpV = argData(pairIndex + 1)
@@ -423,13 +420,13 @@ class ArgumentParser:
 						continue # Goto next element
 					else:
 						if self._doLog: print("Invalid value type for variable " + argV + ",\nexpected " + self._vars["all"][argV][0] + " but got " + tmpT) # Print that an invalid variable type was used if logging is enabled
-						return -1 # Return -1 as the executing stopped because an improper value was attempted to be used to change the variable's value
+						return Parsing.INVALID_TYPE # Return
 				else:
 					if self._doLog: print("Unknown variable \"", argV, '"', sep="")
-					return -6
+					return Parsing.NO_VARIABLE # Return
 			elif pairIndex == 0: # If the index is still at 0
 				if self._doLog: handler("none")() # Call none function/lambda
-				return -2 # Return -2 as nothing was executed
+				return Parsing.NO_EXECUTION # Return
 			else:
 				break
 		if not ignoreArguemntRequirements and not areAllRequiredArgsSet(): # If argument requirements shouldn't be ignored and not all required arguments have been set
@@ -437,14 +434,14 @@ class ArgumentParser:
 				print("Not all required value have been set!\nThe following values to be set:") # Print the not all of the required arguments have been set
 				for arg in allNotSetVars(): # Loop through all the unset variables' names and type(s)
 					print('\t', arg[0], "\t->\t", arg[1], sep = "") # Print out variable's name and type(s)
-			return -3 # Return -3 as not all required variables were set
+			return Parsing.MISSING_REQUIRED # Return
 		if cmdToExecute is not None: # There is a command to execute
 			try: # Catch errors
 				cmdToExecute() # Call command
-				return 2 # Command executed successfully
+				return Parsing.SUCESS_AFTER_ARGS_AND_COMMAND # Command executed successfully
 			except: # If error is thrown
-				return -4 # An error was thrown
-		return 1 # Return 1 as the executing didn't run into any problems
+				return Parsing.ERROR_THROWN # An error was thrown
+		return Parsing.SUCESS # Return
 
 	def readVariable(self, var: str = ""):
 		"""

@@ -3,6 +3,7 @@
 import sys, builtins, re
 from src.parsing import ArgumentParser
 from src.networking import Server, Client
+from codes import General, Installation, Parsing, Exit
 
 def main():
 	parser.parse(sys.argv[1:])
@@ -13,10 +14,8 @@ def main():
 	if debug:
 		print("Debugging enabled!")
 
-	if code < 0:
-		if debug:
-			print("Device failed to start, parse code", code)
-		return # Exit
+	if code.value > 2:
+		Exit(code)
 
 	if code == 1:
 		from src.logging import Log, LogType
@@ -32,6 +31,7 @@ def main():
 				Client()
 		else:
 			Log(LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").post()
+			Exit(Installation.HASNT_BEEN)
 
 def _readDeviceInfo():
 	from src.file import DeviceInfoFormat, FileSystem, File
@@ -56,15 +56,15 @@ def install():
 	force = parser.readVariable("force")
 	if force is None: force = False
 
-	if len(deviceID) != 17 and len(deviceID) != 15 and len(deviceID) != 12:
-		print("Invalid device ID")
-		return
-
 	deviceID = re.sub(r"[:.-]", "", deviceID)
+
+	if len(deviceID) != 12:
+		print("Invalid device ID")
+		Exit(Installation.INVALID_ID)
 
 	if type(serverInstall) is not bool:
 		print("Invalid server argument")
-		return
+		Exit(Installation.INVALID_SERVER)
 
 	from src.logging import Log, LogType
 
@@ -74,8 +74,10 @@ def install():
 		devcID, devcServer = deviceData[1:]
 		if devcID == deviceID and devcServer == serverInstall:
 			Log(LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).post()
+			Exit(Installation.SAME_ID_AND_TYPE)
 		elif devcID == deviceID:
 			Log(LogType.Install, "Device was already setup as " + devcID).post()
+			Exit(Installation.SAME_ID)
 		else: shouldInstall = True
 	else: shouldInstall = True
 	if shouldInstall or force:
@@ -85,6 +87,7 @@ def install():
 		deviceInfoFormat = DeviceInfoFormat({"id": deviceID, "server": str(serverInstall)})
 		deviceInfoFormat.write(deviceInfoFile)
 		Log(LogType.Install, "Device information has been saved").post()
+		Exit(Installation.SUCCESS)
 
 def logs():
 	from src.logging import Log
@@ -92,6 +95,7 @@ def logs():
 	for l in Log.AllLogs()[-100:]:
 		l.post()
 	print("End Logs")
+	Exit(General.SUCCESS)
 
 parser = None
 
