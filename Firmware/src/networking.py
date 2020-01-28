@@ -6,6 +6,8 @@ from enum import Enum
 from .logging import Log, LogType
 from uuid import getnode
 import time, string, re, traceback, sys, base64, binascii, datetime
+sys.path.append("../")
+from codes import LogCode, Threading, Networking
 
 Characters = string.punctuation + string.digits + string.ascii_letters
 """
@@ -93,11 +95,11 @@ class SimpleThread:
 				while self._running: # While the thread is running
 					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
 					except BaseException: # Catch all exceptions
-						print(f"Theoretical Thread threw an error (1), closing thread\n{traceback.format_exc()}") # Debug info
+						LogCode(Threading.LOOPING_THREAD_ERROR, f"Traceback:\n{traceback.format_exc()}")
 						break # Break from loop
 			else: # If thread shouldn't loop
 				try: self._target(*self._args, **self._kwargs) # Call function with args and kwargs
-				except BaseException: print(f"Theoretical Thread threw an error (2), closing thread\n{traceback.format_exc()}") # Catch all exceptions and print debug info
+				except BaseException: LogCode(Threading.SINGLE_THREAD_ERROR, f"Traceback:\n{traceback.format_exc()}")
 		finally: # Always execute
 			self.stop() # Mark thread as stopped
 			del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs
@@ -127,7 +129,7 @@ class SimpleThread:
 			None
 		"""
 		if currThread() is mainThread(): # If function has been called from main thread
-			print("An attempt was made to join a thread from the main python thread") # Debug info
+			LogCode(Threading.JOIN_FROM_MAIN)
 			return # Exit function
 		self._internalThread.join(timeout) # Wait for thread to terminal but added timeout
 
@@ -295,7 +297,7 @@ class Networkable:
 		Refer to invalidateProtocol's exit codes for any other exit codes for this function
 		"""
 		if currThread() is mainThread(): # If function has been called from main thread
-			print("An attempt was made to join a thread from the main python thread") # Debug info
+			LogCode(Threading.JOIN_FROM_MAIN)
 			return -2 # Exit function, return -2 error
 		time.sleep(timeout) # Sleep for timeout seconds
 		self.invalidateProtocol(recipient, proto) # Invalidate the protocol
@@ -497,8 +499,7 @@ class Client(Networkable):
 			super().invalidateProtocol("<broadcast>", Broadcast_IP) # Invalidate the broadcast ip protocol
 			self._broadcastSocket.close() # Close the broadcasting socket
 			self._serversIP = self._serversIP # Set server's ip to be a TAddress
-			#self.keyExchange() <- Thread wouldn't normally be needed!
-			SimpleThread(self.keyExchange, False, (), {}).start() # Start key exchange protocol
+			self.keyExchange() # Start key exchange proto
 
 	def generalReceive(self, addr: str = None, data: str = None):
 		"""
