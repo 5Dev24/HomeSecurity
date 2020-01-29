@@ -30,18 +30,38 @@ class LogType(Enum):
 	def __str__(self):
 		return f"{self.name}"
 
-LoggingQueue = Queue(0)
+# Queue system
+LoggingSaveQueue = Queue(0)
+LoggingPrintQueue = Queue(0)
+
+def Finalize():
+	# Stop threads
+	LoggingSaveThread.stop()
+	LoggingPrintThread.stop()
+
+	# Do one final invoke
+	Save()
+	Prints()
+
+	global LoggingSaveQueue, LoggingPrintQueue
+
+	# Clear queues incase anything else is trying to use them
+	LoggingSaveQueue = Queue(0)
+	LoggingPrintQueue = Queue(0)
 
 def Save():
 	logs = Log.Logs()
-
-	while not LoggingQueue.empty():
-		logs.data.append(LoggingQueue.get())
-
+	while not LoggingSaveQueue.empty():
+		logs.data.append(LoggingSaveQueue.get())
 	logs.write(Log.LogFile())
-	time.sleep(5)
 
-LoggingThread = SimpleThread(Save, True)
+def Prints():
+	while not LoggingPrintQueue.empty():
+		print(LoggingPrintQueue.get().raw_colored)
+
+# Threading for queues
+LoggingSaveThread = SimpleThread(Save, True)
+LoggingPrintThread = SimpleThread(Prints, True)
 
 class Log:
 
@@ -69,7 +89,7 @@ class Log:
 				while tTmp is None:
 					tIndex += 1
 					tTmp = LogType.fromString(string[1:tIndex])
-				l = Log(tTmp, string[tIndex + 23:])
+				l = Log(tTmp, string[tIndex + 23:].encode("utf-8").decode("unicode_escape"))
 				l.date = string[tIndex + 2:tIndex + 12]
 				l.time = string[tIndex + 13:tIndex + 21]
 				return l
@@ -80,22 +100,31 @@ class Log:
 		if info is None or type(info) != str: info = "No Log Information Passed To Log"
 		self.logType = logType
 		self.raw_info = info
+		# Sanitize input for escape characters
 		self.protected_info = info.replace("\a", "\\a").replace("\b", "\\b").replace("\t", "\\t").replace("\n", "\\n").replace("\v", "\\v").replace("\f", "\\f").replace("\r", "\\r")
 		self.date = Date()
 		self.time = Time()
 
 	def post(self):
-		print(self.colored())
+		LoggingPrintQueue.put(self)
 		return self
 
 	def save(self):
-		LoggingQueue.put(self)
+		LoggingSaveQueue.put(self)
 		return self
 
+	@property
 	def colored(self):
+		return self._colored(self.protected_info)
+
+	@property
+	def raw_colored(self):
+		return self._colored(self.raw_info)
+
+	def _colored(self, text: str = ""):
 		colors = self.logType.value[:]
 		return f"{colors[2]}{Fore.WHITE}{Style.BRIGHT}[{colors[0]}{self.logType.name}{Fore.WHITE}] \
-{self.date} {self.time}{Fore.CYAN}: {colors[1]}{self.protected_info}{Style.RESET_ALL}"
+{self.date} {self.time}{Fore.CYAN}: {colors[1]}{text}{Style.RESET_ALL}"
 
 	def __str__(self):
 		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}"

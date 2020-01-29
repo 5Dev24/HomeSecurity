@@ -299,13 +299,13 @@ class Broadcast_IP(Protocol):
 
 		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Server
-			Packet(Method.DATA, 0, self._step).finalize(receiver)
+			_packet.Packet(Method.DATA, 0, self._step).finalize(receiver)
 
 		elif self._step == 2: # Client
-			Packet(Method.CONFIRM, 0, self._step).finalize(receiver)
+			_packet.Packet(Method.CONFIRM, 0, self._step).finalize(receiver)
 
 		elif self._step == 3: # Server
-			Packet(Method.AGREE, 0, self._step).addData(confirming).finalize(receiver)
+			_packet.Packet(Method.AGREE, 0, self._step).addData(confirming).finalize(receiver)
 
 		self._step += 1 # Increment the current step again
 
@@ -376,23 +376,23 @@ class Key_Exchange(Protocol):
 
 		# No commenting will be done for the steps, read the documentation for each
 		if self._step == 1: # Client
-			Packet(Method.QUERY, 1, self._step).finalize(receiver)
+			_packet.Packet(Method.QUERY, 1, self._step).finalize(receiver)
 
 		elif self._step == 2: # Server
-			Packet(Method.RESPONSE, 1, self._step).addData(self.keys[0].pubKey()).finalize(receiver)
+			_packet.Packet(Method.RESPONSE, 1, self._step).addData(self.keys[0].pubKey()).finalize(receiver)
 
 		elif self._step == 3: # Client
-			Packet(Method.DATA, 1, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(receiver)
+			_packet.Packet(Method.DATA, 1, self._step).addData(self.keys[0].encrypt(self.keys[1].privKey())).finalize(receiver)
 
 		elif self._step == 4: # Server
 			self.sessionIds[1] = self.session(self.keys[1])
 			data = self.keys[2].encrypt(self.sessionIds[1])
-			Packet(Method.DATA, 1, self._step).addData(data).finalize(receiver)
+			_packet.Packet(Method.DATA, 1, self._step).addData(data).finalize(receiver)
 
 		elif self._step == 5: # Client
 			self.sessionIds[0] = self.session(self.keys[0])
 			data = self.keys[2].encrypt(self.sessionIds[0])
-			Packet(Method.DATA, 1, self._step).addData(data).finalize(receiver)
+			_packet.Packet(Method.DATA, 1, self._step).addData(data).finalize(receiver)
 
 		self._step += 1 # Increment the current step again
 

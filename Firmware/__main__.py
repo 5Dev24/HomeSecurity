@@ -1,8 +1,13 @@
 #!usr/bin/python3
 
-import sys, builtins, re
-from src.parsing import ArgumentParser
-from src.codes import General, Installation, Parsing, Exit
+import sys, builtins, re, atexit
+import src.parsing as _parsing
+import src.codes as _codes
+import src.networking.networkables as _networkables
+import src.logging as _logging
+import src.file as _file
+
+atexit.register(_logging.Finalize)
 
 def main():
 	parser.parse(sys.argv[1:])
@@ -13,33 +18,30 @@ def main():
 	if debug:
 		print("Debugging enabled!")
 
-	if code == Parsing.SUCCESS:
-		from src.logging import Log, LogType
+	if code == _codes.Parsing.SUCCESS:
 
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
 			devcID, devcServer = deviceData[1:]
-			Log(LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).save().post()
+			_logging.Log(_logging.LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).save().post()
 			builtins.ISSERVER = devcServer
-			from src.networking.networkables import Server, Client
 
 			if devcServer:
-				Server().startBroadcasting()
+				_networkables.Server().startBroadcasting()
 			else:
-				Client()
-			Log(LogType.Info, "Device has been started").save().post()
+				_networkables.Client()
+			_logging.Log(_logging.LogType.Info, "Device has been started").save().post()
 		else:
-			Log(LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").save().post()
-			Exit(Installation.HASNT_BEEN)
+			_logging.Log(_logging.LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").save().post()
+			_codes.Exit(_codes.Installation.HASNT_BEEN)
 	else:
-		Exit(code, "Unable to start")
+		_codes.Exit(code, "Unable to start")
 
 def _readDeviceInfo():
-	from src.file import DeviceInfoFormat, FileSystem, File
-	exists = File.Exists(FileSystem, "deviceinfo.dat")
+	exists = _file.File.Exists(_file.FileSystem, "deviceinfo.dat")
 	if exists:
-		deviceInfoFile = File.GetOrCreate(FileSystem, "deviceinfo.dat")
-		deviceInfoFormat = DeviceInfoFormat.loadFrom(deviceInfoFile)
+		deviceInfoFile = _file.File.GetOrCreate(_file.FileSystem, "deviceinfo.dat")
+		deviceInfoFormat = _file.DeviceInfoFormat.loadFrom(deviceInfoFile)
 		devcID = deviceInfoFormat.get("id")
 		devcServer = deviceInfoFormat.get("server")
 		if devcServer is not None: devcServer = devcServer.lower() == "true"
@@ -61,47 +63,43 @@ def install():
 
 	if len(deviceID) != 12:
 		print("Invalid device ID")
-		Exit(Installation.INVALID_ID)
+		_codes.Exit(_codes.Installation.INVALID_ID)
 
 	if type(serverInstall) is not bool:
 		print("Invalid server argument")
-		Exit(Installation.INVALID_SERVER)
-
-	from src.logging import Log, LogType
+		_codes.Exit(_codes.Installation.INVALID_SERVER)
 
 	deviceData = _readDeviceInfo()
 	shouldInstall = False
 	if deviceData[0] and not force:
 		devcID, devcServer = deviceData[1:]
 		if devcID == deviceID and devcServer == serverInstall:
-			Log(LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).save().post()
-			Exit(Installation.SAME_ID_AND_TYPE)
+			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).save().post()
+			_codes.Exit(_codes.Installation.SAME_ID_AND_TYPE)
 		elif devcID == deviceID:
-			Log(LogType.Install, "Device was already setup as " + devcID).save().post()
-			Exit(Installation.SAME_ID)
+			_logging.Log(_logging.LogType.Install, "Device was already setup as " + devcID).save().post()
+			_codes.Exit(_codes.Installation.SAME_ID)
 		else: shouldInstall = True
 	else: shouldInstall = True
 	if shouldInstall or force:
-		from src.file import DeviceInfoFormat, FileSystem, File
-		File.Delete(FileSystem, "deviceinfo.dat")
-		deviceInfoFile = File.Create(FileSystem, "deviceinfo.dat")
-		deviceInfoFormat = DeviceInfoFormat({"id": deviceID, "server": str(serverInstall)})
+		_file.File.Delete(_file.FileSystem, "deviceinfo.dat")
+		deviceInfoFile = _file.File.Create(_file.FileSystem, "deviceinfo.dat")
+		deviceInfoFormat = _file.DeviceInfoFormat({"id": deviceID, "server": str(serverInstall)})
 		deviceInfoFormat.write(deviceInfoFile)
-		Log(LogType.Install, "Device information has been saved").save().post()
-		Exit(Installation.SUCCESS)
+		_logging.Log(_logging.LogType.Install, "Device information has been saved").save().post()
+		_codes.Exit(_codes.Installation.SUCCESS)
 
 def logs():
-	from src.logging import Log
 	print("Dumping 100 logs\nStart Logs")
-	for l in Log.AllLogs()[-100:]:
+	for l in _logging.Log.AllLogs()[-100:]:
 		l.post()
 	print("End Logs")
-	Exit(General.SUCCESS)
+	_codes.Exit(_codes.General.SUCCESS)
 
 parser = None
 
 if __name__ == "__main__":
-	parser = ArgumentParser(True, {
+	parser = _parsing.ArgumentParser(True, {
 		"cmds": {
 			"install" : {
 				"invoke": install,
