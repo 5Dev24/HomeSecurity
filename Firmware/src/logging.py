@@ -2,6 +2,9 @@ from enum import Enum
 from datetime import datetime
 from .file import LogFormat, FileSystem, File
 from colorama import init, Fore, Back, Style
+from queue import Queue
+from .networking.threading import SimpleThread
+import time
 
 def Now(): return datetime.now()
 def Time(): return Now().strftime("%H:%H:%S")
@@ -26,6 +29,19 @@ class LogType(Enum):
 
 	def __str__(self):
 		return f"{self.name}"
+
+LoggingQueue = Queue(0)
+
+def Save():
+	logs = Log.Logs()
+
+	while not LoggingQueue.empty():
+		logs.data.append(LoggingQueue.get())
+
+	logs.write(Log.LogFile())
+	time.sleep(5)
+
+LoggingThread = SimpleThread(Save, True)
 
 class Log:
 
@@ -73,9 +89,7 @@ class Log:
 		return self
 
 	def save(self):
-		logs = Log.Logs()
-		logs.data.append(self)
-		logs.write(Log.LogFile())
+		LoggingQueue.put(self)
 		return self
 
 	def colored(self):
