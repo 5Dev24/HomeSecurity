@@ -4,6 +4,7 @@ import sys, builtins, re, atexit
 import src.parsing as _parsing
 import src.codes as _codes
 import src.networking.networkables as _networkables
+import src.networking.threading as _threading
 import src.logging as _logging
 import src.file as _file
 
@@ -23,19 +24,26 @@ def main():
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
 			devcID, devcServer = deviceData[1:]
-			_logging.Log(_logging.LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).save().post()
+			_logging.Log(_logging.LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).post()
 			builtins.ISSERVER = devcServer
 
 			if devcServer:
 				_networkables.Server().startBroadcasting()
 			else:
 				_networkables.Client()
-			_logging.Log(_logging.LogType.Info, "Device has been started").save().post()
+			_logging.Log(_logging.LogType.Info, "Device has been started").post()
 		else:
-			_logging.Log(_logging.LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").save().post()
+			_logging.Log(_logging.LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").post()
 			_codes.Exit(_codes.Installation.HASNT_BEEN)
 	else:
 		_codes.Exit(code, "Unable to start")
+	try:
+		_threading.HoldMain()
+	except: # Any error occured in holding (most likely a KeyboardInterrupt)
+		if len(_threading.SimpleThread.__threads__) == 0:
+			_codes.Exit(_codes.General.SUCCESS, "All threads stopped")
+		else:
+			_codes.Exit(_codes.Reserved.FORCE_TERMINATE, "Force terminate")
 
 def _readDeviceInfo():
 	exists = _file.File.Exists(_file.FileSystem, "deviceinfo.dat")
@@ -74,10 +82,10 @@ def install():
 	if deviceData[0] and not force:
 		devcID, devcServer = deviceData[1:]
 		if devcID == deviceID and devcServer == serverInstall:
-			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).save().post()
+			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).post()
 			_codes.Exit(_codes.Installation.SAME_ID_AND_TYPE)
 		elif devcID == deviceID:
-			_logging.Log(_logging.LogType.Install, "Device was already setup as " + devcID).save().post()
+			_logging.Log(_logging.LogType.Install, "Device was already setup as " + devcID).post()
 			_codes.Exit(_codes.Installation.SAME_ID)
 		else: shouldInstall = True
 	else: shouldInstall = True
@@ -86,7 +94,7 @@ def install():
 		deviceInfoFile = _file.File.Create(_file.FileSystem, "deviceinfo.dat")
 		deviceInfoFormat = _file.DeviceInfoFormat({"id": deviceID, "server": str(serverInstall)})
 		deviceInfoFormat.write(deviceInfoFile)
-		_logging.Log(_logging.LogType.Install, "Device information has been saved").save().post()
+		_logging.Log(_logging.LogType.Install, "Device information has been saved").post()
 		_codes.Exit(_codes.Installation.SUCCESS)
 
 def logs():

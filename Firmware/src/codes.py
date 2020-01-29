@@ -13,8 +13,9 @@ class General(Code): # 2 ^ 2
 	ERROR = 4   # Failed, Terminated or Error
 
 class Reserved(Code): # 2 ^ 3
-	WASNT_CODE = 5   # An object that isn't a code was passed
-	INVALID_CODE = 6 # An invalid exit code was used in exiting
+	WASNT_CODE = 5      # An object that isn't a code was passed
+	INVALID_CODE = 6    # An invalid exit code was used in exiting
+	FORCE_TERMINATE = 7 # Something caused the main thread to stop waiting on all other threads to exit
 
 class Installation(Code): # 2 ^ 4
 	SUCCESS = 9           # Install was successful
@@ -51,7 +52,7 @@ def Exit(code: int = None, info: str = None, log: bool = False):
 
 	trace = _build_trace(code)
 	if info is not None and type(info) == str and len(info):
-		print("Terminating on", trace, "with message", info)
+		print("Terminating on", trace, "with message:", info)
 	elif log:
 		print("Terminating on", trace, "with no message")
 	sys.exit(code)
@@ -63,10 +64,9 @@ def LogCode(code: int = None, info: str = None):
 	trace = _build_trace(code)
 	if info is None or type(info) != str or not len(info):
 		info = "No message"
-	Log(LogType.Info,  f"{trace}: {info}").save().post()
+	Log(LogType.Info,  f"{trace}: {info}").post()
 
 def _collect_subclasses(parent = None):
-	classes = []
 	for subclass in parent.__subclasses__():
 		yield subclass
 		for subsubclass in _collect_subclasses(subclass):

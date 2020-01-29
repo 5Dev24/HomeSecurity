@@ -145,7 +145,7 @@ class Packet:
 			Packet: The packet
 		"""
 		if self._packetString is None or len(self._packetString) == 0: return # If socket is none, packet string is none, or the length of the packet is 0, then return none
-		socket.sendData(toSendItTo, self._packetString) # Send the data to an address from a socket
+		# Send data
 		return self # Return self
 
 	def finalize(self, reciever: str = None):

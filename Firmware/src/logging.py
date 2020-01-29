@@ -89,13 +89,13 @@ class Log:
 				while tTmp is None:
 					tIndex += 1
 					tTmp = LogType.fromString(string[1:tIndex])
-				l = Log(tTmp, string[tIndex + 23:].encode("utf-8").decode("unicode_escape"))
+				l = Log(tTmp, string[tIndex + 23:].encode("utf-8").decode("unicode_escape"), False)
 				l.date = string[tIndex + 2:tIndex + 12]
 				l.time = string[tIndex + 13:tIndex + 21]
 				return l
 			except ValueError: return None
 
-	def __init__(self, logType: LogType = LogType.Info, info: str = ""):
+	def __init__(self, logType: LogType = LogType.Info, info: str = "", save: bool = True):
 		if logType is None or type(logType) != LogType: logType = LogType.Info
 		if info is None or type(info) != str: info = "No Log Information Passed To Log"
 		self.logType = logType
@@ -104,6 +104,8 @@ class Log:
 		self.protected_info = info.replace("\a", "\\a").replace("\b", "\\b").replace("\t", "\\t").replace("\n", "\\n").replace("\v", "\\v").replace("\f", "\\f").replace("\r", "\\r")
 		self.date = Date()
 		self.time = Time()
+
+		if save: self.save()
 
 	def post(self):
 		LoggingPrintQueue.put(self)

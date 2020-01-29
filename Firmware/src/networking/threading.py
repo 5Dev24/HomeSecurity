@@ -2,6 +2,10 @@ import traceback
 from threading import Thread, current_thread, main_thread
 from ..codes import LogCode, Threading
 
+def HoldMain():
+	while sum([1 if thread._running else 0 for thread in SimpleThread.__threads__]) > 0:
+		print("Holding!")
+
 class SimpleThread:
 	"""
 	My own implementation of threading made simple
@@ -10,6 +14,8 @@ class SimpleThread:
 
 	Adds for looping threads to continuously call the target function
 	"""
+
+	__threads__ = []
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
 		"""
@@ -35,6 +41,7 @@ class SimpleThread:
 		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
 		self._loop = loop # Save whether function should loop
 		self._running = False # Thread isn't running yet
+		SimpleThread.__threads__.append(self)
 
 	def stop(self):
 		"""
@@ -44,6 +51,7 @@ class SimpleThread:
 			SimpleThread: self
 		"""
 		self._running = False # Set that thread isn't running
+		SimpleThread.__threads__.remove(self)
 		return self # Return self
 
 	def _internal(self):

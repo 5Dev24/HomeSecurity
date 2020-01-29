@@ -1,9 +1,8 @@
-import re
-from ..crypt import RSA
-from . import protocol as _protocol
-from threading import current_thread, main_thread
-from .threading import SimpleThread
+import re, time
 from ..codes import LogCode, Networking, Threading
+from ..crypt import RSA
+from . import protocol as _protocol, threading as _threading
+from threading import current_thread, main_thread
 
 class Networkable:
 	"""
@@ -45,9 +44,9 @@ class Networkable:
 		"""
 		self._isServer = isServer # Save if server
 		self._broadcastSocket = None # Create broadcasting socket
-		self._broadcastReceiveThread = SimpleThread(self._broadcastReceive, True).start() # Create broadcasting listening thread
+		self._broadcastReceiveThread = _threading.SimpleThread(self._broadcastReceive, True).start() # Create broadcasting listening thread
 		self._generalSocket = None # Create general data receiving socket
-		self._generalReceiveThread = SimpleThread(self._generalReceive, True).start() # Create general data listening thread
+		self._generalReceiveThread = _threading.SimpleThread(self._generalReceive, True).start() # Create general data listening thread
 		self._networkingThreads = {} # Currently active networking threads {thread name: thread instance}
 		self._activeProtocols = {} # Currently active protocol {"ip:port": [Protocol instance,]}
 		self._protocolHandler = _protocol.ProtocolHandler(self) # Create protocol handler
@@ -67,7 +66,7 @@ class Networkable:
 			SimpleThread: The thread created
 		"""
 		self.closeThread(threadName) # Try to close a thread by the same name of the one we're creating
-		T = SimpleThread(threadTarget, loop = loop, *args, **kwargs) # Create instance of thread
+		T = _threading.SimpleThread(threadTarget, loop = loop, *args, **kwargs) # Create instance of thread
 		self._networkingThreads[threadName] = T # Save thread to list of threads
 		return T # Return the thread
 
@@ -104,7 +103,7 @@ class Networkable:
 		proto = protocolClass(*args, **kwargs) # Create instance of class with args and kwargs
 		try: self._activeProtocols[recipient].append(proto) # Try to add the protocol as part of the protocol list that this recipient has spawned
 		except KeyError: self._activeProtocols[recipient] = [proto] # If no key exists for the recipient, create new one with list only containing the new protocol instance
-		if type(timeout) == int: SimpleThread(target = self._threadTimeout, loop = False,
+		if type(timeout) == int: _threading.SimpleThread(target = self._threadTimeout, loop = False,
 			args=(recipient, proto, timeout)).start() # If the timeout is an int, create a simple thread to invalidate it after timeout seconds
 		return proto # Return instance of protocol
 
@@ -181,7 +180,7 @@ class Networkable:
 		Returns:
 			None
 		"""
-		if self._broadcastSocket.closed(): # If socket is closed
+		if self._broadcastSocket is None: # If socket is closed
 			self._broadcastReceiveThread.stop() # Stop this thread
 			return # Exit function
 		addr, data = self._broadcastSocket.receiveData() # Wait until data is received
@@ -195,7 +194,7 @@ class Networkable:
 		Returns:
 			None
 		"""
-		if self._generalSocket.closed(): # If socket is closed
+		if self._generalSocket is None: # If socket is closed
 			self._generalReceiveThread.stop() # Stop this thread
 			return # Exit function
 		addr, data = self._generalSocket.receiveData() # Wait until data is received
@@ -324,7 +323,7 @@ class Server(Networkable):
 			if hndl[0] == 2: # If packet handler returned 2 (see Exit codes)
 				super().invalidateProtocol(addr ,hndl[1]) # Invalidate the protocol
 		if not (addr.addr[0] in self._clientsGot): return # If address isn't from the found client list then exit function
-		SimpleThread(threading, False, args=(self,)).start() # Create threaded handler and start thread
+		_threading.SimpleThread(threading, False, args=(self,)).start() # Create threaded handler and start thread
 
 class Client(Networkable):
 	"""
