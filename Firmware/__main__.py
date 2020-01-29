@@ -2,8 +2,7 @@
 
 import sys, builtins, re
 from src.parsing import ArgumentParser
-from src.networking import Server, Client
-from codes import General, Installation, Parsing, Exit
+from src.codes import General, Installation, Parsing, Exit
 
 def main():
 	parser.parse(sys.argv[1:])
@@ -14,24 +13,26 @@ def main():
 	if debug:
 		print("Debugging enabled!")
 
-	if code.value > 2:
-		Exit(code)
-
-	if code == 1:
+	if code == Parsing.SUCCESS:
 		from src.logging import Log, LogType
 
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
 			devcID, devcServer = deviceData[1:]
-			Log(LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).post()
+			Log(LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).save().post()
 			builtins.ISSERVER = devcServer
+			from src.networking.networkables import Server, Client
+
 			if devcServer:
 				Server().startBroadcasting()
 			else:
 				Client()
+			Log(LogType.Info, "Device has been started").save().post()
 		else:
-			Log(LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").post()
+			Log(LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").save().post()
 			Exit(Installation.HASNT_BEEN)
+	else:
+		Exit(code, "Unable to start")
 
 def _readDeviceInfo():
 	from src.file import DeviceInfoFormat, FileSystem, File
@@ -70,13 +71,13 @@ def install():
 
 	deviceData = _readDeviceInfo()
 	shouldInstall = False
-	if deviceID[0] and not force:
+	if deviceData[0] and not force:
 		devcID, devcServer = deviceData[1:]
 		if devcID == deviceID and devcServer == serverInstall:
-			Log(LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).post()
+			Log(LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).save().post()
 			Exit(Installation.SAME_ID_AND_TYPE)
 		elif devcID == deviceID:
-			Log(LogType.Install, "Device was already setup as " + devcID).post()
+			Log(LogType.Install, "Device was already setup as " + devcID).save().post()
 			Exit(Installation.SAME_ID)
 		else: shouldInstall = True
 	else: shouldInstall = True
@@ -86,7 +87,7 @@ def install():
 		deviceInfoFile = File.Create(FileSystem, "deviceinfo.dat")
 		deviceInfoFormat = DeviceInfoFormat({"id": deviceID, "server": str(serverInstall)})
 		deviceInfoFormat.write(deviceInfoFile)
-		Log(LogType.Install, "Device information has been saved").post()
+		Log(LogType.Install, "Device information has been saved").save().post()
 		Exit(Installation.SUCCESS)
 
 def logs():
@@ -116,4 +117,5 @@ if __name__ == "__main__":
 			"optional": { "debug": "boolean", "id": "string", "force": "boolean" }
 		}
 	})
+
 	main()

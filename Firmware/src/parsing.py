@@ -1,6 +1,5 @@
 import sys as S
-S.path.append("../")
-from codes import Parsing
+from .codes import Parsing
 
 class ArgumentParser:
 	"""
@@ -401,8 +400,8 @@ class ArgumentParser:
 					if pairIndex == 0 and remaining() == 1: # If it's the first index, there is only 1 remaining to be parsed
 						try: # Catch errors
 							cmd["invoke"]() # Execute handler for command
-							return Parsing.SUCESS_AFTER_COMMAND # Return
-						except: # Error was thrown
+							return Parsing.SUCCESS_AFTER_COMMAND # Return
+						except Exception as e: # Error was thrown
 							return Parsing.ERROR_THROWN # Return
 					else: # Command was found but it isn't the only token to evalutate
 						cmdToExecute = cmd["invoke"] # Set it as a command to execute once all tokens have been executed
@@ -438,10 +437,10 @@ class ArgumentParser:
 		if cmdToExecute is not None: # There is a command to execute
 			try: # Catch errors
 				cmdToExecute() # Call command
-				return Parsing.SUCESS_AFTER_ARGS_AND_COMMAND # Command executed successfully
-			except: # If error is thrown
+				return Parsing.SUCCESS_AFTER_ARGS_AND_COMMAND # Command executed successfully
+			except Exception as e: # If error is thrown
 				return Parsing.ERROR_THROWN # An error was thrown
-		return Parsing.SUCESS # Return
+		return Parsing.SUCCESS # Return
 
 	def readVariable(self, var: str = ""):
 		"""
@@ -494,7 +493,7 @@ class ArgumentParser:
 		"""
 		"""
 		Write Codes:
-			0 -> Variable exists and was written to sucessfully
+			0 -> Variable exists and was written to successfully
 		   -1 -> Variable exists but an invalid type was attempt to be used to set it to
 		   -2 -> Variable doesn't exist
 		"""

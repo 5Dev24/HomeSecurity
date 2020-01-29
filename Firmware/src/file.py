@@ -51,7 +51,7 @@ class File:
 		try:
 			f = open(file, "w")
 			return File(file)
-		except: return None
+		except (FileNotFoundError, OSError, PermissionError): return None
 		finally:
 			if f is not None: f.close()
 
@@ -119,7 +119,7 @@ class File:
 				f = open(self.file, AccessMode.toMode(mode))
 				return func(f, *args, **kwargs)
 			else: return False
-		except: return False
+		except (FileNotFoundError, OSError, PermissionError): return False
 		finally:
 			if f is not None: f.close()
 

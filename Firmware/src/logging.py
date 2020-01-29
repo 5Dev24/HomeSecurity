@@ -53,35 +53,38 @@ class Log:
 				while tTmp is None:
 					tIndex += 1
 					tTmp = LogType.fromString(string[1:tIndex])
-				l = Log(tTmp, string[tIndex + 23:], False)
+				l = Log(tTmp, string[tIndex + 23:])
 				l.date = string[tIndex + 2:tIndex + 12]
 				l.time = string[tIndex + 13:tIndex + 21]
 				return l
 			except ValueError: return None
 
-	def __init__(self, logType: LogType = LogType.Info, info: str = "", save: bool = True):
+	def __init__(self, logType: LogType = LogType.Info, info: str = ""):
 		if logType is None or type(logType) != LogType: logType = LogType.Info
 		if info is None or type(info) != str: info = "No Log Information Passed To Log"
 		self.logType = logType
-		self.info = info
+		self.raw_info = info
+		self.protected_info = info.replace("\a", "\\a").replace("\b", "\\b").replace("\t", "\\t").replace("\n", "\\n").replace("\v", "\\v").replace("\f", "\\f").replace("\r", "\\r")
 		self.date = Date()
 		self.time = Time()
-		if save:
-			logs = Log.Logs()
-			logs.data.append(self)
-			logs.write(Log.LogFile())
 
 	def post(self):
 		print(self.colored())
 		return self
 
+	def save(self):
+		logs = Log.Logs()
+		logs.data.append(self)
+		logs.write(Log.LogFile())
+		return self
+
 	def colored(self):
 		colors = self.logType.value[:]
 		return f"{colors[2]}{Fore.WHITE}{Style.BRIGHT}[{colors[0]}{self.logType.name}{Fore.WHITE}] \
-{self.date} {self.time}{Fore.CYAN}: {colors[1]}{self.info}{Style.RESET_ALL}"
+{self.date} {self.time}{Fore.CYAN}: {colors[1]}{self.protected_info}{Style.RESET_ALL}"
 
 	def __str__(self):
-		return f"[{self.logType.name}] {self.date} {self.time}: {self.info}"
+		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}"
 
 if __name__ != "__main__":
 	init()
