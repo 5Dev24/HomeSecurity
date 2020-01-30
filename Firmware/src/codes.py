@@ -55,6 +55,8 @@ def Exit(code: int = None, info: str = None, log: bool = False):
 		print("Terminating on", trace, "with message:", info)
 	elif log:
 		print("Terminating on", trace, "with no message")
+	from .networking import threading as _threading
+	_threading.SimpleThread.ReleaseThreads()
 	sys.exit(code)
 
 def LogCode(code: int = None, info: str = None):

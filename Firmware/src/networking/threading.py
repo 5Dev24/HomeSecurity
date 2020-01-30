@@ -4,7 +4,7 @@ from ..codes import LogCode, Threading
 
 def HoldMain():
 	while sum([1 if thread._running else 0 for thread in SimpleThread.__threads__]) > 0:
-		print("Holding!")
+		pass
 
 class SimpleThread:
 	"""
@@ -16,6 +16,11 @@ class SimpleThread:
 	"""
 
 	__threads__ = []
+
+	@staticmethod
+	def ReleaseThreads():
+		for thread in SimpleThread.__threads__:
+			thread.stop(True)
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
 		"""
@@ -36,6 +41,7 @@ class SimpleThread:
 			_running (bool): If the thread is running currently
 		"""
 		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
+		self._internalThread.daemon = True
 		self._target = target # Save target
 		self._args = args # Save args
 		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
@@ -43,16 +49,21 @@ class SimpleThread:
 		self._running = False # Thread isn't running yet
 		SimpleThread.__threads__.append(self)
 
-	def stop(self):
+	def stop(self, force: bool = False):
 		"""
 		Stop the thread (change internal variable)
 
 		Returns:
 			SimpleThread: self
 		"""
+		if force: self._internalThread._stop()
 		self._running = False # Set that thread isn't running
-		SimpleThread.__threads__.remove(self)
+		self.__del__()
 		return self # Return self
+
+	def __del__(self):
+		if self in SimpleThread.__threads__:
+			SimpleThread.__threads__.remove(self)
 
 	def _internal(self):
 		"""
