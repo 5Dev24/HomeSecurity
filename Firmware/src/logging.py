@@ -12,12 +12,12 @@ def Date(): return Now().strftime("%d/%m/%Y")
 
 class LogType(Enum):
 
-	# Error Text Foreground, Message Text Foreground, Background of all Text
 	Info = (Fore.GREEN, Fore.WHITE, Back.BLACK)
 	Install = (Fore.CYAN, Fore.LIGHTBLUE_EX, Back.BLACK)
 	Warn = (Fore.LIGHTRED_EX, Fore.YELLOW, Back.BLACK)
 	Error = (Fore.LIGHTRED_EX, Fore.LIGHTRED_EX, Back.BLACK)
 	Debug = (Fore.LIGHTMAGENTA_EX, Fore.LIGHTGREEN_EX, Back.BLACK)
+	Exit = (Fore.LIGHTWHITE_EX, Fore.WHITE, Back.BLACK)
 
 	@staticmethod
 	def fromString(string: str = ""):
@@ -97,7 +97,7 @@ class Log:
 {self.date} {self.time}{Fore.CYAN}: {colors[1]}{text}{Style.RESET_ALL}"
 
 	def __str__(self):
-		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}{Style.RESET_ALL}"
+		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}"
 
 # Queue system
 LoggingSaveQueue = Queue(0)
@@ -120,6 +120,7 @@ def Finalize():
 
 def Save():
 	logs = Log.Logs()
+	if LoggingSaveQueue.empty(): return
 	while not LoggingSaveQueue.empty():
 		logs.data.append(LoggingSaveQueue.get())
 	logs.write(Log.LogFile())

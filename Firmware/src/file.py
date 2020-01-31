@@ -179,8 +179,7 @@ class FileFormat:
 			return file.obj(AccessMode.Overwrite, File.write, (), {"line": f"{id}{checkSum}"})
 		else:
 			rtn = False
-			rtn += file.obj(AccessMode.Overwrite, File.writeln, (), {"line": f"{id}{checkSum}"})
-			rtn += file.obj(AccessMode.Append, File.writelines, (), {"lines": self.data})
+			rtn += file.obj(AccessMode.Overwrite, File.writelines, (), {"lines": [f"{id}{checkSum}\n"] + self.data})
 			return rtn == 2
 
 class LogFormat(FileFormat):

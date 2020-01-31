@@ -1,10 +1,11 @@
 import traceback
 from threading import Thread, current_thread, main_thread
-from ..codes import LogCode, Threading
+from .. import codes as _codes
 
 def HoldMain():
-	while sum([1 if thread._running else 0 for thread in SimpleThread.__threads__]) > 0:
-		pass
+	while not not len(SimpleThread.__threads__):
+		for thread in SimpleThread.__threads__:
+			thread.join(5, True)
 
 class SimpleThread:
 	"""
@@ -56,9 +57,10 @@ class SimpleThread:
 		Returns:
 			SimpleThread: self
 		"""
-		if not self._internalThread._tstate_lock: self._internalThread._stop()
+		if not self._internalThread._tstate_lock: # If thread isn't locked
+			self._internalThread._stop() # Stop thread
 		self._running = False # Set that thread isn't running
-		self.__del__()
+		self.__del__() # Call del to remove from threads list
 		return self # Return self
 
 	def __del__(self):
@@ -77,11 +79,11 @@ class SimpleThread:
 				while self._running: # While the thread is running
 					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
 					except Exception: # Catch all exceptions (except exiting exceptions)
-						LogCode(Threading.LOOPING_THREAD_ERROR, f"Traceback:\n{traceback.format_exc()}")
+						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) Traceback:\n{traceback.format_exc()}")
 						break # Break from loop
 			else: # If thread shouldn't loop
 				try: self._target(*self._args, **self._kwargs) # Call function with args and kwargs
-				except Exception: LogCode(Threading.SINGLE_THREAD_ERROR, f"Traceback:\n{traceback.format_exc()}")
+				except Exception: _codes.LogCode(_codes.Threading.SINGLE_THREAD_ERROR, f"({self._internalThread}) Traceback:\n{traceback.format_exc()}")
 		finally: # Always execute
 			self.stop() # Mark thread as stopped
 			del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs
@@ -98,7 +100,7 @@ class SimpleThread:
 		self._internalThread.start() # Start internal thread
 		return self # Return self
 
-	def join(self, timeout: int = 5):
+	def join(self, timeout: int = 5, _holdMain: bool = False):
 		"""
 		Allows for thread to join internal thread
 
@@ -110,7 +112,10 @@ class SimpleThread:
 		Returns:
 			None
 		"""
-		if current_thread() is main_thread(): # If function has been called from main thread
-			LogCode(Threading.JOIN_FROM_MAIN)
+		if current_thread() is main_thread() and not _holdMain: # If function has been called from main thread
+			_codes.LogCode(_codes.Threading.JOIN_FROM_MAIN)
 			return # Exit function
+		if timeout is None or type(timeout) != int: timeout = 5
+		elif timeout > 300: timeout = 300
+		elif timeout < 0: timeout = 0
 		self._internalThread.join(timeout) # Wait for thread to terminal but added timeout
