@@ -17,6 +17,7 @@ class LogType(Enum):
 	Install = (Fore.CYAN, Fore.LIGHTBLUE_EX, Back.BLACK)
 	Warn = (Fore.LIGHTRED_EX, Fore.YELLOW, Back.BLACK)
 	Error = (Fore.LIGHTRED_EX, Fore.LIGHTRED_EX, Back.BLACK)
+	Debug = (Fore.LIGHTMAGENTA_EX, Fore.LIGHTGREEN_EX, Back.BLACK)
 
 	@staticmethod
 	def fromString(string: str = ""):
@@ -29,39 +30,6 @@ class LogType(Enum):
 
 	def __str__(self):
 		return f"{self.name}"
-
-# Queue system
-LoggingSaveQueue = Queue(0)
-LoggingPrintQueue = Queue(0)
-
-def Finalize():
-	# Stop threads
-	LoggingSaveThread.stop()
-	LoggingPrintThread.stop()
-
-	# Do one final invoke
-	Save()
-	Prints()
-
-	global LoggingSaveQueue, LoggingPrintQueue
-
-	# Clear queues incase anything else is trying to use them
-	LoggingSaveQueue = Queue(0)
-	LoggingPrintQueue = Queue(0)
-
-def Save():
-	logs = Log.Logs()
-	while not LoggingSaveQueue.empty():
-		logs.data.append(LoggingSaveQueue.get())
-	logs.write(Log.LogFile())
-
-def Prints():
-	while not LoggingPrintQueue.empty():
-		print(LoggingPrintQueue.get().raw_colored)
-
-# Threading for queues
-LoggingSaveThread = SimpleThread(Save, True)
-LoggingPrintThread = SimpleThread(Prints, True)
 
 class Log:
 
@@ -129,7 +97,40 @@ class Log:
 {self.date} {self.time}{Fore.CYAN}: {colors[1]}{text}{Style.RESET_ALL}"
 
 	def __str__(self):
-		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}"
+		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}{Style.RESET_ALL}"
+
+# Queue system
+LoggingSaveQueue = Queue(0)
+LoggingPrintQueue = Queue(0)
+
+def Finalize():
+	# Stop threads
+	LoggingSaveThread.stop()
+	LoggingPrintThread.stop()
+
+	# Do one final invoke
+	Save()
+	Prints()
+
+	global LoggingSaveQueue, LoggingPrintQueue
+
+	# Clear queues incase anything else is trying to use them
+	LoggingSaveQueue = Queue(0)
+	LoggingPrintQueue = Queue(0)
+
+def Save():
+	logs = Log.Logs()
+	while not LoggingSaveQueue.empty():
+		logs.data.append(LoggingSaveQueue.get())
+	logs.write(Log.LogFile())
+
+def Prints():
+	while not LoggingPrintQueue.empty():
+		print(LoggingPrintQueue.get().raw_colored)
+
+# Threading for queues
+LoggingSaveThread = SimpleThread(Save, True).start()
+LoggingPrintThread = SimpleThread(Prints, True).start()
 
 if __name__ != "__main__":
 	init()

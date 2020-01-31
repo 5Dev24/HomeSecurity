@@ -17,7 +17,7 @@ def main():
 	debug = parser.readVariable("debug")
 	builtins.DEBUGGING = debug
 	if debug:
-		print("Debugging enabled!")
+		_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!", False).post()
 
 	if code == _codes.Parsing.SUCCESS:
 

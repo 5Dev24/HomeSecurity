@@ -20,7 +20,7 @@ class SimpleThread:
 	@staticmethod
 	def ReleaseThreads():
 		for thread in SimpleThread.__threads__:
-			thread.stop(True)
+			thread.stop()
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
 		"""
@@ -49,14 +49,14 @@ class SimpleThread:
 		self._running = False # Thread isn't running yet
 		SimpleThread.__threads__.append(self)
 
-	def stop(self, force: bool = False):
+	def stop(self):
 		"""
 		Stop the thread (change internal variable)
 
 		Returns:
 			SimpleThread: self
 		"""
-		if force: self._internalThread._stop()
+		if not self._internalThread._tstate_lock: self._internalThread._stop()
 		self._running = False # Set that thread isn't running
 		self.__del__()
 		return self # Return self

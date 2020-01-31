@@ -181,7 +181,6 @@ class Networkable:
 			None
 		"""
 		if self._broadcastSocket is None: # If socket is closed
-			self._broadcastReceiveThread.stop() # Stop this thread
 			return # Exit function
 		addr, data = self._broadcastSocket.receiveData() # Wait until data is received
 		if data is None or not len(data): return # If data is invalid, exit function
@@ -195,7 +194,6 @@ class Networkable:
 			None
 		"""
 		if self._generalSocket is None: # If socket is closed
-			self._generalReceiveThread.stop() # Stop this thread
 			return # Exit function
 		addr, data = self._generalSocket.receiveData() # Wait until data is received
 		if data is None or not len(data): return # If data is invalid, exit function
