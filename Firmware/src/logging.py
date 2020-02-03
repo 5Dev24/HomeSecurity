@@ -42,6 +42,7 @@ class Log:
 	@staticmethod
 	def LogFile():
 		f = File.GetOrCreate(FileSystem, "logs")
+		print("FileSystem:", FileSystem)
 		print("Logs got:", f)
 		return f
 
@@ -136,6 +137,7 @@ def Prints():
 # Threading for queues
 LoggingSaveThread = SimpleThread(Save, True).start()
 LoggingPrintThread = SimpleThread(Prints, True).start()
+print("Creating threads")
 
 if __name__ != "__main__":
 	init()
