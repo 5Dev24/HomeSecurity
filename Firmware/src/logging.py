@@ -41,7 +41,9 @@ class Log:
 
 	@staticmethod
 	def LogFile():
-		return File.GetOrCreate(FileSystem, "logs")
+		f = File.GetOrCreate(FileSystem, "logs")
+		print("Logs got:", f)
+		return f
 
 	@staticmethod
 	def Logs():

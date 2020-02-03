@@ -57,9 +57,9 @@ class SimpleThread:
 		Returns:
 			SimpleThread: self
 		"""
-		if not self._internalThread._tstate_lock: # If thread isn't locked
+		if self._internalThread not self._internalThread._tstate_lock: # If thread isn't locked
 			self._internalThread._stop() # Stop thread
-		self._running = False # Set that thread isn't running
+		if self._running: self._running = False # Set that thread isn't running
 		self.__del__() # Call del to remove from threads list
 		return self # Return self
 
