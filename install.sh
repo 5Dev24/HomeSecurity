@@ -88,7 +88,7 @@ mkdir "$DataFolder"
 chmod +x "$StartFile"
 
 # Start start.sh
-/bin/bash "$StartFile --install -id '$DeviceID' -server $ServerInstall"
+$StartFile --install -id '$DeviceID' -server $ServerInstall
 
 read -p "Pause Buffer" A
 
