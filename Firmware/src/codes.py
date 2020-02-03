@@ -1,6 +1,8 @@
 # All exit codes
 
 import sys
+import logging as _logging
+from .networking import threading as _threading
 
 class Code(): pass
 
@@ -51,22 +53,21 @@ def Exit(code: int = None, info: str = None, log: bool = False):
 		sys.exit(Reserved.INVALID_CODE)
 
 	trace = _build_trace(code)
+	msg = " with no message"
 	if info is not None and type(info) == str and len(info):
-		print("Terminating on", trace, "with message:", info)
-	elif log:
-		print("Terminating on", trace, "with no message")
-	from .networking import threading as _threading
+		msg = " with message: " + info
+	msg = "Terminating on " + trace + msg
+	_logging.Log(_logging.LogType.Exit, msg).post()
 	_threading.SimpleThread.ReleaseThreads()
 	sys.exit(code)
 
 def LogCode(code: int = None, info: str = None):
 	if code is None or type(code) != int or code < 0 or code > 128:
 		return
-	from src.logging import Log, LogType
 	trace = _build_trace(code)
 	if info is None or type(info) != str or not len(info):
 		info = "No message"
-	Log(LogType.Info,  f"{trace}: {info}").post()
+	_logging.Log(_logging.LogType.Info,  f"{trace}: {info}").post()
 
 def _collect_subclasses(parent = None):
 	for subclass in parent.__subclasses__():
@@ -87,5 +88,5 @@ def _build_trace(code: int = -1):
 
 	varName, varValue, varClass = _find_code(code)
 	if varName is not None:
-		return (_parent_trace(varClass) + "." + varName).lower()
+		return (_parent_trace(varClass) + "." + varName + "~" + str(varValue)).lower()
 	return "invalid"

@@ -61,7 +61,7 @@ def _readDeviceInfo():
 		return (False,)
 
 def install():
-	print("Installing")
+	_logging.Log(_logging.LogType.Info, "Starting Install", False).post()
 	deviceID = parser.readVariable("id")
 	serverInstall = parser.readVariable("server")
 	force = parser.readVariable("force")
@@ -70,8 +70,8 @@ def install():
 	deviceID = re.sub(r"[:.-]", "", deviceID)
 
 	if len(deviceID) != 12:
-		print("Invalid device ID")
-		_codes.Exit(_codes.Installation.INVALID_ID)
+		_logging.Log(_logging.LogType.Warn, "Invalid device ID", False).post()
+		_codes.Exit(_codes.Installation.INVALID_ID, f"ID \"{deviceID}\" was attempted to be used")
 
 	if type(serverInstall) is not bool:
 		print("Invalid server argument")
