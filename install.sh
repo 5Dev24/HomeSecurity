@@ -32,10 +32,10 @@ pip3 install -r /home/pi/ISM-2019-2020/Firmware/requirements.txt
 apt -y autoremove
 
 # Get if this is a server or a client
-echo "Is this a server or a client?"
+echo "Is this a server installation?"
 
 read -p "[Y/N]: " ServerInstall
-while [ "${ServerInstall,,}" != "y"] && [ "${ServerInstall,,}" != "n" ]
+while [ "${ServerInstall,,}" != "y" ] && [ "${ServerInstall,,}" != "n" ]
 do
 	read -p "[Y/N]: " ServerInstall
 done
