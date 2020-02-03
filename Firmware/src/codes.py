@@ -1,7 +1,7 @@
 # All exit codes
 
 import sys
-import logging as _logging
+from . import logging as _logging
 from .networking import threading as _threading
 
 class Code(): pass

@@ -26,6 +26,8 @@ class LogType(Enum):
 		elif string == "install": return LogType.Install
 		elif string == "warn": return LogType.Warn
 		elif string == "error": return LogType.Error
+		elif string == "debug": return LogType.Debug
+		elif string == "exit": return LogType.Exit
 		else: return None
 
 	def __str__(self):

@@ -33,12 +33,16 @@ apt -y autoremove
 
 # Get if this is a server or a client
 echo "Is this a server or a client?"
-select ServerClient in "Server" "Client"
-Server=false
 
-case "$ServerClient" in
-    Server) Server=true;;
-    Client) Server=false;;
+read -p "[Y/N]: " ServerInstall
+while [ "${ServerInstall,,}" != "y"] && [ "${ServerInstall,,}" != "n" ]
+do
+	read -p "[Y/N]: " ServerInstall
+done
+
+case "${ServerInstall,,}" in
+	"y") ServerInstall="true";;
+	"n") ServerInstall="false";;
 esac
 
 # Check if service file exists, if it does: delete it
@@ -59,7 +63,7 @@ echo "[Unit]
 Description=ISM-2019-2020
 
 [Service]
-ExecStart=$StartFile
+ExecStart=/bin/bash $StartFile -server $ServerInstall
 
 [Install]
 WantedBy=multi-user.target">> "$ServiceFile"
@@ -84,7 +88,7 @@ mkdir "$DataFolder"
 chmod +x "$StartFile"
 
 # Start start.sh
-"$StartFile --install -id '$DeviceID' -server $Server"
+/bin/bash "$StartFile --install -id '$DeviceID' -server $ServerInstall"
 
 # Restart system
 reboot
