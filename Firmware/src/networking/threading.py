@@ -70,8 +70,12 @@ class SimpleThread:
 		return self # Return self
 
 	def __del__(self):
-		if self in SimpleThread.__threads__:
+		if self.is_registered:
 			SimpleThread.__threads__.remove(self)
+
+	@property
+	def is_registered(self):
+		return self in SimpleThread.__threads__
 
 	def _internal(self):
 		"""
@@ -82,7 +86,7 @@ class SimpleThread:
 		"""
 		try: # Try-except to always delete isntance of the internal thread, args, and kwargs
 			if self._loop: # If thread should loop
-				while self._running: # While the thread is running
+				while self._running and self.is_registered: # While the thread is running
 					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
 					except Exception: # Catch all exceptions (except exiting exceptions)
 						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) Traceback:\n{traceback.format_exc()}")
