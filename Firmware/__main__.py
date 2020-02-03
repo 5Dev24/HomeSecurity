@@ -98,10 +98,10 @@ def install():
 		_codes.Exit(_codes.Installation.SUCCESS)
 
 def logs():
-	print("Dumping 100 logs\nStart Logs")
+	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs", False)
 	for l in _logging.Log.AllLogs()[-100:]:
 		l.post()
-	print("End Logs")
+	_logging.Log(_logging.LogType.Debug, "End Logs", False)
 	_codes.Exit(_codes.General.SUCCESS)
 
 parser = None
