@@ -90,5 +90,7 @@ chmod +x "$StartFile"
 # Start start.sh
 $StartFile --install -id \'$DeviceID\' -server $ServerInstall
 
+read -p "Buffer"
+
 # Restart system
 reboot
