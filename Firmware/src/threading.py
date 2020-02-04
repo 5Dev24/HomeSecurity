@@ -42,7 +42,6 @@ class SimpleThread:
 			_running (bool): If the thread is running currently
 		"""
 		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
-		self._internalThread.daemon = True
 		self._target = target # Save target
 		self._args = args # Save args
 		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
@@ -58,16 +57,15 @@ class SimpleThread:
 			SimpleThread: self
 		"""
 		if not self._running: return
+		self.__del__()
 		try:
 			self._internalThread
 			self._running
 		except:
-			self.__del__()
 			return self
 		if self._internalThread is not None and not self._internalThread._tstate_lock: # If thread isn't locked
 			self._internalThread._stop() # Stop thread
 		if self._running is not None: self._running = False # Set that thread isn't running
-		self.__del__() # Call del to remove from threads list
 		return self # Return self
 
 	def __del__(self):
