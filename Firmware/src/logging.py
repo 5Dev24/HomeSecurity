@@ -126,6 +126,7 @@ def Save():
 	while not LoggingSaveQueue.empty():
 		logs.data.append(LoggingSaveQueue.get())
 	logs.write(Log.LogFile())
+	time.sleep(2)
 
 def Prints():
 	while not LoggingPrintQueue.empty():
