@@ -80,12 +80,18 @@ class Networkable:
 		return addr in self._connections and not self._connections[addr].closed
 
 	def __del__(self):
+		# Close connections and threads
 		for name, thread in self._threads.items():
 			thread.stop()
 		for addr, connection in self._connections.items():
 			connection.close()
 		self._threads = None
 		self._connections = None
+
+		# Close socket related items
+		self.socket_is_ready = False
+		self.socket.close()
+		self.socket = None
 
 class Server(Networkable):
 
