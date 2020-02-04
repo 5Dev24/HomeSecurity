@@ -11,7 +11,7 @@ class Ports:
 	Ports used for sending data
 	"""
 
-	SEND_RECEIVE = 32001 # Normal sending and receiving data
+	SEND_RECEIVE = 23001 # Normal sending and receiving data
 	"""
 	Port used for sending and receiving data for regular protocols that don't need to be done over broadcasting
 	"""
