@@ -1,4 +1,5 @@
 import re, time
+from bluetooth import BluetoothSocket
 from ..codes import LogCode, Networking, Threading
 from ..crypt import RSA
 from . import protocol as _protocol, threading as _threading
@@ -34,21 +35,18 @@ class Networkable:
 		Attributes:
 			_isServer (bool): If this is a server or not
 			_ip (str): The ip address of this networkable
-			_broadcastSocket (socket.socket): The broadcasting socket
-			_broadcastReceiveThread (SimpleThread): Thread for receiving data from the broadcasting socket
-			_generalSocket (socket.socket): The general socket
-			_generalReceiveThread (SimpleThread): Thread for receiving data from the general socket
+			_socket (bluetooth.BluetoothSocket): The socket
+			_socketReceiveThread (SimpleThread): Thread for receiving data from the socket
 			_networkingThreads (dict): All currently active networking threads
 			_activeProtocols (dict): All currently active protocols
 			_protocolHandler (ProtocolHandler): Handler for packets for protocols
 		"""
 		self._isServer = isServer # Save if server
-		self._broadcastSocket = None # Create broadcasting socket
-		self._broadcastReceiveThread = _threading.SimpleThread(self._broadcastReceive, True).start() # Create broadcasting listening thread
-		self._generalSocket = None # Create general data receiving socket
-		self._generalReceiveThread = _threading.SimpleThread(self._generalReceive, True).start() # Create general data listening thread
+		self._socket = None # Create socket
+		self._socketReceiveThread = _threading.SimpleThread(self._receive, True).start() # Create listening thread
 		self._networkingThreads = {} # Currently active networking threads {thread name: thread instance}
-		self._activeProtocols = {} # Currently active protocol {"ip:port": [Protocol instance,]}
+		self._activeProtocols = {} # Currently active protocol {"ID": [Protocol instance,]}
+		self._activeConnections = {} # Currently active connections {"ID": ConnectionHandle instance}
 		self._protocolHandler = _protocol.ProtocolHandler(self) # Create protocol handler
 
 	def spawnThread(self, threadName: str = None, threadTarget = None, loop: bool = False, args = tuple(), kwargs = {}):
@@ -85,6 +83,10 @@ class Networkable:
 			del self._networkingThreads[threadName] # Delete it from dictionary of networking threads
 			return True # Return true that thread was found by that name, doesn't mean thread has been terminated
 		except KeyError: return False # Return false if thread wasn't found (KeyError in dictionary of networking threads)
+
+	def threadExists(self, threadName: str = None):
+		try: return self._networkingThreads[threadName] is not None
+		except: return False
 
 	def spawnProtocol(self, recipient: str = None, timeout: int = None, protocolClass = None, args = tuple(), kwargs = {}):
 		"""
@@ -173,37 +175,24 @@ class Networkable:
 		time.sleep(timeout) # Sleep for timeout seconds
 		self.invalidateProtocol(recipient, proto) # Invalidate the protocol
 
-	def _broadcastReceive(self):
+	def _receive(self):
 		"""
-		An internal function that listens for data being sent to the broadcasting socket of the networkable
+		An internal function that listens for data being sent to the socket of the networkable
 
 		Returns:
 			None
 		"""
-		if self._broadcastSocket is None: # If socket is closed
+		if self._socket is None: # If socket is closed
 			return # Exit function
-		addr, data = self._broadcastSocket.receiveData() # Wait until data is received
+		addr, data = self._socket.accept() # Wait until data is received
 		if data is None or not len(data): return # If data is invalid, exit function
-		self.broadcastReceive(addr, data) # Call, hopefully implemented, child function
+		self.receive(addr, data) # Call, hopefully implemented, child function
 
-	def _generalReceive(self):
-		"""
-		An internal function that listens for data being sent to the general socket of the networkable
-
-		Returns:
-			None
-		"""
-		if self._generalSocket is None: # If socket is closed
-			return # Exit function
-		addr, data = self._generalSocket.receiveData() # Wait until data is received
-		if data is None or not len(data): return # If data is invalid, exit function
-		self.generalReceive(addr, data) # Call, hopefully impelemented, child function
-
-	def broadcastReceive(self, addr: str = None, data: str = None):
+	def receive(self, addr: str = None, data: str = None):
 		"""
 		A function that child classes must implement
 
-		It is called when data is received on the broadcasting socket of the networkable
+		It is called when data is received on the socket of the networkable
 
 		Args:
 			addr (str): Sender of data
@@ -214,23 +203,6 @@ class Networkable:
 
 		Raises:
 			NotImplementedError: Raised when function ins't implemented
-		"""
-		raise NotImplementedError() # Raise error as function wasn't implemented by child class
-
-	def generalReceive(self, addr: str = None, data: str = None):
-		"""
-		A function that child classes must implement
-		It is called when data is received on the general receiving socket of the networkable
-
-		Args:
-			addr (str): Sender of data
-			data (str): The data sent
-
-		Returns:
-			None
-
-		Raises:
-			NotImplementedError: Raised when function isn't implemented
 		"""
 		raise NotImplementedError() # Raise error as function wasn't implemented by child class
 
@@ -281,7 +253,7 @@ class Server(Networkable):
 		self._broadcastProtoSaved.step("<broadcast>") # Call step function
 		time.sleep(5) # Wait 5 seconds
 
-	def broadcastReceive(self, addr: str = None, data: str = None):
+	def receive(self, addr: str = None, data: str = None):
 		"""
 		Implementation from parent class to handle data received from the broadcasting socket
 
@@ -292,36 +264,16 @@ class Server(Networkable):
 		Returns:
 			None
 		"""
-		hndl = self._protocolHandler.incomingPacket(data, addr) # Call the packet handler to handle the packet
-		if hndl[0] == 2: # If packet handler returned 2 (see Exit Codes)
-			super().closeThread("Broadcasting") # Close broadcasting thread
-			super().invalidateProtocol("<broadcast>", _protocol.Broadcast_IP) # Invalidate Broadcast_IP protocol
-			self._broadcastSocket.close() # Close broadcasting socket
 
-	def generalReceive(self, addr: str = None, data: str = None):
-		"""
-		Implementation from parent class to handled data received from the general receiving socket
-
-		Args:
-			addr (str): Sender address
-			data (str): Data received
-
-		Returns:
-			None
-		"""
-		def threading(self):
-			"""
-			Thread for handling requests so that no request is missed
-			(A queue could be implemented to handle all packets in order instead of having to open new threads)
-
-			Returns:
-				None
-			"""
+		if super().threadExists("Broadcasting") and self._protocolHandler.isBroadcastIPPacket(data):
+			hndl = self._protocolHandler.incomingPacket(data, addr) # Call the packet handler to handle the packet
+			if hndl[0] == 2: # If packet handler returned 2 (see Exit Codes)
+				super().closeThread("Broadcasting") # Close broadcasting thread
+				super().invalidateProtocol("<broadcast>", _protocol.Broadcast_IP) # Invalidate Broadcast_IP protocol
+		elif addr in self._clientsGot:
 			hndl = self._protocolHandler.incomingPacket(data, addr) # Call the packet handler to handle the incoming packet
 			if hndl[0] == 2: # If packet handler returned 2 (see Exit codes)
-				super().invalidateProtocol(addr ,hndl[1]) # Invalidate the protocol
-		if not (addr.addr[0] in self._clientsGot): return # If address isn't from the found client list then exit function
-		_threading.SimpleThread(threading, False, args=(self,)).start() # Create threaded handler and start thread
+				super().invalidateProtocol(addr, hndl[1]) # Invalidate the protocol
 
 class Client(Networkable):
 	"""
@@ -352,7 +304,7 @@ class Client(Networkable):
 		ex.keys[1] = clientRSA # Save rsa key to key list in protocol
 		ex.step(self._serversIP) # Call first step in key exchange
 
-	def broadcastReceive(self, addr: str = None, data: str = None):
+	def receive(self, addr: str = None, data: str = None):
 		"""
 		Implemented function from parent class to handle packets on broadcasting socket
 
@@ -363,25 +315,40 @@ class Client(Networkable):
 		Returns:
 			None
 		"""
-		hndl = self._protocolHandler.incomingPacket(data, addr) # Handle packet
-		if hndl[0] == 2: # If exit code is 2 (see Exit codes)
-			super().invalidateProtocol("<broadcast>", _protocol.Broadcast_IP) # Invalidate the broadcast ip protocol
-			self._broadcastSocket.close() # Close the broadcasting socket
-			self._serversIP = self._serversIP # Set server's ip to be a TAddress
-			self.keyExchange() # Start key exchange proto
+		if self._protocolHandler.isBroadcastIPPacket(data):
+			hndl = self._protocolHandler.incomingPacket(data, addr) # Handle packet
+			if hndl[0] == 2: # If exit code is 2 (see Exit codes)
+				super().invalidateProtocol("<broadcast>", _protocol.Broadcast_IP) # Invalidate the broadcast ip protocol
+				self._broadcastSocket.close() # Close the broadcasting socket
+				self._serversIP = addr # Set server's ip to be a TAddress
+				self.keyExchange() # Start key exchange proto
 
-	def generalReceive(self, addr: str = None, data: str = None):
-		"""
-		Implemented function from parent class to handle general packets
+		elif addr == self._serversIP:
+			hndl = self._protocolHandler.incomingPacket(data, addr) # Handle packet
+			if hndl[0] == 2: # If exit code 2 is returned (see Exit codes)
+				super().invalidateProtocol(addr, hndl[1]) # Invalidate the protocol
 
-		Args:
-			addr (TAddress): Sender's address
-			data (str): Data sent
+class ConnectionHandle:
 
-		Returns:
-			None
-		"""
-		if addr.addr[0] != self._serversIP.addr[0]: return # If address isn't server's, exit function
-		hndl = self._protocolHandler.incomingPacket(data, addr) # Handle packet
-		if hndl[0] == 2: # If exit code 2 is returned (see Exit codes)
-			super().invalidateProtocol(addr, hndl[1]) # Invalidate the protocol
+	def __init__(self, addr: str = None, socket: BluetoothSocket = None, invoke = None):
+		self._addr = addr
+		self._socket = socket
+		self._invoke = invoke
+		self._receivingThread = _threading.SimpleThread(target=self._receive, True)
+		self._receivingThread.start()
+
+	def _receive(self):
+		if self._socket is None:
+			self._receivingThread.stop()
+			return
+		data = self._socket.recv(4096)
+		self._invoke(addr, data)
+
+	def respond(self, data: str = None):
+		if self._socket is None or data is None or type(data) != str or not len(data): return False
+		self._socket.send(data)
+		return True
+
+	def close(self):
+		self._socket.close()
+		self._socket = None

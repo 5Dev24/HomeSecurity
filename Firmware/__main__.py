@@ -28,7 +28,7 @@ def main():
 			builtins.ISSERVER = devcServer
 
 			if devcServer:
-				_networkables.Server().startBroadcasting()
+				_networkables.Server(1).startBroadcasting()
 			else:
 				_networkables.Client()
 			_logging.Log(_logging.LogType.Info, "Device has been started").post()
