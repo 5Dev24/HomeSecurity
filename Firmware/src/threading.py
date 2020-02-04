@@ -74,7 +74,7 @@ class SimpleThread:
 			print("D")
 			return self
 		print("E")
-		if self._internalThread is not None and not self._internalThread._tstate_lock: # If thread isn't locked
+		if self._internalThread is not None:
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
 				print("F")
@@ -83,7 +83,7 @@ class SimpleThread:
 					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
 					if response > 1:
 						print("H")
-						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, NULL)
+						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
 						raise SystemError("PyThreadState_SetAsyncExc failed")
 		print("I")
 		if self._running is not None: self._running = False # Set that thread isn't running
