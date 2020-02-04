@@ -1,6 +1,6 @@
 #!usr/bin/python3
 
-import sys, builtins, re, atexit
+import sys, builtins, re, atexit, random
 import src.parsing as _parsing
 import src.codes as _codes
 import src.networking.networkables as _networkables
@@ -23,12 +23,12 @@ def main():
 
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
-			devcID, devcServer = deviceData[1:]
-			_logging.Log(_logging.LogType.Info, "Device id is %s and device is a %s" % (devcID, "server" if devcServer else "client")).post()
+			devcMAC, devcServer, devcID = deviceData[1:]
+			_logging.Log(_logging.LogType.Info, "Device MAC is %s, device is a %s, and device id is %s" % (devcMAC, "server" if devcServer else "client"), devcID).post()
 			builtins.ISSERVER = devcServer
 
 			if devcServer:
-				_networkables.Server(1).startBroadcasting()
+				_networkables.Server()
 			else:
 				_networkables.Client()
 			_logging.Log(_logging.LogType.Info, "Device has been started").post()
@@ -39,7 +39,7 @@ def main():
 		_codes.Exit(code, "Unable to start")
 	try:
 		_threading.HoldMain()
-	except: # Any error occured in holding (most likely a KeyboardInterrupt)
+	finally:
 		if len(_threading.SimpleThread.__threads__) == 0:
 			_codes.Exit(_codes.General.SUCCESS, "All threads stopped")
 		else:
@@ -50,58 +50,70 @@ def _readDeviceInfo():
 	if exists:
 		deviceInfoFile = _file.File.GetOrCreate(_file.FileSystem, "deviceinfo.dat")
 		deviceInfoFormat = _file.DeviceInfoFormat.loadFrom(deviceInfoFile)
-		devcID = deviceInfoFormat.get("id")
+		devcMAC = deviceInfoFormat.get("mac")
 		devcServer = deviceInfoFormat.get("server")
+		devcID = deviceInfoFile.get("id")
 		if devcServer is not None: devcServer = devcServer.lower() == "true"
-		if devcID is None or devcServer is None:
+		if devcID is None or devcServer is None or devcID is None:
 			return (False,)
 		else:
-			return (True, devcID, devcServer)
+			return (True, devcMAC, devcServer, devcID)
 	else:
 		return (False,)
 
+def _randomID():
+	ran = random.Random(random.randint(-(2 ** 64), 2 ** 64))
+	seed = sha256(str(ran.randint(-(2 ** 64), 2 ** 64)).encode("utf-8")).digest().hex()
+	shuffle = [c for c in seed]
+	ran.shuffle(shuffle)
+	return "".join([random.choice(shuffle) for i in range(16)])
+
 def install():
 	_logging.Log(_logging.LogType.Info, "Starting Install", False).post()
-	deviceID = parser.readVariable("id")
+	deviceMac = parser.readVariable("mac")
 	serverInstall = parser.readVariable("server")
+
 	force = parser.readVariable("force")
 	if force is None: force = False
 
-	deviceID = re.sub(r"[:.-]", "", deviceID)
+	deviceMac = re.sub(r"[:.-]", "", deviceMac)
 
-	if len(deviceID) != 12:
-		_logging.Log(_logging.LogType.Warn, "Invalid device ID", False).post()
-		_codes.Exit(_codes.Installation.INVALID_ID, f"ID \"{deviceID}\" was attempted to be used")
+	if len(deviceMac) != 12:
+		_codes.Exit(_codes.Installation.INVALID_MAC, f"ID \"{deviceMac}\" was attempted to be used")
 
 	if type(serverInstall) is not bool:
-		print("Invalid server argument")
 		_codes.Exit(_codes.Installation.INVALID_SERVER)
 
 	deviceData = _readDeviceInfo()
 	shouldInstall = False
+
 	if deviceData[0] and not force:
-		devcID, devcServer = deviceData[1:]
-		if devcID == deviceID and devcServer == serverInstall:
-			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (devcID, "server" if devcServer else "client")).post()
-			_codes.Exit(_codes.Installation.SAME_ID_AND_TYPE)
-		elif devcID == deviceID:
-			_logging.Log(_logging.LogType.Install, "Device was already setup as " + devcID).post()
-			_codes.Exit(_codes.Installation.SAME_ID)
+		deviceMac, devcServer = deviceData[1:]
+
+		if deviceMac == deviceMac and devcServer == serverInstall:
+			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (deviceMac, "server" if devcServer else "client")).post()
+			_codes.Exit(_codes.Installation.SAME_MAC_AND_TYPE)
+
+		elif deviceMac == deviceMac:
+			_logging.Log(_logging.LogType.Install, "Device was already setup as " + deviceMac).post()
+			_codes.Exit(_codes.Installation.SAME_MAC)
+
 		else: shouldInstall = True
 	else: shouldInstall = True
+
 	if shouldInstall or force:
 		_file.File.Delete(_file.FileSystem, "deviceinfo.dat")
 		deviceInfoFile = _file.File.Create(_file.FileSystem, "deviceinfo.dat")
-		deviceInfoFormat = _file.DeviceInfoFormat({"id": deviceID, "server": str(serverInstall)})
+		deviceInfoFormat = _file.DeviceInfoFormat({"mac": deviceMac, "server": str(serverInstall), "id": _randomID()})
 		deviceInfoFormat.write(deviceInfoFile)
 		_logging.Log(_logging.LogType.Install, "Device information has been saved").post()
 		_codes.Exit(_codes.Installation.SUCCESS)
 
 def logs():
-	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs", False)
+	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs", False).post()
 	for l in _logging.Log.AllLogs()[-100:]:
 		l.post()
-	_logging.Log(_logging.LogType.Debug, "End Logs", False)
+	_logging.Log(_logging.LogType.Debug, "End Logs", False).post()
 	_codes.Exit(_codes.General.SUCCESS)
 
 parser = None
@@ -119,8 +131,7 @@ if __name__ == "__main__":
 			}
 		},
 		"vars" : {
-			"required": { "server": "boolean" },
-			"optional": { "debug": "boolean", "id": "string", "force": "boolean" }
+			"optional": { "debug": "boolean", "server": "boolean", "mac": "string", "force": "boolean" }
 		}
 	})
 

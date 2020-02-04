@@ -3,7 +3,7 @@ from datetime import datetime
 from .file import LogFormat, FileSystem, File
 from colorama import init, Fore, Back, Style
 from queue import Queue
-from .networking.threading import SimpleThread
+from . import threading as _threading
 import time, sys
 
 def Now(): return datetime.now()
@@ -134,8 +134,8 @@ def Prints():
 			sys.stdout.write(LoggingPrintQueue.get().raw_colored + "\n")
 
 # Threading for queues
-LoggingSaveThread = SimpleThread(Save, True).start()
-LoggingPrintThread = SimpleThread(Prints, True).start()
+LoggingSaveThread = _threading.SimpleThread(Save, True).start()
+LoggingPrintThread = _threading.SimpleThread(Prints, True).start()
 
 if __name__ != "__main__":
 	init()

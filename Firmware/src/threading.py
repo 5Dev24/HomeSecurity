@@ -1,6 +1,6 @@
 import traceback
 from threading import Thread, current_thread, main_thread
-from .. import codes as _codes
+from . import codes as _codes
 
 def HoldMain():
 	while not not len(SimpleThread.__threads__):
@@ -57,6 +57,7 @@ class SimpleThread:
 		Returns:
 			SimpleThread: self
 		"""
+		if not self._running: return
 		try:
 			self._internalThread
 			self._running
