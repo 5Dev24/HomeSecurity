@@ -62,22 +62,32 @@ class SimpleThread:
 		Returns:
 			SimpleThread: self
 		"""
+		print("A", self._running)
 		if not self._running: return
+		print("B")
 		self.__del__()
+		print("C")
 		try:
 			self._internalThread
 			self._running
 		except:
+			print("D")
 			return self
+		print("E")
 		if self._internalThread is not None and not self._internalThread._tstate_lock: # If thread isn't locked
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
+				print("F")
 				if self._internalThread is thread_object:
+					print("G")
 					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
 					if response > 1:
+						print("H")
 						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, NULL)
 						raise SystemError("PyThreadState_SetAsyncExc failed")
+		print("I")
 		if self._running is not None: self._running = False # Set that thread isn't running
+		print("J")
 		return self # Return self
 
 	def __del__(self):
