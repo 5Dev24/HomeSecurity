@@ -20,7 +20,9 @@ class SimpleThread:
 
 	@staticmethod
 	def ReleaseThreads():
+		print("Active threads:", len(SimpleThread.__threads__))
 		for thread in SimpleThread.__threads__:
+			print("Stopping [", thread._id ,"]" , thread._target, sep="")
 			thread.stop()
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
@@ -41,6 +43,8 @@ class SimpleThread:
 			_loop (bool): If the thread should loop
 			_running (bool): If the thread is running currently
 		"""
+		import random
+		self._id = random.randint(-100000, 100000)
 		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
 		self._target = target # Save target
 		self._args = args # Save args
