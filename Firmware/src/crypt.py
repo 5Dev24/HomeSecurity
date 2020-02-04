@@ -6,7 +6,6 @@ from Crypto.PublicKey import RSA as _RSA
 from Crypto.Util.number import getPrime
 from Crypto.Hash import SHA256 as _SHA256
 from hashlib import sha256
-import hashlib, base64
 from string import ascii_uppercase as Alph
 
 CONSTS = {

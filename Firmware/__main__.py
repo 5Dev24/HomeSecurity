@@ -3,10 +3,11 @@
 import sys, builtins, re, atexit, random
 import src.parsing as _parsing
 import src.codes as _codes
-import src.networking.networkables as _networkables
-import src.networking.threading as _threading
+import  src.networking.networkables as _networkables
+import src.threading as _threading
 import src.logging as _logging
 import src.file as _file
+from hashlib import sha256
 
 atexit.register(_logging.Finalize)
 
@@ -24,7 +25,7 @@ def main():
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
 			devcMAC, devcServer, devcID = deviceData[1:]
-			_logging.Log(_logging.LogType.Info, "Device MAC is %s, device is a %s, and device id is %s" % (devcMAC, "server" if devcServer else "client"), devcID).post()
+			_logging.Log(_logging.LogType.Info, "Device MAC is %s, device is a %s, and device id is %s" % (devcMAC, "server" if devcServer else "client", devcID)).post()
 			builtins.ISSERVER = devcServer
 
 			if devcServer:
@@ -52,7 +53,7 @@ def _readDeviceInfo():
 		deviceInfoFormat = _file.DeviceInfoFormat.loadFrom(deviceInfoFile)
 		devcMAC = deviceInfoFormat.get("mac")
 		devcServer = deviceInfoFormat.get("server")
-		devcID = deviceInfoFile.get("id")
+		devcID = deviceInfoFormat.get("id")
 		if devcServer is not None: devcServer = devcServer.lower() == "true"
 		if devcID is None or devcServer is None or devcID is None:
 			return (False,)

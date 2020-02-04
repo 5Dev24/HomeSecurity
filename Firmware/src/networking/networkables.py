@@ -27,7 +27,7 @@ class Networkable:
 				if len(found) >= 1:
 					for address, name in found.items():
 						try:
-							host, port = server.split("~")
+							host, port = address.split("~")
 							self.socket.connect((host, int(port)))
 							self.socket_is_ready = True
 							return
@@ -41,10 +41,10 @@ class Networkable:
 		sock, addr = self.socket.accept()
 		self.save_connection(sock, addr)
 
-	def recieve(self, connection: ConnectionHandle = None, data: str = None):
+	def recieve(self, connection: object = None, data: str = None):
 		raise NotImplementedError()
 
-	def spawn_thread(self, name: str = None, target = None, loop: bool = False, args = (,), kwargs = {}):
+	def spawn_thread(self, name: str = None, target = None, loop: bool = False, args = tuple(), kwargs = {}):
 		if self._threads is None: return None
 		self.close_thread(name)
 		T = _threading.SimpleThread(target, loop, args, kwargs)
@@ -109,7 +109,7 @@ class ConnectionHandle:
 		self.addr = addr
 		self.socket = socket
 		self._invoke = invoke
-		self._receivingThread = _threading.SimpleThread(target=self._receive, True).start()
+		self._receivingThread = _threading.SimpleThread(self._receive, True).start()
 
 	@property
 	def closed(self):
