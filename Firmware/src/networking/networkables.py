@@ -16,7 +16,7 @@ class Networkable:
 
 	def connect(self):
 		while True:
-			if is_server:
+			if self.is_server:
 				self.socket.bind(("", PORT_ANY))
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket)
@@ -25,7 +25,7 @@ class Networkable:
 			else:
 				found = _util.FindValidDevices(False)
 				if len(found) >= 1:
-					for address, name in found.items():
+					for address in found.keys():
 						try:
 							host, port = address.split("~")
 							self.socket.connect((host, int(port)))
@@ -81,9 +81,9 @@ class Networkable:
 
 	def __del__(self):
 		# Close connections and threads
-		for name, thread in self._threads.items():
+		for thread in self._threads.values():
 			thread.stop()
-		for addr, connection in self._connections.items():
+		for connection in self._connections.values():
 			connection.close()
 		self._threads = None
 		self._connections = None
