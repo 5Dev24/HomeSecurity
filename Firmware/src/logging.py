@@ -121,6 +121,7 @@ def Finalize():
 	LoggingPrintQueue = Queue(0)
 
 def Save():
+	print("Saving", LoggingSaveQueue.qsize())
 	logs = Log.Logs()
 	if LoggingSaveQueue.empty(): return
 	while not LoggingSaveQueue.empty():
