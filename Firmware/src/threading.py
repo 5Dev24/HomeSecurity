@@ -1,11 +1,13 @@
-import traceback
-from threading import Thread, current_thread, main_thread
+import traceback, ctypes
+from threading import Thread, current_thread, main_thread, _active
 from . import codes as _codes
 
 def HoldMain():
 	while not not len(SimpleThread.__threads__):
 		for thread in SimpleThread.__threads__:
 			thread.join(5, True)
+
+class SimpleClose(Exception): pass
 
 class SimpleThread:
 	"""
@@ -68,7 +70,13 @@ class SimpleThread:
 		except:
 			return self
 		if self._internalThread is not None and not self._internalThread._tstate_lock: # If thread isn't locked
-			self._internalThread._stop() # Stop thread
+			# Credit to liuw (https://gist.github.com/liuw/2407154)
+			for thread_id, thread_object in _active.items():
+				if self._internalThread is thread_object:
+					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
+					if response > 1:
+						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, NULL)
+						raise SystemError("PyThreadState_SetAsyncExc failed")
 		if self._running is not None: self._running = False # Set that thread isn't running
 		return self # Return self
 
