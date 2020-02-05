@@ -22,9 +22,7 @@ class SimpleThread:
 
 	@staticmethod
 	def ReleaseThreads():
-		print("Active threads:", len(SimpleThread.__threads__))
 		for thread in SimpleThread.__threads__:
-			print("Stopping [", thread._id ,"]" , thread._target, sep="")
 			thread.stop()
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
@@ -62,32 +60,21 @@ class SimpleThread:
 		Returns:
 			SimpleThread: self
 		"""
-		print("A", self._running)
 		if not self._running: return
-		print("B")
 		self.__del__()
-		print("C")
 		try:
 			self._internalThread
 			self._running
-		except:
-			print("D")
-			return self
-		print("E")
+		except: return self
 		if self._internalThread is not None:
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
-				print("F")
 				if self._internalThread is thread_object:
-					print("G")
 					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
 					if response > 1:
-						print("H")
 						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
 						raise SystemError("PyThreadState_SetAsyncExc failed")
-		print("I")
 		if self._running is not None: self._running = False # Set that thread isn't running
-		print("J")
 		return self # Return self
 
 	def __del__(self):
@@ -109,12 +96,15 @@ class SimpleThread:
 			if self._loop: # If thread should loop
 				while self._running and self.is_registered: # While the thread is running
 					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
-					except Exception: # Catch all exceptions (except exiting exceptions)
-						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) Traceback:\n{traceback.format_exc()}")
+					except Exception as e: # Catch all exceptions (except exiting exceptions)
+						if type(e) == SimpleClose: break
+						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 						break # Break from loop
 			else: # If thread shouldn't loop
 				try: self._target(*self._args, **self._kwargs) # Call function with args and kwargs
-				except Exception: _codes.LogCode(_codes.Threading.SINGLE_THREAD_ERROR, f"({self._internalThread}) Traceback:\n{traceback.format_exc()}")
+				except Exception as e:
+					if type(e) != SimpleClose:
+						_codes.LogCode(_codes.Threading.SINGLE_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 		finally: # Always execute
 			self.stop() # Mark thread as stopped
 			del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs

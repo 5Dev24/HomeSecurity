@@ -11,8 +11,8 @@ class Networkable:
 		self._threads = {}
 		self._connections = {}
 		self.socket = BluetoothSocket(RFCOMM)
-		self.socket_thread = self.spawn_thread("Accepting", self._accept, True).start()
 		self.socket_is_ready = False
+		self.socket_thread = self.spawn_thread("Accepting", self._accept, True).start()
 
 	def connect(self):
 		while True:
