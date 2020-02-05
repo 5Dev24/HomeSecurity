@@ -90,7 +90,5 @@ chmod +x "$StartFile"
 # Start start.sh
 $StartFile --install -mac \'$DeviceMAC\' -server $ServerInstall
 
-read -p "Buffer"
-
 # Restart system
 reboot
