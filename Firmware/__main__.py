@@ -9,7 +9,7 @@ import src.logging as _logging
 import src.file as _file
 from hashlib import sha256
 
-#atexit.register(_logging.Finalize)
+atexit.register(_logging.Finalize)
 
 def main():
 	parser.parse(sys.argv[1:])
