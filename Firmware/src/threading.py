@@ -73,11 +73,13 @@ class SimpleThread:
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
 				if self._internalThread is thread_object:
+					print("Smiting down a thread")
 					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
 					if response > 1:
+						print("OH NO!")
 						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
 						raise SystemError("PyThreadState_SetAsyncExc failed")
-		if self._running is not None: self._running = False # Set that thread isn't running
+		self._running = False # Set that thread isn't running
 		return self # Return self
 
 	def __del__(self):
@@ -100,7 +102,7 @@ class SimpleThread:
 				while self._running and self.is_registered: # While the thread is running
 					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
 					except Exception as e: # Catch all exceptions (except exiting exceptions)
-						if type(e) == SimpleClose: break
+						if type(e) == SimpleClose: return
 						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 						break # Break from loop
 			else: # If thread shouldn't loop
