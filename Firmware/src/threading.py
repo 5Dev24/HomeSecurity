@@ -67,7 +67,7 @@ class SimpleThread:
 			self._running
 		except: return self
 		if self._internalThread is not None:
-			print("Internal:", self._internalThread)
+			print("Internal:", self._internalThread, "Call:", self._target.__name__)
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
 				if self._internalThread is thread_object:
