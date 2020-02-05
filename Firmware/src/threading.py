@@ -6,6 +6,7 @@ def HoldMain():
 	while not not len(SimpleThread.__threads__):
 		for thread in SimpleThread.__threads__:
 			thread.join(5, True)
+	SimpleThread.ReleaseThreads()
 
 class SimpleClose(Exception): pass
 
@@ -46,8 +47,6 @@ class SimpleThread:
 		import random
 		self._id = random.randint(-100000, 100000)
 		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
-		self._internalThread._set_ident()
-		print("Spawned thread:", self._internalThread.ident, "Internal:", self._internalThread, "Call:", target.__name__)
 		self._target = target # Save target
 		self._args = args # Save args
 		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
@@ -69,14 +68,11 @@ class SimpleThread:
 			self._running
 		except: return self
 		if self._internalThread is not None:
-			print("Internal:", self._internalThread, "Call:", self._target.__name__)
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
 				if self._internalThread is thread_object:
-					print("Smiting down a thread")
 					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
 					if response > 1:
-						print("OH NO!")
 						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
 						raise SystemError("PyThreadState_SetAsyncExc failed")
 		self._running = False # Set that thread isn't running
