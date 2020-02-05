@@ -133,6 +133,7 @@ def Prints():
 	while not LoggingPrintQueue.empty():
 		if sys.stdout.writable and not sys.stdout.closed:
 			sys.stdout.write(LoggingPrintQueue.get().raw_colored + "\n")
+		else: return
 
 # Threading for queues
 LoggingSaveThread = _threading.SimpleThread(Save, True).start()
