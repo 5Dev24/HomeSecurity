@@ -6,7 +6,7 @@ def HoldMain():
 	while not not len(SimpleThread.__threads__):
 		for thread in SimpleThread.__threads__:
 			thread.join(5, True)
-	SimpleThread.ReleaseThreads()
+	SimpleThread.__stop__ = True
 
 class SimpleClose(Exception): pass
 
@@ -20,11 +20,13 @@ class SimpleThread:
 	"""
 
 	__threads__ = []
+	__stop__ = False
 
 	@staticmethod
 	def ReleaseThreads():
 		for thread in SimpleThread.__threads__:
 			thread.stop()
+		SimpleThread.__stop__ = True
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
 		"""
@@ -95,13 +97,13 @@ class SimpleThread:
 		"""
 		try: # Try-except to always delete isntance of the internal thread, args, and kwargs
 			if self._loop: # If thread should loop
-				while self._running and self.is_registered: # While the thread is running
+				while self._running and self.is_registered and not SimpleThread.__stop__: # While the thread is running
 					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
 					except Exception as e: # Catch all exceptions (except exiting exceptions)
 						if type(e) == SimpleClose: return
 						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 						break # Break from loop
-			else: # If thread shouldn't loop
+			elif self._running and self.is_registered and not SimpleThread.__stop__: # If thread shouldn't loop
 				try: self._target(*self._args, **self._kwargs) # Call function with args and kwargs
 				except Exception as e:
 					if type(e) != SimpleClose:
