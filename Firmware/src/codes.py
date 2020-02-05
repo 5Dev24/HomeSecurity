@@ -1,10 +1,9 @@
 # All exit codes
 
 import sys
-from . import logging as _logging
-from .networking import threading as _threading
+from . import logging as _logging, threading as _threading
 
-class Code(): pass
+class Code(): pass # Parent to get all subclasses from
 
 class SystemReserved(Code): # 2 ^ 1
 	SUCESS = 0 # Sucess
@@ -20,12 +19,12 @@ class Reserved(Code): # 2 ^ 3
 	FORCE_TERMINATE = 7 # Something caused the main thread to stop waiting on all other threads to exit
 
 class Installation(Code): # 2 ^ 4
-	SUCCESS = 9           # Install was successful
-	SAME_ID_AND_TYPE = 10 # Device was already set up under the same id and as the same system type
-	SAME_ID = 11          # Device was already set up under the same id
-	INVALID_ID = 12       # An invalid device id was specified
-	INVALID_SERVER = 13   # An invalid server setting was set
-	HASNT_BEEN = 14       # This device hasn't been installed yet
+	SUCCESS = 9            # Install was successful
+	SAME_MAC_AND_TYPE = 10 # Device was already set up under the same id and as the same system type
+	SAME_MAC = 11          # Device was already set up under the same id
+	INVALID_MAC = 12       # An invalid device id was specified
+	INVALID_SERVER = 13    # An invalid server setting was set
+	HASNT_BEEN = 14        # This device hasn't been installed yet
 
 class Parsing(Code): # 2 ^ 5
 	SUCCESS = 17                        # Args were set (without error)
@@ -41,7 +40,7 @@ class Parsing(Code): # 2 ^ 5
 class Networking(Code): # 2 ^ 6
 	UNABLE_TO_REACH = 33         # An address was unreachable
 	FAILED_TO_CREATE_SOCKET = 34 # A socket was unable to be opened
-	PATCH_DECODE_FAIL = 35       # A packet wasn't able to be decoded into the regular format
+	PACKET_DECODE_FAIL = 35      # A packet wasn't able to be decoded into the regular format
 
 class Threading(Code): # 2 ^ 7
 	LOOPING_THREAD_ERROR = 65 # An error was thrown in a looping thread
@@ -52,12 +51,14 @@ def Exit(code: int = None, info: str = None, log: bool = False):
 	if code is None or type(code) != int or code < 0 or code > 128:
 		sys.exit(Reserved.INVALID_CODE)
 
-	trace = _build_trace(code)
-	msg = " with no message"
-	if info is not None and type(info) == str and len(info):
-		msg = " with message: " + info
-	msg = "Terminating on " + trace + msg
-	_logging.Log(_logging.LogType.Exit, msg).post()
+	if log:
+		trace = _build_trace(code)
+		msg = " with no message"
+		if info is not None and type(info) == str and len(info):
+			msg = " with message: " + info
+		msg = "Terminating on " + trace + msg
+		_logging.Log(_logging.LogType.Exit, msg).post()
+
 	_threading.SimpleThread.ReleaseThreads()
 	sys.exit(code)
 
@@ -88,5 +89,5 @@ def _build_trace(code: int = -1):
 
 	varName, varValue, varClass = _find_code(code)
 	if varName is not None:
-		return (_parent_trace(varClass) + "." + varName + "~" + str(varValue)).lower()
+		return (_parent_trace(varClass) + "." + varName + "-" + str(varValue)).lower()
 	return "invalid"

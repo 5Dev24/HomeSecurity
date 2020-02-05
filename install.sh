@@ -76,7 +76,7 @@ systemctl daemon-reload
 systemctl enable ISM-2019-2020.service
 
 # Get new device id
-read -p "Device ID: " DeviceID
+DeviceMAC="$(cat /sys/class/net/eth0/address)"
 
 # Delete old data folder
 rm -rf "$DataFolder"
@@ -88,7 +88,9 @@ mkdir "$DataFolder"
 chmod +x "$StartFile"
 
 # Start start.sh
-/bin/bash "$StartFile --install -id '$DeviceID' -server $ServerInstall"
+$StartFile --install -mac \'$DeviceMAC\' -server $ServerInstall
+
+read -p "Buffer"
 
 # Restart system
 reboot

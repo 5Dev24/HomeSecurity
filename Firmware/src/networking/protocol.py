@@ -22,6 +22,10 @@ class ProtocolHandler:
 		"""
 		self._instanceOfOwner = selfInstance # Save owner
 
+	def isBroadcastIPPacket(self, packet: str = None):
+		if type(packet) != str or not _packet.Packet.isValidPacket(packet): return False
+		return _packet.Packet.fromString(packet)._protocol == 0
+
 	def incomingPacket(self, packet: str = None, sentBy: str = None):
 		"""
 		Handles incoming packets

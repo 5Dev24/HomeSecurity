@@ -3,8 +3,8 @@ from datetime import datetime
 from .file import LogFormat, FileSystem, File
 from colorama import init, Fore, Back, Style
 from queue import Queue
-from .networking.threading import SimpleThread
-import time
+from . import threading as _threading
+import time, sys
 
 def Now(): return datetime.now()
 def Time(): return Now().strftime("%H:%H:%S")
@@ -41,9 +41,7 @@ class Log:
 
 	@staticmethod
 	def LogFile():
-		f = File.GetOrCreate(FileSystem, "logs")
-		print("Logs got:", f)
-		return f
+		return File.GetOrCreate(FileSystem, "logs")
 
 	@staticmethod
 	def Logs():
@@ -131,11 +129,13 @@ def Save():
 
 def Prints():
 	while not LoggingPrintQueue.empty():
-		print(LoggingPrintQueue.get().raw_colored)
+		if sys.stdout.writable and not sys.stdout.closed:
+			sys.stdout.write(LoggingPrintQueue.get().raw_colored + "\n")
+		else: return
 
 # Threading for queues
-LoggingSaveThread = SimpleThread(Save, True).start()
-LoggingPrintThread = SimpleThread(Prints, True).start()
+LoggingSaveThread = _threading.SimpleThread(Save, True).start()
+LoggingPrintThread = _threading.SimpleThread(Prints, True).start()
 
 if __name__ != "__main__":
 	init()

@@ -1,1 +1,1 @@
-__all__ = ["networkables", "packet", "protocol", "threading", "util"]
+__all__ = ["networkables", "packet", "protocol", "util"]

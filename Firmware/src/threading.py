@@ -1,11 +1,14 @@
-import traceback
-from threading import Thread, current_thread, main_thread
-from .. import codes as _codes
+import traceback, ctypes
+from threading import Thread, current_thread, main_thread, _active
+from . import codes as _codes
 
 def HoldMain():
 	while not not len(SimpleThread.__threads__):
 		for thread in SimpleThread.__threads__:
 			thread.join(5, True)
+	SimpleThread.__stop__ = True
+
+class SimpleClose(Exception): pass
 
 class SimpleThread:
 	"""
@@ -17,11 +20,13 @@ class SimpleThread:
 	"""
 
 	__threads__ = []
+	__stop__ = False
 
 	@staticmethod
 	def ReleaseThreads():
 		for thread in SimpleThread.__threads__:
 			thread.stop()
+		SimpleThread.__stop__ = True
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
 		"""
@@ -41,8 +46,9 @@ class SimpleThread:
 			_loop (bool): If the thread should loop
 			_running (bool): If the thread is running currently
 		"""
+		import random
+		self._id = random.randint(-100000, 100000)
 		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
-		self._internalThread.daemon = True
 		self._target = target # Save target
 		self._args = args # Save args
 		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
@@ -57,15 +63,30 @@ class SimpleThread:
 		Returns:
 			SimpleThread: self
 		"""
-		if self._internalThread  and not self._internalThread._tstate_lock: # If thread isn't locked
-			self._internalThread._stop() # Stop thread
-		if self._running: self._running = False # Set that thread isn't running
-		self.__del__() # Call del to remove from threads list
+		if not self._running: return
+		self.__del__()
+		try:
+			self._internalThread
+			self._running
+		except: return self
+		if self._internalThread is not None:
+			# Credit to liuw (https://gist.github.com/liuw/2407154)
+			for thread_id, thread_object in _active.items():
+				if self._internalThread is thread_object:
+					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
+					if response > 1:
+						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
+						raise SystemError("PyThreadState_SetAsyncExc failed")
+		self._running = False # Set that thread isn't running
 		return self # Return self
 
 	def __del__(self):
-		if self in SimpleThread.__threads__:
+		if self.is_registered:
 			SimpleThread.__threads__.remove(self)
+
+	@property
+	def is_registered(self):
+		return self in SimpleThread.__threads__
 
 	def _internal(self):
 		"""
@@ -76,17 +97,23 @@ class SimpleThread:
 		"""
 		try: # Try-except to always delete isntance of the internal thread, args, and kwargs
 			if self._loop: # If thread should loop
-				while self._running: # While the thread is running
+				while self._running and self.is_registered and not SimpleThread.__stop__: # While the thread is running
 					try: self._target(*self._args, **self._kwargs) # Try to call the function with the args and kwargs
-					except Exception: # Catch all exceptions (except exiting exceptions)
-						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) Traceback:\n{traceback.format_exc()}")
+					except Exception as e: # Catch all exceptions (except exiting exceptions)
+						if type(e) == SimpleClose: return
+						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 						break # Break from loop
-			else: # If thread shouldn't loop
+			elif self._running and self.is_registered and not SimpleThread.__stop__: # If thread shouldn't loop
 				try: self._target(*self._args, **self._kwargs) # Call function with args and kwargs
-				except Exception: _codes.LogCode(_codes.Threading.SINGLE_THREAD_ERROR, f"({self._internalThread}) Traceback:\n{traceback.format_exc()}")
+				except Exception as e:
+					if type(e) != SimpleClose:
+						_codes.LogCode(_codes.Threading.SINGLE_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 		finally: # Always execute
-			self.stop() # Mark thread as stopped
-			del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs
+			try:
+				self.stop() # Mark thread as stopped
+			except SimpleClose: pass
+			finally:
+				del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs
 
 	def start(self):
 		"""
