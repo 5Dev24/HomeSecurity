@@ -46,7 +46,6 @@ class SimpleThread:
 		import random
 		self._id = random.randint(-100000, 100000)
 		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
-		print("Internal:", self._internalThread.ident)
 		self._target = target # Save target
 		self._args = args # Save args
 		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
@@ -68,6 +67,7 @@ class SimpleThread:
 			self._running
 		except: return self
 		if self._internalThread is not None:
+			print("Internal:", self._internalThread)
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
 				if self._internalThread is thread_object:
