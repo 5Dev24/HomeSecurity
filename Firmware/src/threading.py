@@ -46,6 +46,8 @@ class SimpleThread:
 		import random
 		self._id = random.randint(-100000, 100000)
 		self._internalThread = Thread(target=self._internal) # Create internal thread, does actual threading
+		self._internalThread._set_ident()
+		print("Spawned thread:", self._internalThread.ident, "Internal:", self._internalThread, "Call:", self._target.__name__)
 		self._target = target # Save target
 		self._args = args # Save args
 		self._kwargs = {} if kwargs is None else kwargs # If kwargs is None then added empty kwargs, else save kwargs
