@@ -109,8 +109,11 @@ class SimpleThread:
 					if type(e) != SimpleClose:
 						_codes.LogCode(_codes.Threading.SINGLE_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 		finally: # Always execute
-			self.stop() # Mark thread as stopped
-			del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs
+			try:
+				self.stop() # Mark thread as stopped
+			except SimpleClose: pass
+			finally:
+				del self._internalThread, self._args, self._kwargs # Destroy instances of the internal thread, args, and kwargs
 
 	def start(self):
 		"""
