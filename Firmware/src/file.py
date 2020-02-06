@@ -173,8 +173,10 @@ class FileFormat:
 
 	def write(self, file: File = None):
 		assert (self.data is not None) and (type(self.data) is list), "Data was not a list"
+
 		id = str(type(self).ID)[:1]
 		checkSum = FileFormat.generateCheckSum(self.data)
+
 		if not len(self.data):
 			return file.obj(AccessMode.Overwrite, File.write, (), {"line": f"{id}{checkSum}"})
 		else:
@@ -186,12 +188,13 @@ class LogFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
+		from . import logging as _logging
+
 		logs = []
-		from .logging import Log
 		for line in lines:
-			l = Log.fromString(line)
-			if l is not None and type(l) == Log:
-				logs.append(l)
+			l = _logging.Log.fromString(line)
+			if l is not None and type(l) == _logging.Log: logs.append(l)
+
 		return LogFormat(logs)
 
 	ID = 1
@@ -203,18 +206,18 @@ class SessionIDFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		return SessionIDFormat(Utils.listToDictionary(lines))
+		return SessionIDFormat(Utils.list_to_dictionary(lines))
 
 	ID = 2
 
 	def __init__(self, ids: dict = None):
-		super().__init__(Utils.dictionaryToList(ids))
+		super().__init__(Utils.dictionary_to_list(ids))
 
 	@property
 	def ids(self):
 		_ids = self.data
 		if _ids is None or type(_ids) != list: return {}
-		_ids = Utils.listToDictionary(_ids)
+		_ids = Utils.list_to_dictionary(_ids)
 		if _ids is None: return {}
 		return _ids
 
@@ -222,17 +225,17 @@ class DeviceInfoFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		return DeviceInfoFormat(Utils.listToDictionary(lines))
+		return DeviceInfoFormat(Utils.list_to_dictionary(lines))
 
 	ID = 3
 
 	def __init__(self, info: dict = None):
-		super().__init__(Utils.dictionaryToList(info))
+		super().__init__(Utils.dictionary_to_list(info))
 
 	def get(self, name):
 		_data = self.data
 		if _data is None or type(_data) != list: return None
-		_data = Utils.listToDictionary(_data)
+		_data = Utils.list_to_dictionary(_data)
 		if _data is not None and type(_data) == dict and name in _data:
 			return _data[name]
 		return None
@@ -240,7 +243,7 @@ class DeviceInfoFormat(FileFormat):
 class Utils:
 
 	@staticmethod
-	def dictionaryToList(dictionary: dict = None):
+	def dictionary_to_list(dictionary: dict = None):
 		if dictionary is None or type(dictionary) != dict: return None
 		out = []
 		for key, value in dictionary.items():
@@ -248,7 +251,7 @@ class Utils:
 		return out
 
 	@staticmethod
-	def listToDictionary(_list: list = None):
+	def list_to_dictionary(_list: list = None):
 		if _list is None or type(_list) != list: return None
 		out = {}
 		for element in _list:
@@ -277,7 +280,7 @@ class Folder:
 
 	@staticmethod
 	def GetOrCreate(parent: object = None, folder: str = ""):
-		if Folder.Exists(parent, folder): return Folder(folder)
+		if Folder.Exists(parent, folder): return Folder((parent.directory if parent is not None else "") + folder)
 		else: return Folder.Create(parent, folder)
 
 	def __init__(self, directory: str = ""):

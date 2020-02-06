@@ -20,7 +20,7 @@ def main():
 	if debug:
 		_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!", False).post()
 
-	if code == _codes.Parsing.SUCCESS:
+	if code == _codes.Parsing.SUCCESS or code == _codes.Parsing.NO_EXECUTION:
 
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
@@ -55,7 +55,7 @@ def _readDeviceInfo():
 		devcServer = deviceInfoFormat.get("server")
 		devcID = deviceInfoFormat.get("id")
 		if devcServer is not None: devcServer = devcServer.lower() == "true"
-		if devcID is None or devcServer is None or devcID is None:
+		if devcMAC is None or devcServer is None or devcID is None:
 			return (False,)
 		else:
 			return (True, devcMAC, devcServer, devcID)
@@ -133,7 +133,8 @@ if __name__ == "__main__":
 		},
 		"vars" : {
 			"optional": { "debug": "boolean", "server": "boolean", "mac": "string", "force": "boolean" }
-		}
+		},
+		"none": lambda: None
 	})
 
 	main()

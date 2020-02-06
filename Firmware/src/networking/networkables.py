@@ -1,8 +1,10 @@
 import re, time
 from bluetooth import BluetoothSocket, RFCOMM, PORT_ANY
 from . import protocol as _protocol, util as _util
-from .. import threading as _threading, logging as _logging
+from .. import threading as _threading, logging as _logging, file as _file
 from threading import current_thread, main_thread
+
+SessionsFolder = _file.FileSystem.GetOrCreate(_file.FileSystem, "sessions")
 
 class Networkable:
 
@@ -10,9 +12,10 @@ class Networkable:
 		self.is_server = is_server
 		self._threads = {}
 		self._connections = {}
+		self._sessions = {}
 		self.socket = BluetoothSocket(RFCOMM)
 		self.socket_is_ready = False
-		self.socket_thread = self.spawn_thread("Accepting", self._accept, True).start()
+		self.socket_thread = self.spawn_thread("Accepting", self._accept, True)
 
 	def connect(self):
 		while True:
@@ -21,6 +24,7 @@ class Networkable:
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket)
 				self.socket_is_ready = True
+				self.socket_thread.start()
 				return
 			else:
 				found = _util.FindValidDevices(False)
@@ -30,6 +34,7 @@ class Networkable:
 							host, port = address.split("~")
 							self.socket.connect((host, int(port)))
 							self.socket_is_ready = True
+							self.socket_thread.start()
 							return
 						except Exception:
 							continue
@@ -39,7 +44,8 @@ class Networkable:
 	def _accept(self):
 		if not self.socket_is_ready or self.socket is None: return
 		sock, addr = self.socket.accept()
-		self.save_connection(sock, addr)
+		if not self.has_connection(addr):
+			self.save_connection(sock, addr)
 
 	def recieve(self, connection: object = None, data: str = None):
 		raise NotImplementedError()
@@ -64,7 +70,7 @@ class Networkable:
 
 	def save_connection(self, socket: BluetoothSocket = None, addr: str = None):
 		if self._connections is None: return
-		c = ConnectionHandle(addr, socket, self.recieve)
+		c = Connection(addr, socket, self.recieve)
 		self._connections[addr] = c
 		return c
 
@@ -78,6 +84,18 @@ class Networkable:
 
 	def has_connection(self, addr: str = None):
 		return addr in self._connections and not self._connections[addr].closed
+
+	def get_sessions(self, addr: str = None):
+		if _file.File.Exists(SessionsFolder, addr):
+			file_format = _file.SessionIDFormat.loadFrom(_file.File.GetOrCreate(SessionsFolder, addr))
+			return file_format.ids
+		else:
+			return None
+
+	def save_sessions(self, addr: str = None, sessions: dict = None):
+		file_format = _file.SessionIDFormat(sessions)
+		file_dest = _file.File.GetOrCreate(SessionsFolder, addr)
+		file_format.write(file_dest)
 
 	def __del__(self):
 		# Close connections and threads
@@ -103,13 +121,14 @@ class Client(Networkable):
 	def __init__(self):
 		super().__init__(False)
 
-class ConnectionHandle:
+class Connection:
 
 	def __init__(self, addr: str = None, socket: BluetoothSocket = None, invoke = None):
 		self.addr = addr
 		self.socket = socket
 		self._invoke = invoke
 		self._receivingThread = _threading.SimpleThread(self._receive, True).start()
+		self._auth_level = -1
 
 	@property
 	def closed(self):
