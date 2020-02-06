@@ -22,7 +22,7 @@ def FindValidDevices(clients: bool = True):
 	services = {}
 	for service in services_found:
 		if service["name"].startswith("ISM-" + ("Client" if clients else "Server") + "-"):
-			services[service["host"] + "~" + service["port"]] = service["name"]
+			services[service["host"] + "~" + service["port"]] = service["name"][11:]
 	return services
 
 def AdvertiseService(server: bool = True, socket: BluetoothSocket = None, identifier: str = None):

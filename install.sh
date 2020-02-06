@@ -63,7 +63,7 @@ echo "[Unit]
 Description=ISM-2019-2020
 
 [Service]
-ExecStart=/bin/bash $StartFile -server $ServerInstall
+ExecStart=/bin/bash $StartFile
 
 [Install]
 WantedBy=multi-user.target">> "$ServiceFile"
