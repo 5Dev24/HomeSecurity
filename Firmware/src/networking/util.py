@@ -7,16 +7,6 @@ Characters = string.punctuation + string.digits + string.ascii_letters
 All of the punctuation, digits, and letters of english
 """
 
-class Ports:
-	"""
-	Ports used for sending data
-	"""
-
-	SEND_RECEIVE = 23201 # Normal sending and receiving data
-	"""
-	Port used for sending and receiving data for regular protocols that don't need to be done over broadcasting
-	"""
-
 def DeviceID():
 	return hex(getnode())[2:].upper()
 
