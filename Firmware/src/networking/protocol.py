@@ -112,7 +112,7 @@ class Key_Exchange:
 			_id = self.keys[2].encrypt(_id)
 			return (Method.DATA, _id)
 
-		elif step == 5 and selfkeys[0] is not None and self.keys[2] is not None and self.newSessionIDS[0] is None:
+		elif step == 5 and self.keys[0] is not None and self.keys[2] is not None and self.newSessionIDS[0] is None:
 			_id = self.session(self.keys[0])
 			self.newSessionIDS[0] = _id
 			_id = self.keys[2].encrypt(_id)
