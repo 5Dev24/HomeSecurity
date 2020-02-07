@@ -13,6 +13,7 @@ class Networkable:
 		self._threads = {}
 		self._connections = {}
 		self._sessions = {}
+		self.protoHandler = _protocol.ProtocolHandler(self)
 		self.socket = BluetoothSocket(RFCOMM)
 		self.socket_is_ready = False
 		self.socket_thread = self.spawn_thread("Accepting", self._accept, True)
@@ -116,10 +117,17 @@ class Server(Networkable):
 	def __init__(self):
 		super().__init__(True)
 
+	def recieve(self, connection: object = None, data: str = None):
+		if connection is None or data is None: return
+
+
 class Client(Networkable):
 
 	def __init__(self):
 		super().__init__(False)
+
+	def recieve(self, connection: object = None, data: str = None):
+		if connection is None or data is None: return
 
 class Connection:
 

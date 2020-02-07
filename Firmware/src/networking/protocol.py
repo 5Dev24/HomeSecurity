@@ -1,8 +1,45 @@
-from . import packet as _packet
+from . import packet as _packet, networkables as _networkables
 from .. import crypt as _crypt
 from enum import Enum
 from hashlib import sha256
 import random
+
+class ProtocolHandler:
+
+	def __init__(self, parent: _networkables.Networkable = None):
+		self.protocols = {}
+		self.parent = parent
+
+	def got_packet(self, packet: str = None, connection: _networkables.Connection = None):
+		"""
+		-3 = Passed packet was invalid
+		-2 = Passed connection was invalid
+		-1 = No method exists to handle the packet's protocol
+		 0 = Failed internal checks, nothing was done
+		 1 = All went fine but protocol is still active
+		 2 = All went fine and protocol finished
+		"""
+		if packet is None or type(packet) != str or not len(packet): return -3
+		if connection is None or type(connection) != _networkables.Connection or connection.closed: return -2
+		return self._handle_packet(_packet.Packet.fromString(packet), connection)
+
+	def _handle_packet(self, packet: _packet.Packet = None, connection: _networkables.Connection = None):
+		if packet is None or type(packet) != _packet.Packet: return -3
+		if connection is None or type(connection) != _networkables.Connection or connection.closed: return -2
+
+	def get_protocols(self, connection: _networkables.Connection = None):
+		if connection is None or type(connection) != _networkables.Connection or connection.closed: return None
+		if connection.addr in self.protocols: return self.protocols[connection.addr]
+		return None
+
+	def get_specific_protocol(self, connection: _networkables.Connection = None, protocolClass = None):
+		protos = self.get_protocols(connection)
+		if protos is not None:
+			pass
+		else: return None
+
+	def spawn_protocol(self, connection: _networkables.Connection = None, timeout: int = None, protocolClass = None, args = tuple(), kwargs = {}):
+		proto = protocolClass(*args, **kwargs)
 
 class Protocol:
 
@@ -14,10 +51,11 @@ class Protocol:
 
 	def __init__(self, step: int = 1):
 		self.current_step = step
+		self._finished = False
 
-	def take_step(self, previous_packet: _packet.Packet = None, fromClient: bool = True):
-		if previous_packet is not None:
-			if not self.is_proper_response(previous_packet, fromClient):
+	def take_step(self, received_packet: _packet.Packet = None, fromClient: bool = True):
+		if received_packet is not None:
+			if not self.is_proper_response(received_packet, fromClient):
 				return False
 		self.do_step(self.current_step)
 		self.current_step += 1
@@ -85,7 +123,7 @@ class Key_Exchange:
 		random.shuffle(shuffle)
 		return "".join([random.choice(shuffle) for i in range(64)])
 
-	def aesKey(self):
+	def aes_key(self):
 		return sha256((
 			self.keys[0].pubKey() +
 			self.keys[1].privKey() +
@@ -94,7 +132,7 @@ class Key_Exchange:
 
 	def aes(self):
 		if self.keys[2] is None:
-			self.keys[2] = _crypt.AES(self.aesKey())
+			self.keys[2] = _crypt.AES(self.aes_key())
 
 	def step(self, step: int = 1):
 		if step == 1:
