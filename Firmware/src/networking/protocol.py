@@ -90,7 +90,7 @@ class Key_Exchange:
 			self.keys[0].pubKey() +
 			self.keys[1].privKey() +
 			self.previousSessionIDs[0] +
-			self.previousSessionIDs[1]).encode("utf=9")).digest()
+			self.previousSessionIDs[1]).encode("utf-8")).digest()
 
 	def aes(self):
 		if self.keys[2] is None:
