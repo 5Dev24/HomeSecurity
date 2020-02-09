@@ -1,6 +1,6 @@
 import re, time
 from bluetooth import BluetoothSocket, RFCOMM, PORT_ANY
-from . import protocol as _protocol, util as _util
+from . import protocol as _protocol, util as _util, packet as _packet
 from .. import threading as _threading, logging as _logging, file as _file
 from threading import current_thread, main_thread
 
@@ -24,9 +24,7 @@ class Networkable:
 				self.socket.bind(("", PORT_ANY))
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket)
-				self.socket_is_ready = True
-				self.socket_thread.start()
-				return
+				break
 			else:
 				found = _util.FindValidDevices(False)
 				if len(found) >= 1:
@@ -34,13 +32,14 @@ class Networkable:
 						try:
 							host, port = address.split("~")
 							self.socket.connect((host, int(port)))
-							self.socket_is_ready = True
-							self.socket_thread.start()
-							return
-						except Exception:
-							continue
+							break
+						except Exception as e:
+							if type(e) == _threading.SimpleClose: return
+							else: continue
 				else:
 					_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
+		self.socket_is_ready = True
+		self.socket_thread.start()
 
 	def _accept(self):
 		if not self.socket_is_ready or self.socket is None: return
@@ -49,7 +48,14 @@ class Networkable:
 			self.save_connection(sock, addr)
 
 	def recieve(self, connection: object = None, data: str = None):
-		raise NotImplementedError()
+		output = self.protoHandler.got_packet(data, connection)
+		code = output[0]
+		if code == 1 or code == 2:
+			pkt = _packet.Packet(output[1], type(output[2]), output[2].current_step)
+			for data in output[2:]:
+				pkt.addData(data)
+			pkt.send(connection)
+		else: pass
 
 	def spawn_thread(self, name: str = None, target = None, loop: bool = False, args = tuple(), kwargs = {}):
 		if self._threads is None: return None
@@ -113,21 +119,10 @@ class Networkable:
 		self.socket = None
 
 class Server(Networkable):
-
-	def __init__(self):
-		super().__init__(True)
-
-	def recieve(self, connection: object = None, data: str = None):
-		if connection is None or data is None: return
-
+	def __init__(self): super().__init__(True)
 
 class Client(Networkable):
-
-	def __init__(self):
-		super().__init__(False)
-
-	def recieve(self, connection: object = None, data: str = None):
-		if connection is None or data is None: return
+	def __init__(self): super().__init__(False)
 
 class Connection:
 
@@ -160,9 +155,12 @@ class Connection:
 		return True
 
 	def close(self):
-		self._receivingThread.stop()
-		self.socket.close()
-		self.socket = None
+		if self._receivingThread is not None:
+			self._receivingThread.stop()
+			self._receivingThread = None
+		if self.socket is not None:
+			self.socket.close()
+			self.socket = None
 
 	def __del__(self):
 		self.close()

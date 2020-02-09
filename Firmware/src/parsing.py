@@ -1,7 +1,7 @@
 import sys as S
 from .logging import Log, LogType
 from .codes import Parsing, Threading
-from . import networking.threading as _threading
+from . import threading as _threading
 
 class ArgumentParser:
 
@@ -65,7 +65,7 @@ class ArgumentParser:
 					if (not (type(var[0]) is str)) or (not (type(var[1]) is str)): continue
 					if not isValidArgValueType(var[1]): continue
 					varObj = [var[1], self._getDefaultValueForA(var[1])[0], "optional", False]
-					self._vars["all"][var[0]] = varOb
+					self._vars["all"][var[0]] = varObj
 					self._vars["optional"][var[0]] = varObj
 
 		if handled[5]: output["none"] = handler["none"]
@@ -143,7 +143,7 @@ class ArgumentParser:
 				for typePossible in self._vars["all"][var][0].split("|"):
 					if typePossible == typeToCheck: return True
 			elif mode == 1:
-				for typePossible in self._vars["all"][var][0].split("|")
+				for typePossible in self._vars["all"][var][0].split("|"):
 					allTypes = self._getDefaultValueForA(typePossible)
 					for _type in allTypes:
 						if type(typeToCheck) == type(_type): return True

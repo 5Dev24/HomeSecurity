@@ -67,8 +67,8 @@ class Packet:
 		self._packetString = data
 		return self
 
-	def send(self, socket: BluetoothSocket = None):
-		if self._packetString is None or len(self._packetString) == 0: return
+	def send(self, connection: object = None):
 		self.build()
-		socket.send(self._packetString)
+		if self._packetString is None or len(self._packetString) == 0: return self
+		connection.respond(self._packetString)
 		return self
