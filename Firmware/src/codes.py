@@ -46,6 +46,7 @@ class Threading(Code): # 2 ^ 7
 	LOOPING_THREAD_ERROR = 65 # An error was thrown in a looping thread
 	SINGLE_THREAD_ERROR = 66  # An error was thrown in a single-call thread
 	JOIN_FROM_MAIN = 67       # An attempt was made to join a thread from the main thread
+	FORCE_CLOSE = 68         # SimpleClose was thrown so function should just return this because of the error was caught by mistake
 
 def Exit(code: int = None, info: str = None, log: bool = False):
 	if code is None or type(code) != int or code < 0 or code > 128:

@@ -9,19 +9,19 @@ from hashlib import sha256
 from string import ascii_uppercase as Alph
 
 CONSTS = {
-	"SALT_LENGTH": 2**8, # Length of salt
-	"AES_KEY_SIZE": 144, # Length of AES keys
-	"KEY_ITERNATIONS": 2**16, # Times to use SHA256 on key
-	"CLIENT_RSA": 2**10, # RSA key length for clients
-	"SERVER_RSA": 2**11, # RSA key length for servers
-	"RSA_PRIME": 101 # RSA prime
+	"SALT_LENGTH": 2 ** 8,
+	"AES_KEY_SIZE": 144,
+	"KEY_ITERNATIONS": 2 ** 16,
+	"CLIENT_RSA": 2 ** 10,
+	"SERVER_RSA": 2 ** 11,
+	"RSA_PRIME": 101
 }
 
 def FormatBytes(obj: object = None):
-	if type(obj) == bytes: # If object type is bytearray
-		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj]) # Create a 2 letter pair to represent the value of the byte and return list of them merged
-	elif type(obj) == str: # If object type is string
-		return bytes([Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)]) # Return a list of bytes after decoding letters into bytes
+	if type(obj) == bytes:
+		return "".join([Alph[i // 26] + Alph[i % 26] for i in obj])
+	elif type(obj) == str:
+		return bytes([Alph.find(obj[i]) * 26 + Alph.find(obj[i+1]) for i in range(0, len(obj), 2)])
 
 class AES:
 
