@@ -38,7 +38,7 @@ class ProtocolHandler:
 			initStep = proto.Steps[0]
 
 			if initStep.is_server_step == self.parent.is_server:
-				proto = self.spawn_protocol(connection, None, proto, (2,))
+				proto = self.spawn_protocol(connection, None, proto, (1,))
 				return proto.take_step(packet, self.parent.is_server)
 			else: return (-6,)
 		else:
@@ -109,7 +109,8 @@ class Protocol:
 			if not self.is_proper_response(received_packet, fromClient):
 				return False
 		try:
-			return self.do_step(self.current_step)
+			self.current_step += 1
+			return self.do_step()
 		finally:
 			self.current_step += 1
 
@@ -153,7 +154,7 @@ class Step:
 	def valid_method(self, method: Method = Method.NONE):
 		return method in self.methods
 
-class Key_Exchange:
+class Key_Exchange(Protocol):
 
 	Steps = [
 		Step(False, Method.QUERY),

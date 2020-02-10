@@ -202,42 +202,45 @@ class LogFormat(FileFormat):
 	def __init__(self, logs: list = None):
 		super().__init__(logs)
 
-class SessionIDFormat(FileFormat):
+class DictionaryFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		return SessionIDFormat(Utils.list_to_dictionary(lines))
+		return cls(Utils.list_to_dictionary(lines))
 
 	ID = 2
 
-	def __init__(self, ids: dict = None):
-		super().__init__(Utils.dictionary_to_list(ids))
+	def __init__(self, data: object = None):
+		if data is not None:
+			if type(data) == dict: super().__init__(Utils.dictionary_to_list(data))
+			elif type(data) == list: super().__init__(data)
+			else: super().__init__([])
+		else: super().__init__([])
 
-	@property
-	def ids(self):
-		_ids = self.data
-		if _ids is None or type(_ids) != list: return {}
-		_ids = Utils.list_to_dictionary(_ids)
-		if _ids is None: return {}
-		return _ids
+	def get_data(self):
+		data = self.data
+		if data is None or type(data) != list: return None
+		data = Utils.list_to_dictionary(data)
+		if data is None or type(data) != dict: return None
+		return data
 
-class DeviceInfoFormat(FileFormat):
-
-	@classmethod
-	def internalLoad(cls, header: str = None, lines: list = None):
-		return DeviceInfoFormat(Utils.list_to_dictionary(lines))
+class SessionIDFormat(DictionaryFormat):
 
 	ID = 3
 
-	def __init__(self, info: dict = None):
-		super().__init__(Utils.dictionary_to_list(info))
+	@property
+	def ids(self):
+		data = super().get_data()
+		if data is not None: return data
+		return {}
 
-	def get(self, name):
-		_data = self.data
-		if _data is None or type(_data) != list: return None
-		_data = Utils.list_to_dictionary(_data)
-		if _data is not None and type(_data) == dict and name in _data:
-			return _data[name]
+class DeviceInfoFormat(DictionaryFormat):
+
+	ID = 4
+
+	def read(self, name):
+		data = super().get_data()
+		if data is not None and name in data: return data[name]
 		return None
 
 class Utils:
