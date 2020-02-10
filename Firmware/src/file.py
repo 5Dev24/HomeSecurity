@@ -243,6 +243,24 @@ class DeviceInfoFormat(DictionaryFormat):
 		if data is not None and name in data: return data[name]
 		return None
 
+class ConfigFormat(DictionaryFormat):
+
+	ID = 5
+
+	@property
+	def expected_clients(self):
+		data = super().get_data()
+		if data is not None and "expected_clients" in data: return int(data["expected_clients"])
+		return 0
+
+	def set_expected_clients(self, amount: int = 0):
+		data = super().get_data()
+		if "expected_clients" in data:
+			data["expected_clients"] = amount
+			self.data = Utils.dictionary_to_list(data)
+			return True
+		return False
+
 class Utils:
 
 	@staticmethod

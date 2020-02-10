@@ -94,7 +94,8 @@ def install():
 		deviceMac, devcServer = deviceData[1:3]
 
 		if deviceMac == deviceMac and devcServer == serverInstall:
-			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (deviceMac, "server" if devcServer else "client")).post()
+			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (deviceMac, "server" if devcServer else "client"), False).post()
+			_logging.Log(_logging.LogType.Install, "Device was already setup as %s as a %s" % (deviceMac, "server" if devcServer else "client"))
 			_codes.Exit(_codes.Installation.SAME_MAC_AND_TYPE)
 
 		elif deviceMac == deviceMac:
