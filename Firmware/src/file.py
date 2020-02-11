@@ -3,6 +3,7 @@ from os.path import abspath, isfile, isdir, join, sep, dirname
 from hashlib import sha256
 from enum import Enum
 from copy import deepcopy
+from pickle import dumps, loads
 
 FILE_EXTENSION = ".dat"
 
@@ -247,39 +248,45 @@ class ConfigFormat(DictionaryFormat):
 
 	ID = 5
 
-	@property
-	def expected_clients(self):
-		data = super().get_data()
-		if data is not None and "expected_clients" in data: return int(data["expected_clients"])
-		return 0
+	def __getattribute__(self, name):
+		data = object.__getattribute__(self, "data")
+		if data is None: data = [Utils.pickle({})]
+		data = Utils.unpickle(data[0])
 
-	def set_expected_clients(self, amount: int = 0):
-		data = super().get_data()
-		if "expected_clients" in data:
-			data["expected_clients"] = amount
-			self.data = Utils.dictionary_to_list(data)
-			return True
-		return False
+		if name == "data": return data
+		elif name in data:
+			return data[name]
+
+		return None
+
+	def __setattr__(self, name, value):
+		if name == "data":
+			object.__setattr__(self, name, [Utils.pickle(value)])
+			return
+
+		data = object.__getattribute__(self, "data")
+		print("data 1", data)
+		if data is None:
+			data = [Utils.pickle({})]
+			print("data 2", data)
+		data = Utils.unpickle(data[0])
+		print("data 3", data)
+	
+		if data is not None: data[name] = value
+		else: data = {name:value}
+
+		object.__setattr__(self, "data", [Utils.pickle(data)])
+		
 
 class Utils:
 
 	@staticmethod
-	def dictionary_to_list(dictionary: dict = None):
-		if dictionary is None or type(dictionary) != dict: return None
-		out = []
-		for key, value in dictionary.items():
-			out.append(f"{key}:{value}")
-		return out
+	def pickle(obj: object = None):
+		return dumps(obj)
 
 	@staticmethod
-	def list_to_dictionary(_list: list = None):
-		if _list is None or type(_list) != list: return None
-		out = {}
-		for element in _list:
-			element = str(element)
-			if element.count(":") >= 1:
-				out[element.split(":")[0]] = ":".join(element.split(":")[1:])
-		return out
+	def unpickle(obj: bytes = None):
+		return loads(obj)
 
 class Folder:
 
