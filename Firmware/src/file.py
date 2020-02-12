@@ -3,7 +3,6 @@ from os.path import abspath, isfile, isdir, join, sep, dirname
 from hashlib import sha256
 from enum import Enum
 from copy import deepcopy
-from pickle import dumps, loads
 
 FILE_EXTENSION = ".dat"
 
@@ -250,43 +249,48 @@ class ConfigFormat(DictionaryFormat):
 
 	def __getattribute__(self, name):
 		data = object.__getattribute__(self, "data")
-		if data is None: data = [Utils.pickle({})]
-		data = Utils.unpickle(data[0])
+		if data is None: data = []
 
 		if name == "data": return data
-		elif name in data:
+		data = Utils.list_to_dictionary(data)
+		if name in data:
 			return data[name]
 
-		return None
+		super_get = None
+		try: super_get = object.__getattribute__(self, name)
+		except AttributeError as e:
+			raise AttributeError(f"Config didn't contain \"{name}\"") from e
+		else: return super_get
 
 	def __setattr__(self, name, value):
 		if name == "data":
-			object.__setattr__(self, name, [Utils.pickle(value)])
+			object.__setattr__(self, name, value)
 			return
 
-		data = object.__getattribute__(self, "data")
-		print("data 1", data)
-		if data is None:
-			data = [Utils.pickle({})]
-			print("data 2", data)
-		data = Utils.unpickle(data[0])
-		print("data 3", data)
-	
-		if data is not None: data[name] = value
-		else: data = {name:value}
-
-		object.__setattr__(self, "data", [Utils.pickle(data)])
-		
+		data = Utils.list_to_dictionary(object.__getattribute__(self, "data"))
+		data[name] = value
+		object.__setattr__(self, "data", Utils.dictionary_to_list(data))
 
 class Utils:
 
 	@staticmethod
-	def pickle(obj: object = None):
-		return dumps(obj)
+	def dictionary_to_list(dictionary: dict = None):
+		if dictionary is None or type(dictionary) != dict: return None
+		out = []
+		for key, value in dictionary.items():
+			if type(value) in (int, str, float, bool):
+				out.append(f"{key}:{value}")
+		return out
 
 	@staticmethod
-	def unpickle(obj: bytes = None):
-		return loads(obj)
+	def list_to_dictionary(_list: list = None):
+		if _list is None or type(_list) != list: return None
+		out = {}
+		for element in _list:
+			if type(element) == str and element.count(":") >= 1:
+				out[element.split(":")[0]] = ":".join(element.split(":")[1:])
+
+		return out
 
 class Folder:
 
