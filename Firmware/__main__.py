@@ -28,17 +28,21 @@ def main():
 			builtins.ISSERVER = devcServer
 			import  src.networking.networkables as _networkables
 
+			net = None
 			if devcServer:
-				_networkables.Server().connect(devcID)
+				net = _networkables.Server()
 			else:
-				_networkables.Client().connect()
-			_logging.Log(_logging.LogType.Info, "Device has been started").post()
+				net = _networkables.Client()
+			_logging.Log(_logging.LogType.Info, "Device has been started, connecting").post()
+			_threading.SimpleThread(net.connect, False, (devcID,), {}).start()
 		else:
 			_logging.Log(_logging.LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").post()
 			_codes.Exit(_codes.Installation.HASNT_BEEN)
 	else:
 		_codes.Exit(code, "Unable to start")
 	try:
+		if debug:
+			_logging.Log(_logging.LogType.Debug, "Holding main thread", False).post()
 		_threading.HoldMain()
 	finally:
 		if len(_threading.SimpleThread.__threads__) == 0:
