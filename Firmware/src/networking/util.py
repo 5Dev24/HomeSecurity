@@ -19,6 +19,7 @@ def CleanedDeviceID():
 
 def FindValidDevices(clients: bool = True):
 	services_found = find_service()
+	print("FOUND:", services_found)
 	services = {}
 	for service in services_found:
 		print("SERVICE:", service)
