@@ -31,7 +31,7 @@ def FindValidDevices(clients: bool = True):
 		_logging.Log(_logging.LogType.Debug, "Service: " + str(service), False).post()
 		if service["name"] is None or service["host"] is None or service["port"] is None: continue
 		if service["name"].startswith("ISM-" + ("Client" if clients else "Server") + "-"):
-			services[service["host"] + "~" + service["port"]] = service["name"][11:]
+			services[str(service["host"]) + "~" + str(service["port"])] = service["name"][11:]
 	return services
 
 def AdvertiseService(server: bool = True, socket: BluetoothSocket = None, identifier: str = None):
