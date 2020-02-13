@@ -3,7 +3,7 @@ from threading import Thread, current_thread, main_thread, _active
 from . import codes as _codes
 
 def HoldMain():
-	while not not len(SimpleThread.__threads__):
+	while len(SimpleThread.__threads__) > 0:
 		for thread in SimpleThread.__threads__:
 			thread.join(5, True)
 	SimpleThread.__stop__ = True

@@ -52,6 +52,7 @@ class Networkable:
 
 	def _accept(self):
 		if not self.socket_is_ready or self.socket is None: return
+		_logging.Log(_logging.LogType.Debug, "Accepting new connections", False).post()
 		sock, addr = self.socket.accept()
 		_logging.Log(_logging.LogType.Debug, "Got a connection from " + str(addr), False).post()
 		if not self.has_connection(addr):
