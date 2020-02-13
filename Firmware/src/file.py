@@ -256,14 +256,15 @@ class ConfigFormat(DictionaryFormat):
 		if name in data:
 			return data[name]
 
-		super_get = None
-		try: super_get = object.__getattribute__(self, name)
+		try:
+			return object.__getattribute__(self, name)
 		except AttributeError as e:
-			raise AttributeError(f"Config didn't contain \"{name}\"") from e
-		else: return super_get
+			if len(e.args) > 0:
+				e.args = (f"Config didn't contain \"{name}\"",) + e.args[1:]
+			raise
 
 	def __setattr__(self, name, value):
-		if name == "data":
+		if name == "data" or (str(name).startswith("__") and str(name).endswith("__")):
 			object.__setattr__(self, name, value)
 			return
 
