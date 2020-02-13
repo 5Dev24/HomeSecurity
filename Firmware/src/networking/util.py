@@ -26,7 +26,7 @@ def FindValidDevices(clients: bool = True):
 	return services
 
 def AdvertiseService(server: bool = True, socket: BluetoothSocket = None, identifier: str = None):
-	advertise_service(socket, "ISM-" + ("Server" if server else "Client") + "-" + identifier, service_classes=[SERIAL_PORT_CLASS], profiles=[SERIAL_PORT_PROFILE])
+	advertise_service(socket, "ISM-" + ("Server" if server else "Client") + "-" + str(identifier), service_classes=[SERIAL_PORT_CLASS], profiles=[SERIAL_PORT_PROFILE])
 
 def StopAdvertising(socket: BluetoothSocket = None):
 	stop_advertising(socket)

@@ -29,7 +29,7 @@ def main():
 			import  src.networking.networkables as _networkables
 
 			if devcServer:
-				_networkables.Server().connect()
+				_networkables.Server().connect(devcID)
 			else:
 				_networkables.Client().connect()
 			_logging.Log(_logging.LogType.Info, "Device has been started").post()

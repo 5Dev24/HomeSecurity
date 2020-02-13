@@ -18,13 +18,13 @@ class Networkable:
 		self.socket_is_ready = False
 		self.socket_thread = self.spawn_thread("Accepting", self._accept, True)
 
-	def connect(self):
+	def connect(self, id: str = ""):
 		while True:
 			if self.is_server:
 				_logging.Log(_logging.LogType.Debug, "Advertising!", False).post()
 				self.socket.bind(("", PORT_ANY))
 				self.socket.listen(8)
-				_util.AdvertiseService(True, self.socket)
+				_util.AdvertiseService(True, self.socket, id)
 				_logging.Log(_logging.LogType.Debug, "Advertising called!", False).post()
 				break
 			else:
