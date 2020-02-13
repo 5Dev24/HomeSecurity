@@ -21,6 +21,7 @@ def FindValidDevices(clients: bool = True):
 	services_found = find_service()
 	services = {}
 	for service in services_found:
+		print("SERVICE:", service)
 		if service["name"].startswith("ISM-" + ("Client" if clients else "Server") + "-"):
 			services[service["host"] + "~" + service["port"]] = service["name"][11:]
 	return services
