@@ -76,7 +76,7 @@ systemctl daemon-reload
 systemctl enable ISM-2019-2020.service
 
 # Get new device id
-DeviceMAC="$(cat /sys/class/net/eth0/address)"
+DeviceMAC="$(cat /sys/class/net/wlan0/address)"
 
 # Delete old data folder
 rm -rf "$DataFolder"
