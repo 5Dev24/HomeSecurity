@@ -1,5 +1,6 @@
 from uuid import getnode
 from bluetooth import find_service, advertise_service, stop_advertising, BluetoothSocket, SERIAL_PORT_CLASS, SERIAL_PORT_PROFILE
+from .. import logging as _logging
 import string
 
 Characters = string.punctuation + string.digits + string.ascii_letters
