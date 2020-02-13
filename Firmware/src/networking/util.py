@@ -19,10 +19,10 @@ def CleanedDeviceID():
 
 def FindValidDevices(clients: bool = True):
 	services_found = find_service()
-	print("FOUND:", services_found)
+	_logging.Log(_logging.LogType.Debug, "Found: " + str(services_found), False).post()
 	services = {}
 	for service in services_found:
-		print("SERVICE:", service)
+		_logging.Log(_logging.LogType.Debug, "Service: " + str(service), False).post()
 		if service["name"].startswith("ISM-" + ("Client" if clients else "Server") + "-"):
 			services[service["host"] + "~" + service["port"]] = service["name"][11:]
 	return services
