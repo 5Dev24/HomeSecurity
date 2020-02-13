@@ -21,16 +21,21 @@ class Networkable:
 	def connect(self):
 		while True:
 			if self.is_server:
+				_logging.Log(_logging.LogType.Debug, "Advertising!", False).post()
 				self.socket.bind(("", PORT_ANY))
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket)
+				_logging.Log(_logging.LogType.Debug, "Advertising called!", False).post()
 				break
 			else:
+				_logging.Log(_logging.LogType.Debug, "Looking for valid devices", False).post()
 				found = _util.FindValidDevices(False)
+				_logging.Log(_logging.LogType.Debug, "Found " + str(len(found)) + " devices", False).post()
 				if len(found) >= 1:
 					for address in found.keys():
 						try:
 							host, port = address.split("~")
+							_logging.Log(_logging.LogType.Debug, "Got host \"" + str(host) + "\" and port \"" + str(port) + '"', False).post()
 							self.socket.connect((host, int(port)))
 							break
 						except Exception as e:
@@ -38,8 +43,10 @@ class Networkable:
 							else: continue
 				else:
 					_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
+		_logging.Log(_logging.LogType.Debug, "Socket is ready!", False).post()
 		self.socket_is_ready = True
 		self.socket_thread.start()
+		_logging.Log(_logging.LogType.Debug, "Socket thread has been started!", False).post()
 
 	def _accept(self):
 		if not self.socket_is_ready or self.socket is None: return

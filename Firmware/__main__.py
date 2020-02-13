@@ -29,9 +29,9 @@ def main():
 			import  src.networking.networkables as _networkables
 
 			if devcServer:
-				_networkables.Server()
+				_networkables.Server().connect()
 			else:
-				_networkables.Client()
+				_networkables.Client().connect()
 			_logging.Log(_logging.LogType.Info, "Device has been started").post()
 		else:
 			_logging.Log(_logging.LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").post()
