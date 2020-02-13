@@ -64,10 +64,19 @@ Description=ISM-2019-2020
 ExecStart=/bin/bash $StartFile
 
 [Install]
-WantedBy=multi-user.target"> "$ServiceFile"
+WantedBy=multi-user.target">> "$ServiceFile"
 
 # Set permissions back
 chmod 644 "$ServiceFile"
+
+# Start Bluez patch
+if [ -f "$BluetoothService" ]
+then
+	chmod 777 "$BluetoothService"
+	rm -f "$BluetoothService"
+fi
+
+chmod 777 "$BluetoothService"
 
 echo "[Unit]
 Description=Bluetooth service
@@ -89,7 +98,10 @@ ProtectSystem=full
 [Install]
 WantedBy=bluetooth.target
 Alias=dbus-org.bluez.service
-"> "$BluetoothService"
+">> "$BluetoothService"
+
+chmod 644 "$BluetoothService"
+# End Bluez Patch
 
 # Tell systemd to start during boot
 systemctl daemon-reload
