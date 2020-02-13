@@ -54,6 +54,7 @@ then
 fi
 
 # Allow all access
+touch "$ServiceFile"
 chmod 777 "$ServiceFile"
 
 # Write to file
@@ -76,6 +77,7 @@ then
 	rm -f "$BluetoothService"
 fi
 
+touch "$BluetoothService"
 chmod 777 "$BluetoothService"
 
 echo "[Unit]
