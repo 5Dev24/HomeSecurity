@@ -19,14 +19,15 @@ class Networkable:
 		self.socket_thread = self.spawn_thread("Accepting", self._accept, True)
 
 	def connect(self, id: str = ""):
-		while True:
+		done = False
+		while not done:
 			if self.is_server:
 				_logging.Log(_logging.LogType.Debug, "Advertising!", False).post()
 				self.socket.bind(("", PORT_ANY))
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket, id)
 				_logging.Log(_logging.LogType.Debug, "Advertising called!", False).post()
-				break
+				done = True
 			else:
 				_logging.Log(_logging.LogType.Debug, "Looking for valid devices", False).post()
 				found = _util.FindValidDevices(False)
@@ -37,6 +38,7 @@ class Networkable:
 							host, port = address.split("~")
 							_logging.Log(_logging.LogType.Debug, "Got host \"" + str(host) + "\" and port \"" + str(port) + '"', False).post()
 							self.socket.connect((host, int(port)))
+							done = True
 							break
 						except Exception as e:
 							if type(e) == _threading.SimpleClose: return
