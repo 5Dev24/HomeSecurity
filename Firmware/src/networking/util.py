@@ -19,7 +19,12 @@ def CleanedDeviceID():
 	return "".join([c for c in DeviceID() if c.lower() in "0123456789abcdef"]).upper()
 
 def FindValidDevices(clients: bool = True):
-	services_found = find_service()
+	services_found = []
+	_logging.Log(_logging.LogType.Debug, "Searching for services", False).post()
+	try:
+		services_found = find_service()
+	except Exception as e:
+		_logging.Log(_logging.LogType.Debug, type(e).__name__ + " raised", False).post()
 	_logging.Log(_logging.LogType.Debug, "Found: " + str(services_found), False).post()
 	services = {}
 	for service in services_found:
