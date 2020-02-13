@@ -11,6 +11,7 @@ fi
 ServiceFile=/lib/systemd/system/ISM-2019-2020.service
 StartFile=/home/pi/ISM-2019-2020/Firmware/start.sh
 DataFolder=/home/pi/ISM-2019-2020/Firmware/data/
+BluetoothService=/lib/systemd/system/bluetooth.service
 
 # Update system
 apt update
@@ -52,9 +53,6 @@ then
 	rm -f "$ServiceFile"
 fi
 
-# Create service file
-touch "$ServiceFile"
-
 # Allow all access
 chmod 777 "$ServiceFile"
 
@@ -66,13 +64,36 @@ Description=ISM-2019-2020
 ExecStart=/bin/bash $StartFile
 
 [Install]
-WantedBy=multi-user.target">> "$ServiceFile"
+WantedBy=multi-user.target"> "$ServiceFile"
 
 # Set permissions back
 chmod 644 "$ServiceFile"
 
+echo "[Unit]
+Description=Bluetooth service
+Documentation=man:bluetooth(8)
+ConditionPathIsDirectory=/sys/class/bluetooth
+
+[Service]
+Type=dbus
+BusName=org.bluez
+ExecStart=/usr/lib/bluetooth/bluetooth --compat --noplugin=sap
+NotifyAccess=main
+#WatchdogSec=10
+#Restart=on-failure
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+LimitNPROC=1
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=bluetooth.target
+Alias=dbus-org.bluez.service
+"> "$BluetoothService"
+
 # Tell systemd to start during boot
 systemctl daemon-reload
+systemctl restart bluetooth.service
 systemctl enable ISM-2019-2020.service
 
 # Get new device id
