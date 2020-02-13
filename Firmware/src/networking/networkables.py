@@ -16,7 +16,6 @@ class Networkable:
 		self.protoHandler = _protocol.ProtocolHandler(self)
 		self.socket = BluetoothSocket(RFCOMM)
 		self.socket_is_ready = False
-		self.socket_thread = self.spawn_thread("Accepting", self._accept, True)
 
 	def connect(self, id: str = ""):
 		done = False
@@ -47,16 +46,10 @@ class Networkable:
 					_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
 		_logging.Log(_logging.LogType.Debug, "Socket is ready!", False).post()
 		self.socket_is_ready = True
-		self.socket_thread.start()
-		_logging.Log(_logging.LogType.Debug, "Socket thread has been started!", False).post()
+		self.socket_invoke()
+		_logging.Log(_logging.LogType.Debug, "Socket has been started!", False).post()
 
-	def _accept(self):
-		if not self.socket_is_ready or self.socket is None: return
-		_logging.Log(_logging.LogType.Debug, "Accepting new connections", False).post()
-		sock, addr = self.socket.accept()
-		_logging.Log(_logging.LogType.Debug, "Got a connection from " + str(addr), False).post()
-		if not self.has_connection(addr):
-			self.save_connection(sock, addr)
+	def socket_invoke(self): raise NotImplementedError()
 
 	def recieve(self, connection: object = None, data: str = None):
 		output = self.protoHandler.got_packet(data, connection)
@@ -75,6 +68,13 @@ class Networkable:
 		self._threads[name] = T
 		return T
 
+	def start_thread(self, name: str = None):
+		thread = self.get_thread(name)
+		if thread is not None:
+			thread.start()
+			return True
+		return False
+
 	def close_thread(self, name: str = None):
 		if self.thread_exists(name) and self._threads is not None:
 			T = self._threads[name]
@@ -85,6 +85,11 @@ class Networkable:
 
 	def thread_exists(self, name: str = None):
 		return name in self._threads
+
+	def get_thread(self, name: str = None):
+		if self.thread_exists(name):
+			return self._threads[name]
+		return None
 
 	def save_connection(self, socket: BluetoothSocket = None, addr: str = None):
 		if self._connections is None: return
@@ -110,6 +115,9 @@ class Networkable:
 		else:
 			return None
 
+	def add_to_session(self, addr: str = None, session: str = ""):
+		pass
+
 	def save_sessions(self, addr: str = None, sessions: dict = None):
 		file_format = _file.SessionIDFormat(sessions)
 		file_dest = _file.File.GetOrCreate(SessionsFolder, addr)
@@ -130,10 +138,26 @@ class Networkable:
 		self.socket = None
 
 class Server(Networkable):
-	def __init__(self): super().__init__(True)
+	def __init__(self):
+		super().__init__(True)
+		self.spawn_thread("Accepting", self.accept, True, tuple(), {})
+
+	def socket_invoke(self):
+		self.start_thread("Accepting")
+
+	def accept(self):
+		if not self.socket_is_ready or self.socket is None: return
+		_logging.Log(_logging.LogType.Debug, "Accepting new connections", False).post()
+		sock, addr = self.socket.accept()
+		_logging.Log(_logging.LogType.Debug, "Got a connection from " + str(addr), False).post()
+		if not self.has_connection(addr):
+			self.save_connection(sock, addr)
 
 class Client(Networkable):
+
 	def __init__(self): super().__init__(False)
+
+	def socket_invoke(self): pass
 
 class Connection:
 

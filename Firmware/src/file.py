@@ -234,6 +234,13 @@ class SessionIDFormat(DictionaryFormat):
 		if data is not None: return data
 		return {}
 
+	def add_id(self, id):
+		data = super().get_data()
+		if data is not None:
+			data.append(id)
+			return True
+		return False
+
 class DeviceInfoFormat(DictionaryFormat):
 
 	ID = 4
