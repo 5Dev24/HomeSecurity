@@ -72,7 +72,7 @@ class File:
 	def write(file: object = None, line: str = None):
 		if file is None or line is None or type(line) is not str: return False
 		if line.count("\n") > 1: return False
-		written = file.write(line)
+		written = file.write(str(line))
 		return written == len(line)
 
 	@staticmethod
@@ -84,12 +84,12 @@ class File:
 	def writelines(file: object = None, lines: list = None):
 		if file is None or lines is None or type(lines) is not list: return False
 		if not len(lines): return True
-		ret = False
+		ret = 0
 		for i in range(len(lines)):
 			line = str(lines[i])
 			if i == len(lines) - 1: ret += File.write(file, line)
 			else: ret += File.writeln(file, line)
-		return not not ret
+		return ret == len(lines)
 
 	def __init__(self, file: str = ""):
 		if not file.endswith(FILE_EXTENSION): file += FILE_EXTENSION
@@ -224,31 +224,67 @@ class DictionaryFormat(FileFormat):
 		if data is None or type(data) != dict: return None
 		return data
 
-class SessionIDFormat(DictionaryFormat):
+class SessionFormat(FileFormat):
+
+	@classmethod
+	def internalLoad(cls, header: str = None, lines: list = None):
+		from networking import networkables as _networkables
+
+		sessions = []
+		for line in lines:
+			s = _networkables.Session.fromString(line)
+			if s is not None and type(s) == _networkables.Session: sessions.append(s)
+
+		return SessionFormat(sessions)
 
 	ID = 3
 
 	@property
-	def ids(self):
-		data = super().get_data()
-		if data is not None: return data
-		return {}
+	def sessions(self):
+		return self.data[:]
 
-	def add_id(self, id):
-		data = super().get_data()
-		if data is not None:
-			data.append(id)
-			return True
-		return False
+	def add_session(self, session = None):
+		from networking import networkables as _networkables
+		if type(session) == _networkables.Session:
+			self.data.append(session)
 
-class DeviceInfoFormat(DictionaryFormat):
+class DeviceInfoFormat(DictionaryFormat): # Like a config but set values
 
 	ID = 4
 
-	def read(self, name):
+	@property
+	def mac(self):
+		return self._get("mac")
+
+	@property
+	def server(self):
+		return self._get("server")
+
+	@property
+	def id(self):
+		return self._get("server")
+
+	def set_mac(self, value: str = ""):
+		self._set("mac", value)
+
+	def set_server(self, value: bool = False):
+		self._set("server", value)
+
+	def set_id(self, value: str = ""):
+		self._set("id", value)
+
+	def _get(self, name):
 		data = super().get_data()
 		if data is not None and name in data: return data[name]
 		return None
+
+	def _set(self, name, value):
+		data = super().get_data()
+		if data is not None:
+			data[name] = value
+			self.data = Utils.dictionary_to_list(data)
+		else:
+			self.data = Utils.dictionary_to_list({name:value})
 
 class ConfigFormat(DictionaryFormat):
 
@@ -296,8 +332,29 @@ class Utils:
 		out = {}
 		for element in _list:
 			if type(element) == str and element.count(":") >= 1:
-				out[element.split(":")[0]] = ":".join(element.split(":")[1:])
+				element_split = element.split(":")
+				element_name = element_split[0]
+				element_value = ":".join(element_split[1:])
 
+				try:
+					element_value = bool(element_value)
+					out[element_name] = element_value
+					continue
+				except ValueError: pass
+
+				try:
+					element_value = int(element_value)
+					out[element_name] = element_value
+					continue
+				except ValueError: pass
+
+				try:
+					element_value = float(element_value)
+					out[element_name] = element_value
+					continue
+				except ValueError: pass
+
+				out[element_name] = element_value
 		return out
 
 class Folder:

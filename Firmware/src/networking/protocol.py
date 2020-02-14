@@ -1,8 +1,6 @@
 from . import packet as _packet
-from .. import crypt as _crypt, logging as _logging
+from .. import logging as _logging
 from enum import Enum
-from hashlib import sha256
-import random
 
 class ProtocolHandler:
 
@@ -32,7 +30,7 @@ class ProtocolHandler:
 		proto = self.get_specific_protocol(connection, packet._protocol)
 
 		if proto is None:
-			proto = Protocol.ProtoFromInt(packet._protocol)
+			proto = Protocol.protocolFromID(packet._protocol)
 			if proto is None: return (-4,)
 			if proto.Steps is None or not len(proto.Steps): return (-5,)
 			initStep = proto.Steps[0]
@@ -84,19 +82,17 @@ class ProtocolHandler:
 
 class Protocol:
 
-	@staticmethod
-	def AllProtocolsNames():
-		return [_cls.__name__.upper() for _cls in Protocol.__subclasses__()]
+	Protocols = []
 
 	@staticmethod
-	def AllProtocols():
-		return Protocol.__subclasses__()
+	def registerProtocol(proto = None):
+		if type(proto) == type and Protocol in proto.__bases__ and not (proto in Protocol.Protocols) and proto.Steps is not None:
+			Protocol.Protocols += (proto,)
 
 	@staticmethod
-	def ProtoFromInt(id: int = 0):
-		protos = Protocol.AllProtocols()
-		if id < 0 or id > len(protos) - 1: return None
-		return protos[id]
+	def protocolFromID(id: int = 0):
+		if id < 0 or id > len(Protocol.Protocols) - 1: return None
+		return Protocol.Protocols[id]
 
 	Steps = None
 
@@ -153,60 +149,3 @@ class Step:
 
 	def valid_method(self, method: Method = Method.NONE):
 		return method in self.methods
-
-class Key_Exchange(Protocol):
-
-	Steps = [
-		Step(False, Method.QUERY),
-		Step(True, Method.RESPONSE),
-		Step(False, Method.DATA),
-		Step(True, Method.DATA),
-		Step(False, Method.DATA)
-	]
-
-	def __init__(self, step: int = 1):
-		super().__init__(step)
-		self.keys = [None] * 3
-		self.previousSessionIDs = [None] * 2
-		self.newSessionIDS = [None] * 2
-
-	def session(self, key: _crypt.RSA = None):
-		randSeed = sha256((key.privKey() + str(random.randint(-(2 ** 64), 2 ** 64))).encode("utf-8")).digest().hex()
-		shuffle = [c for c in randSeed]
-		random.shuffle(shuffle)
-		return "".join([random.choice(shuffle) for i in range(64)])
-
-	def aes_key(self):
-		return sha256((
-			self.keys[0].pubKey() +
-			self.keys[1].privKey() +
-			self.previousSessionIDs[0] +
-			self.previousSessionIDs[1]).encode("utf-8")).digest()
-
-	def aes(self):
-		if self.keys[2] is None:
-			self.keys[2] = _crypt.AES(self.aes_key())
-
-	def do_step(self):
-		if self.current_step == 1:
-			return (1, Method.QUERY, self)
-
-		elif self.current_step == 2 and self.keys[0] is not None:
-			return (1, Method.RESPONSE, self, self.keys[0].pubKey())
-
-		elif self.current_step == 3 and self.keys[0] is not None and self.keys[1] is not None:
-			return (1, Method.DATA, self, self.keys[0].encrypt(self.keys[1].privKey()))
-
-		elif self.current_step == 4 and self.keys[1] is not None and self.keys[2] is not None and self.newSessionIDS[1] is None:
-			_id = self.session(self.keys[1])
-			self.newSessionIDS[1] = _id
-			_id = self.keys[2].encrypt(_id)
-			return (2, Method.DATA, self, _id)
-
-		elif self.current_step == 5 and self.keys[0] is not None and self.keys[2] is not None and self.newSessionIDS[0] is None:
-			_id = self.session(self.keys[0])
-			self.newSessionIDS[0] = _id
-			_id = self.keys[2].encrypt(_id)
-			return (2, Method.DATA, self, _id)
-
-		return (0, Method.NONE,)

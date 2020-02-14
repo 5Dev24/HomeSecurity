@@ -1,5 +1,5 @@
 import re, time
-from bluetooth import BluetoothSocket, RFCOMM, PORT_ANY
+from bluetooth import BluetoothSocket, RFCOMM, PORT_ANY, BluetoothError
 from . import protocol as _protocol, util as _util, packet as _packet
 from .. import threading as _threading, logging as _logging, file as _file
 from threading import current_thread, main_thread
@@ -19,6 +19,8 @@ class Networkable:
 
 	def connect(self, id: str = ""):
 		done = False
+		client_rate_limit = 5
+		client_time = time.time()
 		while not done:
 			if self.is_server:
 				_logging.Log(_logging.LogType.Debug, "Advertising!", False).post()
@@ -43,7 +45,9 @@ class Networkable:
 							if type(e) == _threading.SimpleClose: return
 							else: continue
 				else:
-					_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
+					if client_time + client_rate_limit < time.time():
+						client_time = time.time()
+						_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
 		_logging.Log(_logging.LogType.Debug, "Socket is ready!", False).post()
 		self.socket_is_ready = True
 		self.socket_invoke()
@@ -113,10 +117,10 @@ class Networkable:
 			file_format = _file.SessionIDFormat.loadFrom(_file.File.GetOrCreate(SessionsFolder, addr))
 			return file_format.ids
 		else:
-			return None
+			return {}
 
-	def add_to_session(self, addr: str = None, session: str = ""):
-		pass
+	def add_session(self, addr: str = None, session: str = ""):
+		
 
 	def save_sessions(self, addr: str = None, sessions: dict = None):
 		file_format = _file.SessionIDFormat(sessions)
@@ -177,12 +181,19 @@ class Connection:
 			self._receivingThread.stop()
 			return
 
-		data = self.socket.recv(4096)
+		data = None
+		try:
+			data = self.socket.recv(4096)
+		except BluetoothError:
+			self.close()
+			return
+
 		if self.closed:
 			self._receivingThread.stop()
 			return
 
-		self._invoke(self, data)
+		if data is not None:
+			self._invoke(self, data)
 
 	def respond(self, data: str = None):
 		if self.socket is None or data is None or type(data) != str or not len(data): return False
@@ -199,3 +210,28 @@ class Connection:
 
 	def __del__(self):
 		self.close()
+
+class Session:
+
+	@staticmethod
+	def fromString(session: str = ""):
+		if session.count("~") != 1: return None
+		split = session.split("~")[0]
+		expires = split[0]
+		id = split[1]
+
+		try: expires = int(expires)
+		except ValueError: return None
+
+		return Session(expires, id)
+
+	def __init__(self, expires: int = 0, id: str = ""):
+		self.expires = expires
+		self.id = id
+
+	@property
+	def expired(self):
+		return self.expires < time.time()
+
+	def __str__(self):
+		return str(self.expires) + "~" + self.id
