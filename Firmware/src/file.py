@@ -257,7 +257,7 @@ class DeviceInfoFormat(DictionaryFormat): # Like a config but set values
 
 	@property
 	def id(self):
-		return self._get("server")
+		return self._get("id")
 
 	def set_mac(self, value: str = ""):
 		self._set("mac", value)

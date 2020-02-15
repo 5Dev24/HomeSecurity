@@ -25,10 +25,8 @@ def FindValidDevices(clients: bool = True):
 		services_found = find_service()
 	except Exception as e:
 		_logging.Log(_logging.LogType.Debug, type(e).__name__ + " raised", False).post()
-	_logging.Log(_logging.LogType.Debug, "Found: " + str(services_found), False).post()
 	services = {}
 	for service in services_found:
-		_logging.Log(_logging.LogType.Debug, "Service: " + str(service), False).post()
 		if service["name"] is None or service["host"] is None or service["port"] is None: continue
 		if service["name"].startswith("ISM-" + ("Client" if clients else "Server") + "-"):
 			services[str(service["host"]) + "~" + str(service["port"])] = service["name"][11:]
