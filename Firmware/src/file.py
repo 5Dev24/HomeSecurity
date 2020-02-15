@@ -333,7 +333,7 @@ class Utils:
 
 				try:
 					if element_value.lower() in ("true", "false"):
-						element_value = bool(element_value)
+						element_value = element_value.lower() == "true"
 						out[element_name] = element_value
 						continue
 				except ValueError: pass
