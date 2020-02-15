@@ -332,9 +332,10 @@ class Utils:
 				element_value = ":".join(element_split[1:])
 
 				try:
-					element_value = bool(element_value)
-					out[element_name] = element_value
-					continue
+					if element_value.lower() in ("true", "false"):
+						element_value = bool(element_value)
+						out[element_name] = element_value
+						continue
 				except ValueError: pass
 
 				try:

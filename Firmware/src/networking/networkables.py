@@ -24,7 +24,11 @@ class Networkable:
 		while not done:
 			if self.is_server:
 				_logging.Log(_logging.LogType.Debug, "Advertising!", False).post()
-				self.socket.bind(("", PORT_ANY))
+				try:
+					self.socket.bind(("", PORT_ANY))
+				except OSError:
+					_logging.Log(_logging.LogType.Error, "Unable to find/bind to bluetooth").post()
+					return
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket, id)
 				_logging.Log(_logging.LogType.Debug, "Advertising called!", False).post()
@@ -120,7 +124,7 @@ class Networkable:
 		else:
 			return []
 
-	def add_session(self, addr: str = None, session: Session = ""):
+	def add_session(self, addr: str = None, session: object = ""):
 		sessions = self.get_sessions(addr)
 		sessions.append(session)
 		self.save_sessions(addr, sessions)

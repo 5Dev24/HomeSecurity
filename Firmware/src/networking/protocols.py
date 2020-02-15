@@ -7,8 +7,6 @@ Protocol = _protocol.Protocol
 Step = _protocol.Step
 Method = _protocol.Method
 
-Protocol.registerProtocol(Key_Exchange)
-
 class Key_Exchange(Protocol):
 
 	Steps = [
@@ -65,3 +63,7 @@ class Key_Exchange(Protocol):
 			return (2, Method.DATA, self, _id)
 
 		return (0, Method.NONE,)
+
+# Register all default protocols
+
+Protocol.registerProtocol(Key_Exchange)

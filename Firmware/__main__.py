@@ -1,7 +1,7 @@
 #!usr/bin/python3
 
 import sys, builtins, re, atexit, random
-from .src import parsing as _parsing, codes as _codes, threading as _threading, logging as _logging, file as _file
+import src.parsing as _parsing, src.codes as _codes, src.threading as _threading, src.logging as _logging, src.file as _file
 from hashlib import sha256
 
 atexit.register(_logging.Finalize)
@@ -22,7 +22,7 @@ def main():
 			devcMAC, devcServer, devcID = deviceData[1:]
 			_logging.Log(_logging.LogType.Info, "Device MAC is %s, device is a %s, and device id is %s" % (devcMAC, "server" if devcServer else "client", devcID)).post()
 			builtins.ISSERVER = devcServer
-			from .src.networking import networkables as _networkables
+			import src.networking.networkables as _networkables
 
 			net = None
 			if devcServer:
