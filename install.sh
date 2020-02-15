@@ -60,6 +60,7 @@ chmod 777 "$ServiceFile"
 # Write to file
 echo "[Unit]
 Description=ISM-2019-2020
+After=bluetooth.service bluetooth.target network.target
 
 [Service]
 ExecStart=/bin/bash $StartFile
