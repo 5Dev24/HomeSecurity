@@ -1,6 +1,6 @@
 import re, time
 from bluetooth import BluetoothSocket, RFCOMM, PORT_ANY, BluetoothError
-from . import protocol as _protocol, util as _util, packet as _packet
+from . import protocol as _protocol, util as _util, packet as _packet, protocols as _protocols
 from .. import threading as _threading, logging as _logging, file as _file
 from threading import current_thread, main_thread
 
@@ -12,10 +12,10 @@ class Networkable:
 		self.is_server = is_server
 		self._threads = {}
 		self._connections = {}
-		self._sessions = {}
 		self.protoHandler = _protocol.ProtocolHandler(self)
 		self.socket = BluetoothSocket(RFCOMM)
 		self.socket_is_ready = False
+		self.last_connection = None
 
 	def connect(self, id: str = ""):
 		done = False
@@ -39,6 +39,7 @@ class Networkable:
 							host, port = address.split("~")
 							_logging.Log(_logging.LogType.Debug, "Got host \"" + str(host) + "\" and port \"" + str(port) + '"', False).post()
 							self.socket.connect((host, int(port)))
+							self.last_connection = Connection(host, self.socket, )
 							done = True
 							break
 						except Exception as e:
@@ -115,14 +116,16 @@ class Networkable:
 	def get_sessions(self, addr: str = None):
 		if _file.File.Exists(SessionsFolder, addr):
 			file_format = _file.SessionIDFormat.loadFrom(_file.File.GetOrCreate(SessionsFolder, addr))
-			return file_format.ids
+			return file_format.sessions
 		else:
-			return {}
+			return []
 
-	def add_session(self, addr: str = None, session: str = ""):
-		
+	def add_session(self, addr: str = None, session: Session = ""):
+		sessions = self.get_sessions(addr)
+		sessions.append(session)
+		self.save_sessions(addr, sessions)
 
-	def save_sessions(self, addr: str = None, sessions: dict = None):
+	def save_sessions(self, addr: str = None, sessions: list = None):
 		file_format = _file.SessionIDFormat(sessions)
 		file_dest = _file.File.GetOrCreate(SessionsFolder, addr)
 		file_format.write(file_dest)
@@ -159,9 +162,18 @@ class Server(Networkable):
 
 class Client(Networkable):
 
-	def __init__(self): super().__init__(False)
+	def __init__(self):
+		super().__init__(False)
+		self.spawn_thread("Initial_Contact", self.start_key_exchange, False, tuple(), {})
 
-	def socket_invoke(self): pass
+	def socket_invoke(self):
+		self.start_thread("Initial_Contact")
+
+	def start_key_exchange(self):
+		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange", False).post()
+		proto = self.protoHandler.spawn_protocol(self.last_connection, None, _protocols.Key_Exchange, (0,), {})
+		proto.take_step()
+		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange", False).post()
 
 class Connection:
 

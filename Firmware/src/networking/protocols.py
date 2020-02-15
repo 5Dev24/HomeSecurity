@@ -7,6 +7,8 @@ Protocol = _protocol.Protocol
 Step = _protocol.Step
 Method = _protocol.Method
 
+Protocol.registerProtocol(Key_Exchange)
+
 class Key_Exchange(Protocol):
 
 	Steps = [

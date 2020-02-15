@@ -1,11 +1,7 @@
 #!usr/bin/python3
 
 import sys, builtins, re, atexit, random
-import src.parsing as _parsing
-import src.codes as _codes
-import src.threading as _threading
-import src.logging as _logging
-import src.file as _file
+from .src import parsing as _parsing, codes as _codes, threading as _threading, logging as _logging, file as _file
 from hashlib import sha256
 
 atexit.register(_logging.Finalize)
@@ -26,7 +22,7 @@ def main():
 			devcMAC, devcServer, devcID = deviceData[1:]
 			_logging.Log(_logging.LogType.Info, "Device MAC is %s, device is a %s, and device id is %s" % (devcMAC, "server" if devcServer else "client", devcID)).post()
 			builtins.ISSERVER = devcServer
-			import  src.networking.networkables as _networkables
+			from .src.networking import networkables as _networkables
 
 			net = None
 			if devcServer:
@@ -56,11 +52,11 @@ def _readDeviceInfo():
 		deviceInfoFile = _file.File.GetOrCreate(_file.FileSystem, "deviceinfo.dat")
 		deviceInfoFormat = _file.DeviceInfoFormat.loadFrom(deviceInfoFile)
 
-		devcMAC = deviceInfoFormat.read("mac")
-		devcServer = deviceInfoFormat.read("server")
-		devcID = deviceInfoFormat.read("id")
+		devcMAC = deviceInfoFormat.mac
+		devcServer = deviceInfoFormat.server
+		devcID = deviceInfoFormat.id
 
-		if devcServer is not None: devcServer = devcServer.lower() == "true"
+		if type(devcServer) != bool and devcServer is not None: devcServer = devcServer.lower() == "true"
 		if devcMAC is None or devcServer is None or devcID is None:
 			return (False,)
 		else:
@@ -112,7 +108,12 @@ def install():
 	if shouldInstall or force:
 		_file.File.Delete(_file.FileSystem, "deviceinfo.dat")
 		deviceInfoFile = _file.File.Create(_file.FileSystem, "deviceinfo.dat")
-		deviceInfoFormat = _file.DeviceInfoFormat({"mac": deviceMac, "server": str(serverInstall), "id": _randomID()})
+		deviceInfoFormat = _file.DeviceInfoFormat()
+
+		deviceInfoFormat.set_mac(deviceMac)
+		deviceInfoFormat.set_server(serverInstall)
+		deviceInfoFormat.set_id(_randomID())
+
 		deviceInfoFormat.write(deviceInfoFile)
 		_logging.Log(_logging.LogType.Install, "Device information has been saved").post()
 		_codes.Exit(_codes.Installation.SUCCESS)

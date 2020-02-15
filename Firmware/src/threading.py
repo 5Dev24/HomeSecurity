@@ -22,8 +22,6 @@ class SimpleThread:
 		SimpleThread.__stop__ = True
 
 	def __init__(self, target = None, loop: bool = False, args = tuple(), kwargs = {}):
-		import random
-		self._id = random.randint(-100000, 100000)
 		self._internalThread = Thread(target=self._internal)
 		self._target = target
 		self._args = args

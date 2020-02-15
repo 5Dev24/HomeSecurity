@@ -228,7 +228,7 @@ class SessionFormat(FileFormat):
 
 	@classmethod
 	def internalLoad(cls, header: str = None, lines: list = None):
-		from networking import networkables as _networkables
+		from .networking import networkables as _networkables
 
 		sessions = []
 		for line in lines:
@@ -242,11 +242,6 @@ class SessionFormat(FileFormat):
 	@property
 	def sessions(self):
 		return self.data[:]
-
-	def add_session(self, session = None):
-		from networking import networkables as _networkables
-		if type(session) == _networkables.Session:
-			self.data.append(session)
 
 class DeviceInfoFormat(DictionaryFormat): # Like a config but set values
 

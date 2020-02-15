@@ -68,6 +68,7 @@ class Log:
 	def __init__(self, logType: LogType = LogType.Info, info: str = "", save: bool = True):
 		if logType is None or type(logType) != LogType: logType = LogType.Info
 		if info is None or type(info) != str: info = "No Log Information Passed To Log"
+		if logType == LogType.Debug: save = False
 		self.logType = logType
 		self.raw_info = info
 		# Sanitize input for escape characters
