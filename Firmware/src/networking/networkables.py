@@ -43,7 +43,7 @@ class Networkable:
 							host, port = address.split("~")
 							_logging.Log(_logging.LogType.Debug, "Got host \"" + str(host) + "\" and port \"" + str(port) + '"', False).post()
 							self.socket.connect((host, int(port)))
-							self.last_connection = Connection(host, self.socket, )
+							self.last_connection = self.save_connection(self.socket, host)
 							done = True
 							break
 						except Exception as e:
