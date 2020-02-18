@@ -279,18 +279,34 @@ class ArgumentParser:
 					Log(LogType.Warn, "Invalid command \"--" + argV + "\", use --help to see a list of commands", False).post()
 					return Parsing.NO_COMMAND
 
-			elif remaining() >= 2 and argT == "var":
+			elif argT == "var":
 				if doesVariableExist(argV):
-					tmpT, tmpV = argData(pairIndex + 1)
-					if self._isValidValueFor(0, argV, tmpT):
-						self._vars["all"][argV][1] = tmpV
-						self._vars["all"][argV][3] = True
-						pairIndex += 2
-						continue
-					else:
-						if self._doLog:
-							Log(LogType.Warn, "Invalid value type for variable " + argV + ",\nexpected " + self._vars["all"][argV][0] + " but got " + tmpT, False).post()
-						return Parsing.INVALID_TYPE
+					if remaining() == 1:
+						if self._isValidValueFor(0, argV, "boolean"):
+							self._vars["all"][argV][1] = True
+							self._vars["all"][argV][3] = True
+							pairIndex += 1
+							continue
+						else:
+							if self._doLog:
+								Log(LogType.Warn, "Unvalid syntax for variable " + argV + ",\nassumed boolean due to no value being specifided", False).post()
+							return Parsing.INVALID_TYPE
+					elif remaining() >= 2:
+						tmpT, tmpV = argData(pairIndex + 1)
+						if self._isValidValueFor(0, argV, tmpT):
+							self._vars["all"][argV][1] = tmpV
+							self._vars["all"][argV][3] = True
+							pairIndex += 2
+							continue
+						elif self._isValidValueFor(0, argV, "boolean"):
+							self._vars["all"][argV][1] = True
+							self._vars["all"][argV][3] = True
+							pairIndex += 1
+							continue
+						else:
+							if self._doLog:
+								Log(LogType.Warn, "Invalid value type for variable " + argV + ",\nexpected " + self._vars["all"][argV][0] + " but got " + tmpT, False).post()
+								return Parsing.INVALID_TYPE
 				else:
 					if self._doLog:
 						Log(LogType.Warn, "Unknown variable \"" + argV + '"', False).post()
