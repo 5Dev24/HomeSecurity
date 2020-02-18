@@ -13,7 +13,7 @@ def main():
 	debug = parser.readVariable("debug")
 	builtins.DEBUGGING = debug
 	if debug:
-		_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!", False).post()
+		_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!").post()
 
 	if code == _codes.Parsing.SUCCESS or code == _codes.Parsing.NO_EXECUTION:
 
@@ -119,10 +119,10 @@ def install():
 		_codes.Exit(_codes.Installation.SUCCESS)
 
 def logs():
-	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs", False).post()
+	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs").post()
 	for l in _logging.Log.AllLogs()[-100:]:
 		l.post()
-	_logging.Log(_logging.LogType.Debug, "End Logs", False).post()
+	_logging.Log(_logging.LogType.Debug, "End Logs").post()
 	_codes.Exit(_codes.General.SUCCESS)
 
 parser = None

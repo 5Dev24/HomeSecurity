@@ -62,8 +62,8 @@ class SimpleThread:
 				while self._running and self.is_registered and not SimpleThread.__stop__:
 					try: self._target(*self._args, **self._kwargs)
 					except Exception as e:
-						if type(e) == SimpleClose: return
-						_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
+						if type(e) != SimpleClose:
+							_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 						break
 			elif self._running and self.is_registered and not SimpleThread.__stop__:
 				try: self._target(*self._args, **self._kwargs)
