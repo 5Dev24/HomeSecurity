@@ -16,7 +16,7 @@ arg2_val = _parsing.Value(10.0)
 arg1_arg = _parsing.Argument("arg1", arg1_val)
 arg2_arg = _parsing.Argument("arg2", arg2_val)
 
-cmd.set_arguments([arg1_arg, arg2_arg])
+cmd.set_arguments(arg1_arg, arg2_arg)
 
 print(cmd)
 

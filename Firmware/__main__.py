@@ -1,7 +1,7 @@
 #!usr/bin/python3
 
 import sys, builtins, re, atexit, random
-import src.parsing as _parsing, src.codes as _codes, src.threading as _threading, src.logging as _logging, src.file as _file
+import src.arguments as _arguments, src.codes as _codes, src.threading as _threading, src.logging as _logging, src.file as _file
 from hashlib import sha256
 
 atexit.register(_logging.Finalize)
@@ -128,21 +128,6 @@ def logs():
 parser = None
 
 if __name__ == "__main__":
-	parser = _parsing.ArgumentParser(True, {
-		"cmds": {
-			"install" : {
-				"invoke": install,
-				"description": "Does firmware side intalling, but doesn't do the entire install"
-			},
-			"logs": {
-				"invoke": logs,
-				"description": "Displays the last 100 logs"
-			}
-		},
-		"vars" : {
-			"optional": { "debug": "boolean", "server": "boolean", "mac": "string", "force": "boolean" }
-		},
-		"none": lambda: None
-	})
+	
 
 	main()

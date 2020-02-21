@@ -1,13 +1,14 @@
 from enum import Enum
 from threading import Event
 from inspect import signature
+from re import compile
+import codes as _codes
 
 class Type(Enum):
 	NONE    = 0
 	STRING  = 1
 	BOOLEAN = 2
-	INTEGER = 3
-	FLOAT   = 4
+	NUMBER = 3
 
 	@staticmethod
 	def GetObjectsType(value: object = None):
@@ -16,8 +17,7 @@ class Type(Enum):
 
 		if value_type == str: return Type.STRING
 		elif value_type == bool: return Type.BOOLEAN
-		elif value_type == int: return Type.INTEGER
-		elif value_type == float: return Type.FLOAT
+		elif value_type == int or value_type == float: return Type.NUMBER
 		else: return Type.NONE
 
 	@staticmethod
@@ -119,8 +119,7 @@ class Command:
 
 		self.set_event = Event()
 
-	def invoke(self):
-		self()
+	def invoke(self): self()
 
 	def __call__(self):
 		if self.arguments_set:
@@ -131,10 +130,10 @@ class Command:
 		else:
 			print("Cannot invoke as not all arguments have been set!")
 
-	def set_arguments(self, args: list = None):
+	def set_arguments(self, *args: list):
 		if self.arguments_set or len(args) != len(self.arguments): return
 
-		mapped_args = self.mapped_arguments(args)
+		mapped_args = self.mapped_arguments(*args)
 		if mapped_args is None: return
 
 		out_map = {}
@@ -148,8 +147,8 @@ class Command:
 		self.arguments = out_map
 		self.set_event.set()
 
-	def mapped_arguments(self, args: list = None):
-		if self.arguments_set or args is None or type(args) != list: return None
+	def mapped_arguments(self, *args: list):
+		if self.arguments_set or args is None or (type(args) != tuple and type(args) != list): return None
 		if len(args) != len(self.arguments): return None
 
 		owned_args = self.arguments
@@ -203,5 +202,104 @@ class Util:
 				out += ele + ", "
 			return out + "and " + last
 
-class Parser:
-	pass
+class TokenOperation(Enum):
+
+	NONE     = 0
+	VARIABLE = 1
+	VALUE    = 2
+	COMMAND  = 3
+
+class Token:
+
+	def __init__(self, raw: str = "", operation: TokenOperation = TokenOperation.NONE, **data):
+		self.raw = raw
+		self.op = operation
+		self.data = data if data is not None else {}
+
+	def get(self, name: str = ""):
+		if name in self.data:
+			return self.data[name]
+
+		raise AttributeError(f"{name} isn't a part of this token")
+
+class Handler:
+
+	def __init__(self):
+		self.commands = {}
+		self.default = None
+		self._tokens = []
+
+	def set_default_command(self, cmd: Command = None):
+		if cmd is None: return False
+
+		if len(cmd.arguments) != 0: return False
+
+		self.default = cmd
+		self.add_command(cmd, True)
+		return True
+
+	def add_command(self, cmd: Command = None, override: bool = False):
+		if cmd is None: return False
+
+		name = cmd.name.lower()
+		if (name in self.commands and override) or (not name in self.commands):
+			self.commands[name] = cmd
+			return True
+		return False
+
+	def lex(self, args: tuple = tuple()):
+		def _is_num(value: str = ""):
+			integer_pattern = compile(r"\d+")
+			float_pattern_1 = compile(r"\d+\.\d+")
+			float_pattern_2 = compile(r"\.\d+")
+
+			return integer_pattern.fullmatch(value) or float_pattern_1.fullmatch(value) or float_pattern_2.fullmatch(value)
+
+		if args is None or type(args) != tuple: return
+
+		for arg in args:
+			arg = str(arg)
+			if arg.startswith("--"):
+				self._tokens.append(Token(arg, TokenOperation.COMMAND, name=arg[2:]))
+
+			elif arg.startswith("-"):
+				self._tokens.append(Token(arg, TokenOperation.VARIABLE, name=arg[1:]))
+
+			else:
+				val = arg
+				lowered = arg.lower()
+
+				if lowered in ("true", "false"):
+					val = lowered == "true"
+				elif _is_num(arg):
+					val = float(arg)
+
+				self._tokens.append(Token(arg, TokenOperation.VALUE, value=Value(val)))
+
+	def parse(self):
+		if self.default is None:
+			return _codes.Arguments.NO_DEFAULT
+
+		if not len(self._tokens):
+			self.default.invoke()
+			return _codes.Arguments.ONLY_DEFAULT_INVOKED
+
+		current_index = 0
+		current = lambda: self._tokens[current_index] if current_index < len(self._tokens) else None
+		next = lambda: self._tokens[current_index + 1] if current_index + 1 < len(self._tokens) else None
+
+		cmd_to_invoke = None
+
+		while current_index < len(self._tokens):
+			token = current()
+			if token is None: break
+
+			token_op = token.op
+
+			if token_op is TokenOperation.COMMAND:
+				cmd_name = token.get("name").lower()
+				if cmd_name in self.commands:
+					cmd_to_invoke = self.commands[cmd_name]
+					current_index += 1
+				else:
+					return _codes.Arguments.COMMAND_DOESNT_EXIST

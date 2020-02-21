@@ -26,16 +26,12 @@ class Installation(Code): # 2 ^ 4
 	INVALID_SERVER = 13    # An invalid server setting was set
 	HASNT_BEEN = 14        # This device hasn't been installed yet
 
-class Parsing(Code): # 2 ^ 5
-	SUCCESS = 17                        # Args were set (without error)
-	SUCCESS_AFTER_COMMAND = 18          # Command was executed (without error)
-	SUCCESS_AFTER_ARGS_AND_COMMAND = 19 # Args were set and a command was executed (without error)
-	INVALID_TYPE = 20                   # Invalid argument type to a variable
-	NO_EXECUTION = 21                   # Nothing was executed by parser
-	MISSING_REQUIRED = 22               # Not all required arguments were set
-	ERROR_THROWN = 23                   # An error was raised while executing a command
-	NO_COMMAND = 24                     # A non-existing command was called
-	NO_VARIABLE = 25                    # A value was set to a variable that doesn't exist
+class Arguments(Code): # 2 ^ 5
+	LEX_SUCCESS = 17 # Lexing Success
+	PARSER_SUCCESS = 18 # Parsing Success
+	COMMAND_DOESNT_EXIST = 19 # Unable to find a command
+	NO_DEFAULT = 20 # No default command exists
+	ONLY_DEFAULT_INVOKED = 21 # Only the default command was called
 
 class Networking(Code): # 2 ^ 6
 	UNABLE_TO_REACH = 33         # An address was unreachable
