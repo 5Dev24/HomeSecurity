@@ -2,7 +2,7 @@ from enum import Enum
 from threading import Event
 from inspect import signature
 from re import compile
-import codes as _codes
+from . import codes as _codes
 
 class Type(Enum):
 	NONE    = 0
@@ -49,37 +49,25 @@ class Value(tuple):
 	def __str__(self):
 		return str(self.value) + " is a " + Type.asString(self.value_type)
 
-class Variable:
+class BaseArgument(tuple):
 
-	def __init__(self, name: str = "", *valid_types: list):
-		self.name = name
-		self.valid_types = valid_types
-		self.value = Value(None)
-		self.set_event = Event()
-
-	def can_set(self, value: Value = None):
-		return value.value_type in self.valid_types
-
-	def set_value(self, value: Value = None):
-		if self.can_set(value):
-			self.value = value
-			self.set_event.set()
-			return True
-		return False
+	def __new__(cls, name: str = "", types: list = None):
+		if type(types) != list and type(types) != tuple: types = (types,)
+		return tuple.__new__(cls, (name, types))
 
 	@property
-	def value_set(self):
-		return self.set_event.is_set()
+	def name(self):
+		return tuple.__getitem__(self, 0)
 
-	def __str__(self):
-		types = Util.iter_to_sentence([Type.asString(t) for t in self.valid_types])
-		val = "Variable named " + self.name + " which accepts types " + types
-		val += " which has" + ("n't" if not self.value_set else "") + " been set to " + repr(self.value)
-		return val
+	@property
+	def values(self):
+		return tuple.__getitem__(self, 1)
 
 class Argument(tuple):
 
 	def __new__(cls, name: str = "", value: Value = None):
+		if type(value) is not Value:
+			value = Value(value)
 		return tuple.__new__(cls, (name, value))
 
 	@property
@@ -101,7 +89,7 @@ class Argument(tuple):
 class Command:
 
 	def __init__(self, name: str = "", callback = None, *arguments: list):
-		self.name = name
+		self.name = name.lower()
 
 		sig = signature(callback, follow_wrapped=True)
 		params = sig.parameters
@@ -110,14 +98,20 @@ class Command:
 
 		self.callback = callback
 
-		if type(arguments) != list and type(arguments) != tuple: arguments = (arguments,)
-		self.arguments = {}
 
-		arguments = sorted(arguments, key=lambda arg: arg.name)
-		for arg in arguments:
-			self.arguments[arg.name] = arg
+		if arguments is not None and len(arguments) > 0:
+			if type(arguments) != list and type(arguments) != tuple: arguments = (arguments,)
+			self.arguments = {}
 
-		self.set_event = Event()
+			arguments = sorted(arguments, key=lambda arg: arg.name)
+			for arg in arguments:
+				self.arguments[arg.name] = arg
+
+			self.set_event = Event()
+		else:
+			self.arguments = {}
+			self.set_event = Event()
+			self.set_event.set()
 
 	def invoke(self): self()
 
@@ -130,7 +124,7 @@ class Command:
 		else:
 			print("Cannot invoke as not all arguments have been set!")
 
-	def set_arguments(self, *args: list):
+	def set_arguments(self, args: list):
 		if self.arguments_set or len(args) != len(self.arguments): return
 
 		mapped_args = self.mapped_arguments(*args)
@@ -139,7 +133,7 @@ class Command:
 		out_map = {}
 
 		for arg in mapped_args.values():
-			if not arg.value_set: return
+			if type(arg) is BaseArgument: return
 
 		for (name, passed) in mapped_args.items():
 			out_map[name] = passed
@@ -157,14 +151,13 @@ class Command:
 			if arg.name in owned_args.keys():
 				owned_arg = owned_args[arg.name]
 
-				if not owned_arg.value_set:
-					owned_arg.set_value(arg.value_object)
-					if not owned_arg.value_set:
-						print("Arg \"", owned_arg.name, "\" didn't accept type " + Type.asString(arg.value_type), sep="")
-						return None
+				if type(owned_arg) is BaseArgument:
+					if arg.value_type in owned_arg.values:
+						owned_args[arg.name] = arg
 
 					else:
-						owned_args[arg.name] = owned_arg
+						print("Arg \"", owned_arg.name, "\" didn't accept type " + Type.asString(arg.value_type), sep="")
+						return None
 
 				else:
 					print("Arg \"", owned_arg.name, "\" has already been set" , sep = "")
@@ -205,7 +198,7 @@ class Util:
 class TokenOperation(Enum):
 
 	NONE     = 0
-	VARIABLE = 1
+	ARGUMENT = 1
 	VALUE    = 2
 	COMMAND  = 3
 
@@ -255,7 +248,7 @@ class Handler:
 
 			return integer_pattern.fullmatch(value) or float_pattern_1.fullmatch(value) or float_pattern_2.fullmatch(value)
 
-		if args is None or type(args) != tuple: return
+		if args is None or (type(args) != tuple and type(args) != list): return
 
 		for arg in args:
 			arg = str(arg)
@@ -263,7 +256,7 @@ class Handler:
 				self._tokens.append(Token(arg, TokenOperation.COMMAND, name=arg[2:]))
 
 			elif arg.startswith("-"):
-				self._tokens.append(Token(arg, TokenOperation.VARIABLE, name=arg[1:]))
+				self._tokens.append(Token(arg, TokenOperation.ARGUMENT, name=arg[1:]))
 
 			else:
 				val = arg
@@ -288,6 +281,7 @@ class Handler:
 		current = lambda: self._tokens[current_index] if current_index < len(self._tokens) else None
 		next = lambda: self._tokens[current_index + 1] if current_index + 1 < len(self._tokens) else None
 
+		arguments = []
 		cmd_to_invoke = None
 
 		while current_index < len(self._tokens):
@@ -303,3 +297,28 @@ class Handler:
 					current_index += 1
 				else:
 					return _codes.Arguments.COMMAND_DOESNT_EXIST
+
+			elif token_op is TokenOperation.ARGUMENT:
+				var_name = token.get("name").lower()
+				arg = None
+				next_token = next()
+				if next_token is not None:
+					next_op = next_token.op
+					if next_op is TokenOperation.VALUE:
+						arg = Argument(var_name, next_token.get("value"))
+						current_index += 2
+
+				if arg is None:
+					arg = Argument(var_name, Value(True))
+					current_index += 1
+
+				arguments.append(arg)
+
+			elif token_op is TokenOperation.VALUE:
+				return _codes.Arguments.VALUE_WITH_NO_VARIABLE
+
+		if cmd_to_invoke is None:
+			cmd_to_invoke = self.default
+
+		cmd_to_invoke.set_arguments(arguments)
+		cmd_to_invoke.invoke()

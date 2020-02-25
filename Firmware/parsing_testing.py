@@ -1,23 +1,36 @@
-from src import parsing as _parsing
+from src import arguments as _arguments
+
+def default_command():
+	print("default command was called!")
 
 def callback_fucntion(arg1_passed, arg2_passed):
 	print("callback function has been called!")
 	print("arg1 is", arg1_passed)
 	print("arg2 is", arg2_passed)
 
-arg1_base = _parsing.Variable("arg1", _parsing.Type.STRING)
-arg2_base = _parsing.Variable("arg2", _parsing.Type.FLOAT)
+handler = _arguments.Handler()
 
-cmd = _parsing.Command("Test", callback_fucntion, arg1_base, arg2_base)
+default_cmd = _arguments.Command("default", default_command)
 
-arg1_val = _parsing.Value("test string")
-arg2_val = _parsing.Value(10.0)
+handler.set_default_command(default_cmd)
 
-arg1_arg = _parsing.Argument("arg1", arg1_val)
-arg2_arg = _parsing.Argument("arg2", arg2_val)
+arg1_base = _arguments.BaseArgument("arg1", _arguments.Type.STRING)
+arg2_base = _arguments.BaseArgument("arg2", _arguments.Type.NUMBER)
 
-cmd.set_arguments(arg1_arg, arg2_arg)
+cmd = _arguments.Command("Test", callback_fucntion, arg1_base, arg2_base)
 
-print(cmd)
+handler.add_command(cmd)
 
-cmd.invoke()
+data = []
+data_in = None
+while data_in is None or data_in.lower() != "done":
+	if data_in is not None:
+		data.append(data_in)
+
+	data_in = input("> ")
+
+	if not len(data_in): break
+
+handler.lex(data)
+
+print("Parse code:", handler.parse())

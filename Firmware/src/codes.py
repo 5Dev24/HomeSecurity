@@ -32,6 +32,7 @@ class Arguments(Code): # 2 ^ 5
 	COMMAND_DOESNT_EXIST = 19 # Unable to find a command
 	NO_DEFAULT = 20 # No default command exists
 	ONLY_DEFAULT_INVOKED = 21 # Only the default command was called
+	VALUE_WITH_NO_VARIABLE = 22 # A value was found that didn't have a variable for it to be set to
 
 class Networking(Code): # 2 ^ 6
 	UNABLE_TO_REACH = 33         # An address was unreachable
