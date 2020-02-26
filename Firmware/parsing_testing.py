@@ -21,16 +21,18 @@ cmd = _arguments.Command("Test", callback_fucntion, arg1_base, arg2_base)
 
 handler.add_command(cmd)
 
-data = []
-data_in = None
-while data_in is None or data_in.lower() != "done":
-	if data_in is not None:
-		data.append(data_in)
+data = [
+	"--test",
+	"-arg1",
+	'"hello',
+	"my",
+	"name",
+	"is",
+	'carl"',
+	"-arg2",
+	"72"
+]
 
-	data_in = input("> ")
-
-	if not len(data_in): break
-
-handler.lex(data)
+print("Lex code:", handler.lex(data))
 
 print("Parse code:", handler.parse())

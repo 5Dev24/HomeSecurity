@@ -7,43 +7,46 @@ class Code(): pass # Parent to get all subclasses from
 
 class SystemReserved(Code): # 2 ^ 1
 	SUCESS = 0 # Sucess
-	EXIT = 1   # Error was thrown, force closed, no other code was exited
+	EXIT   = 1 # Error was thrown, force closed, no other code was exited
 
 class General(Code): # 2 ^ 2
 	SUCCESS = 3 # Success
-	ERROR = 4   # Failed, Terminated or Error
+	ERROR   = 4 # Failed, Terminated or Error
 
 class Reserved(Code): # 2 ^ 3
-	WASNT_CODE = 5      # An object that isn't a code was passed
-	INVALID_CODE = 6    # An invalid exit code was used in exiting
+	WASNT_CODE      = 5 # An object that isn't a code was passed
+	INVALID_CODE    = 6 # An invalid exit code was used in exiting
 	FORCE_TERMINATE = 7 # Something caused the main thread to stop waiting on all other threads to exit
 
 class Installation(Code): # 2 ^ 4
-	SUCCESS = 9            # Install was successful
+	SUCCESS           = 9  # Install was successful
 	SAME_MAC_AND_TYPE = 10 # Device was already set up under the same id and as the same system type
-	SAME_MAC = 11          # Device was already set up under the same id
-	INVALID_MAC = 12       # An invalid device id was specified
-	INVALID_SERVER = 13    # An invalid server setting was set
-	HASNT_BEEN = 14        # This device hasn't been installed yet
+	SAME_MAC          = 11 # Device was already set up under the same id
+	INVALID_MAC       = 12 # An invalid device id was specified
+	INVALID_SERVER    = 13 # An invalid server setting was set
+	HASNT_BEEN        = 14 # This device hasn't been installed yet
 
 class Arguments(Code): # 2 ^ 5
-	LEX_SUCCESS = 17 # Lexing Success
-	PARSER_SUCCESS = 18 # Parsing Success
-	COMMAND_DOESNT_EXIST = 19 # Unable to find a command
-	NO_DEFAULT = 20 # No default command exists
-	ONLY_DEFAULT_INVOKED = 21 # Only the default command was called
+	LEX_SUCCESS            = 17 # Lexing Success
+	PARSER_SUCCESS         = 18 # Parsing Success
+	COMMAND_DOESNT_EXIST   = 19 # Unable to find a command
+	NO_DEFAULT             = 20 # No default command exists
+	ONLY_DEFAULT_INVOKED   = 21 # Only the default command was called
 	VALUE_WITH_NO_VARIABLE = 22 # A value was found that didn't have a variable for it to be set to
+	ERROR_IN_COMMAND       = 22 # An error was thrown during the execution of the command
+	OPEN_STRING            = 23 # A string was started but never ended
+	NO_GOOD_LEX            = 24 # The current tokens are not good to use, the lexer failed in some way
 
 class Networking(Code): # 2 ^ 6
-	UNABLE_TO_REACH = 33         # An address was unreachable
+	UNABLE_TO_REACH         = 33 # An address was unreachable
 	FAILED_TO_CREATE_SOCKET = 34 # A socket was unable to be opened
-	PACKET_DECODE_FAIL = 35      # A packet wasn't able to be decoded into the regular format
+	PACKET_DECODE_FAIL      = 35 # A packet wasn't able to be decoded into the regular format
 
 class Threading(Code): # 2 ^ 7
 	LOOPING_THREAD_ERROR = 65 # An error was thrown in a looping thread
-	SINGLE_THREAD_ERROR = 66  # An error was thrown in a single-call thread
-	JOIN_FROM_MAIN = 67       # An attempt was made to join a thread from the main thread
-	FORCE_CLOSE = 68         # SimpleClose was thrown so function should just return this because of the error was caught by mistake
+	SINGLE_THREAD_ERROR  = 66 # An error was thrown in a single-call thread
+	JOIN_FROM_MAIN       = 67 # An attempt was made to join a thread from the main thread
+	FORCE_CLOSE          = 68 # SimpleClose was thrown so function should just return this because of the error was caught by mistake
 
 def Exit(code: int = None, info: str = None, log: bool = False):
 	if code is None or type(code) != int or code < 0 or code > 128:

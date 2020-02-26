@@ -2,7 +2,7 @@ from enum import Enum
 from threading import Event
 from inspect import signature
 from re import compile
-from . import codes as _codes
+from . import codes as _codes, threading as _threading
 
 class Type(Enum):
 	NONE    = 0
@@ -119,7 +119,7 @@ class Command:
 		if self.arguments_set:
 			args = []
 			for val in self.arguments.values():
-				args.append(val.value.value)
+				args.append(val.value_object)
 			self.callback(*args)
 		else:
 			print("Cannot invoke as not all arguments have been set!")
@@ -150,22 +150,9 @@ class Command:
 		for arg in args:
 			if arg.name in owned_args.keys():
 				owned_arg = owned_args[arg.name]
-
 				if type(owned_arg) is BaseArgument:
 					if arg.value_type in owned_arg.values:
 						owned_args[arg.name] = arg
-
-					else:
-						print("Arg \"", owned_arg.name, "\" didn't accept type " + Type.asString(arg.value_type), sep="")
-						return None
-
-				else:
-					print("Arg \"", owned_arg.name, "\" has already been set" , sep = "")
-					return None
-
-			else:
-				print("Arg \"", arg.name, "\" doesn't exist", sep="")
-				return None
 
 		return owned_args
 
@@ -174,7 +161,8 @@ class Command:
 		return self.set_event.is_set()
 
 	def __str__(self):
-		val =  "Command named " + self.name + " which takes " + str(len(self.arguments)) + " arguments that have" + ("n't" if not self.arguments_set else "") + " been set"
+		val =  "Command named " + self.name + " which takes " + str(len(self.arguments))
+		val += " arguments that have" + ("n't" if not self.arguments_set else "") + " been set"
 		for arg in self.arguments.values():
 			val += f"\n\t{arg}"
 		return val
@@ -204,8 +192,7 @@ class TokenOperation(Enum):
 
 class Token:
 
-	def __init__(self, raw: str = "", operation: TokenOperation = TokenOperation.NONE, **data):
-		self.raw = raw
+	def __init__(self, operation: TokenOperation = TokenOperation.NONE, **data):
 		self.op = operation
 		self.data = data if data is not None else {}
 
@@ -221,6 +208,7 @@ class Handler:
 		self.commands = {}
 		self.default = None
 		self._tokens = []
+		self._good_lex = True
 
 	def set_default_command(self, cmd: Command = None):
 		if cmd is None: return False
@@ -241,6 +229,9 @@ class Handler:
 		return False
 
 	def lex(self, args: tuple = tuple()):
+		self._good_lex = False
+		self._tokens = []
+
 		def _is_num(value: str = ""):
 			integer_pattern = compile(r"\d+")
 			float_pattern_1 = compile(r"\d+\.\d+")
@@ -250,26 +241,59 @@ class Handler:
 
 		if args is None or (type(args) != tuple and type(args) != list): return
 
+		in_string = False
+		started_with = None
+		built_string = ""
+
+		started_with_string = lambda x: x.startswith('"') or x.startswith("'")
+		ended_with_string = lambda x: (x.endswith(started_with) and not x.endswith("\\" + started_with))
+
 		for arg in args:
 			arg = str(arg)
-			if arg.startswith("--"):
-				self._tokens.append(Token(arg, TokenOperation.COMMAND, name=arg[2:]))
+			lowered = arg.lower()
+
+			if started_with_string(lowered):
+				started_with = arg[0]
+				if ended_with_string(lowered):
+					started_with = None
+					self._tokens.append(Token(TokenOperation.VALUE, value=Value(arg[1:-1])))
+
+				in_string = True
+				built_string = arg[1:]
+
+			elif in_string:
+				if ended_with_string(lowered):
+					in_string = False
+					started_with = None
+					built_string += " " + arg[:-1]
+					self._tokens.append(Token(TokenOperation.VALUE, value=Value(built_string)))
+				else:
+					built_string += " " + arg
+
+			elif arg.startswith("--"):
+				self._tokens.append(Token(TokenOperation.COMMAND, name=arg[2:]))
 
 			elif arg.startswith("-"):
-				self._tokens.append(Token(arg, TokenOperation.ARGUMENT, name=arg[1:]))
+				self._tokens.append(Token(TokenOperation.ARGUMENT, name=arg[1:]))
 
 			else:
-				val = arg
-				lowered = arg.lower()
-
 				if lowered in ("true", "false"):
-					val = lowered == "true"
+					arg = lowered == "true"
 				elif _is_num(arg):
-					val = float(arg)
+					arg = float(arg)
 
-				self._tokens.append(Token(arg, TokenOperation.VALUE, value=Value(val)))
+				self._tokens.append(Token(TokenOperation.VALUE, value=Value(arg)))
+
+		if in_string:
+			return _codes.Arguments.OPEN_STRING
+
+		self._good_lex = True
+		return _codes.Arguments.LEX_SUCCESS
 
 	def parse(self):
+		if not self._good_lex:
+			return _codes.Arguments.NO_GOOD_LEX
+
 		if self.default is None:
 			return _codes.Arguments.NO_DEFAULT
 
@@ -321,4 +345,11 @@ class Handler:
 			cmd_to_invoke = self.default
 
 		cmd_to_invoke.set_arguments(arguments)
-		cmd_to_invoke.invoke()
+		try:
+			cmd_to_invoke.invoke()
+		except BaseException as e:
+			if type(e) is _threading.SimpleClose:
+				return _codes.Threading.FORCE_CLOSE
+			else:
+				return _codes.Arguments.ERROR_IN_COMMAND
+		return _codes.Arguments.PARSER_SUCCESS
