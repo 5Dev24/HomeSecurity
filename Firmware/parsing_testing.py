@@ -35,4 +35,17 @@ data = [
 
 print("Lex code:", handler.lex(data))
 
-print("Parse code:", handler.parse())
+if handler._good_lex:
+	print("Parse code:", handler.parse())
+
+	if handler._good_parse:
+		print("Execute code:", handler.execute())
+
+		if not handler._good_execute:
+			print("Bad execute!")
+
+	else:
+		print("Bad parse!")
+
+else:
+	print("Bad lex!")

@@ -6,12 +6,8 @@ from hashlib import sha256
 
 atexit.register(_logging.Finalize)
 
-def main():
-	parser.parse(sys.argv[1:])
-	code = parser.execute()
-
-	debug = parser.readVariable("debug")
-	builtins.DEBUGGING = debug
+def main(debugging: bool = False):
+	builtins.DEBUGGING = debugging
 	if debug:
 		_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!").post()
 
@@ -71,21 +67,13 @@ def _randomID():
 	ran.shuffle(shuffle)
 	return "".join([random.choice(shuffle) for i in range(16)])
 
-def install():
+def install(server: bool = True, mac: str = "", force: bool = True):
 	_logging.Log(_logging.LogType.Info, "Starting Install", False).post()
-	deviceMac = parser.readVariable("mac")
-	serverInstall = parser.readVariable("server")
 
-	force = parser.readVariable("force")
-	if force is None: force = False
+	mac = re.sub(r"[:.-]", "", mac)
 
-	deviceMac = re.sub(r"[:.-]", "", deviceMac)
-
-	if len(deviceMac) != 12:
-		_codes.Exit(_codes.Installation.INVALID_MAC, f"ID \"{deviceMac}\" was attempted to be used")
-
-	if type(serverInstall) is not bool:
-		_codes.Exit(_codes.Installation.INVALID_SERVER)
+	if len(mac) != 12:
+		_codes.Exit(_codes.Installation.INVALID_MAC, f"ID \"{mac}\" was attempted to be used")
 
 	deviceData = _readDeviceInfo()
 	shouldInstall = False
@@ -93,12 +81,12 @@ def install():
 	if deviceData[0] and not force:
 		deviceMac, devcServer = deviceData[1:3]
 
-		if deviceMac == deviceMac and devcServer == serverInstall:
+		if deviceMac == mac and devcServer == server:
 			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (deviceMac, "server" if devcServer else "client"), False).post()
 			_logging.Log(_logging.LogType.Install, "Device was already setup as %s as a %s" % (deviceMac, "server" if devcServer else "client"))
 			_codes.Exit(_codes.Installation.SAME_MAC_AND_TYPE)
 
-		elif deviceMac == deviceMac:
+		elif deviceMac == mac:
 			_logging.Log(_logging.LogType.Install, "Device was already setup as " + deviceMac).post()
 			_codes.Exit(_codes.Installation.SAME_MAC)
 
@@ -110,8 +98,8 @@ def install():
 		deviceInfoFile = _file.File.Create(_file.FileSystem, "deviceinfo.dat")
 		deviceInfoFormat = _file.DeviceInfoFormat()
 
-		deviceInfoFormat.set_mac(deviceMac)
-		deviceInfoFormat.set_server(serverInstall)
+		deviceInfoFormat.set_mac(mac)
+		deviceInfoFormat.set_server(server)
 		deviceInfoFormat.set_id(_randomID())
 
 		deviceInfoFormat.write(deviceInfoFile)
@@ -125,9 +113,30 @@ def logs():
 	_logging.Log(_logging.LogType.Debug, "End Logs").post()
 	_codes.Exit(_codes.General.SUCCESS)
 
-parser = None
+handler = None
 
 if __name__ == "__main__":
-	
+	handler = _arguments.Handler()
 
-	main()
+	debugging = _arguments.BaseArgument("debug", _arguments.Type.BOOLEAN, False)
+
+	default_cmd = _arguments.Command("main", main, debugging)
+	logs_cmd = _arguments.Command("logs", logs)
+
+	is_server = _arguments.BaseArgument("server", _arguments.Type.BOOLEAN)
+	mac_address = _arguments.BaseArgument("mac", _arguments.Type.STRING)
+	force = _arguments.BaseArgument("force", _arguments.Type.BOOLEAN, False)
+
+	install_cmd = _arguments.Command("install", install, is_server, mac_address, force)
+
+	handler.add_commands(logs_cmd, install_cmd)
+
+	handler.set_default_command(default_cmd)
+
+	handler.lex(sys.argv[1:])
+
+	if handler._good[0]:
+		handler.parse()
+
+		if handler._good[1]:
+			handler.execute()

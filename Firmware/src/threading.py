@@ -8,7 +8,28 @@ def HoldMain():
 			thread.join(5, True)
 	SimpleThread.__stop__ = True
 
-class SimpleClose(Exception): pass
+def MainDead():
+	dead = not main_thread().is_alive()
+	if dead:
+		KillAll()
+	return dead
+
+def KillAll():
+	try:
+		while len(SimpleThread.__threads__) > 0:
+			for thread in SimpleThread.__threads__:
+				thread.stop(True)
+	except SimpleThreadException:
+		return
+
+# A base class to catch all exceptions thrown naturally
+class SimpleThreadException(Exception): pass
+
+# An exception for when a thread is forcefully closed
+class SimpleClose(SimpleThreadException): pass
+
+# An exception for when the main thread dies and the thread needs to die too
+class MainClose(SimpleThreadException): pass
 
 class SimpleThread:
 
@@ -30,7 +51,7 @@ class SimpleThread:
 		self._running = False
 		SimpleThread.__threads__.append(self)
 
-	def stop(self):
+	def stop(self, main_dead: bool = False):
 		if not self._running: return
 		self.__del__()
 		try:
@@ -41,7 +62,11 @@ class SimpleThread:
 			# Credit to liuw (https://gist.github.com/liuw/2407154)
 			for thread_id, thread_object in _active.items():
 				if self._internalThread is thread_object:
-					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.py_object(SimpleClose))
+					obj = ctypes.py_object(SimpleClose)
+					if main_dead:
+						obj = ctypes.py_object(MainClose)
+
+					response = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, obj)
 					if response > 1:
 						ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, 0)
 						raise SystemError("PyThreadState_SetAsyncExc failed")
@@ -56,24 +81,28 @@ class SimpleThread:
 	def is_registered(self):
 		return self in SimpleThread.__threads__
 
+	@property
+	def _save(self):
+		return not MainDead() and self._running and self.is_registered and not SimpleThread.__stop__
+
 	def _internal(self):
 		try:
 			if self._loop:
-				while self._running and self.is_registered and not SimpleThread.__stop__:
+				while self._save:
 					try: self._target(*self._args, **self._kwargs)
 					except Exception as e:
-						if type(e) != SimpleClose:
+						if type(e) != SimpleClose and type(e) != MainClose:
 							_codes.LogCode(_codes.Threading.LOOPING_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 						break
-			elif self._running and self.is_registered and not SimpleThread.__stop__:
+			elif self._save:
 				try: self._target(*self._args, **self._kwargs)
 				except Exception as e:
-					if type(e) != SimpleClose:
+					if type(e) != SimpleClose and type(e) != MainClose:
 						_codes.LogCode(_codes.Threading.SINGLE_THREAD_ERROR, f"({self._internalThread}) {e.__class__.__name__} Traceback:\n{traceback.format_exc()}")
 		finally:
 			try:
 				self.stop()
-			except SimpleClose: pass
+			except SimpleThreadException: pass
 			finally:
 				del self._internalThread, self._args, self._kwargs
 
@@ -90,4 +119,5 @@ class SimpleThread:
 		if timeout is None or type(timeout) != int: timeout = 5
 		elif timeout > 300: timeout = 300
 		elif timeout < 0: timeout = 0
+
 		self._internalThread.join(timeout)

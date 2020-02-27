@@ -51,9 +51,9 @@ class Value(tuple):
 
 class BaseArgument(tuple):
 
-	def __new__(cls, name: str = "", types: list = None):
+	def __new__(cls, name: str = "", types: list = None, required: bool = True):
 		if type(types) != list and type(types) != tuple: types = (types,)
-		return tuple.__new__(cls, (name, types))
+		return tuple.__new__(cls, (name, types, required))
 
 	@property
 	def name(self):
@@ -62,6 +62,10 @@ class BaseArgument(tuple):
 	@property
 	def values(self):
 		return tuple.__getitem__(self, 1)
+
+	@property
+	def required(self):
+		return tuple.__getitem__(self, 2)
 
 class Argument(tuple):
 
@@ -94,10 +98,10 @@ class Command:
 		sig = signature(callback, follow_wrapped=True)
 		params = sig.parameters
 
+		print("Args passed", len(arguments), "Sig passed", len(params))
 		assert len(arguments) == len(params), "Function didn't match number of arguments"
 
 		self.callback = callback
-
 
 		if arguments is not None and len(arguments) > 0:
 			if type(arguments) != list and type(arguments) != tuple: arguments = (arguments,)
@@ -133,7 +137,7 @@ class Command:
 		out_map = {}
 
 		for arg in mapped_args.values():
-			if type(arg) is BaseArgument: return
+			if type(arg) is BaseArgument and arg.required: return
 
 		for (name, passed) in mapped_args.items():
 			out_map[name] = passed
@@ -206,9 +210,13 @@ class Handler:
 
 	def __init__(self):
 		self.commands = {}
-		self.default = None
 		self._tokens = []
-		self._good_lex = True
+		self._args = []
+
+		self.default = None
+		self._to_invoke = None
+
+		self._good = [True, False, False]
 
 	def set_default_command(self, cmd: Command = None):
 		if cmd is None: return False
@@ -220,7 +228,7 @@ class Handler:
 		return True
 
 	def add_command(self, cmd: Command = None, override: bool = False):
-		if cmd is None: return False
+		if cmd is None or type(cmd) != Command: return False
 
 		name = cmd.name.lower()
 		if (name in self.commands and override) or (not name in self.commands):
@@ -228,8 +236,12 @@ class Handler:
 			return True
 		return False
 
+	def add_commands(self, *cmds: list, override: bool = False):
+		for cmd in cmds:
+			self.add_command(cmd, override)
+
 	def lex(self, args: tuple = tuple()):
-		self._good_lex = False
+		self._good[0] = False
 		self._tokens = []
 
 		def _is_num(value: str = ""):
@@ -285,13 +297,14 @@ class Handler:
 				self._tokens.append(Token(TokenOperation.VALUE, value=Value(arg)))
 
 		if in_string:
-			return _codes.Arguments.OPEN_STRING
+			return _codes.Arguments.LEFT_OPEN_STRING
 
-		self._good_lex = True
+		self._good[0] = True
 		return _codes.Arguments.LEX_SUCCESS
 
 	def parse(self):
-		if not self._good_lex:
+		self._good[1] = False
+		if not self._good[0]:
 			return _codes.Arguments.NO_GOOD_LEX
 
 		if self.default is None:
@@ -344,12 +357,28 @@ class Handler:
 		if cmd_to_invoke is None:
 			cmd_to_invoke = self.default
 
-		cmd_to_invoke.set_arguments(arguments)
+		self._args = arguments[:]
+		self._to_invoke = cmd_to_invoke
+		self._good[1] = True
+		return _codes.Arguments.PARSER_SUCCESS
+
+	def execute(self):
+		self._good[2] = False
+		if not self._good[1]:
+			return _codes.Arguments.NO_GOOD_PARSE
+
+		self._to_invoke.set_arguments(self._args)
+		if not self._to_invoke.arguments_set:
+			return _codes.Arguments.BAD_ARGUMENTS
+
 		try:
-			cmd_to_invoke.invoke()
-		except BaseException as e:
+			self._to_invoke.invoke()
+			self._good[2] = True
+			return _codes.Arguments.EXECUTE_SUCCESS
+		except Exception as e:
 			if type(e) is _threading.SimpleClose:
 				return _codes.Threading.FORCE_CLOSE
+			elif type(e) is _threading.MainClose:
+				return _codes.Threading.MAIN_DEAD
 			else:
 				return _codes.Arguments.ERROR_IN_COMMAND
-		return _codes.Arguments.PARSER_SUCCESS

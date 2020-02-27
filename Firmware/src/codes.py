@@ -23,19 +23,21 @@ class Installation(Code): # 2 ^ 4
 	SAME_MAC_AND_TYPE = 10 # Device was already set up under the same id and as the same system type
 	SAME_MAC          = 11 # Device was already set up under the same id
 	INVALID_MAC       = 12 # An invalid device id was specified
-	INVALID_SERVER    = 13 # An invalid server setting was set
-	HASNT_BEEN        = 14 # This device hasn't been installed yet
+	HASNT_BEEN        = 13 # This device hasn't been installed yet
 
 class Arguments(Code): # 2 ^ 5
 	LEX_SUCCESS            = 17 # Lexing Success
 	PARSER_SUCCESS         = 18 # Parsing Success
-	COMMAND_DOESNT_EXIST   = 19 # Unable to find a command
-	NO_DEFAULT             = 20 # No default command exists
-	ONLY_DEFAULT_INVOKED   = 21 # Only the default command was called
-	VALUE_WITH_NO_VARIABLE = 22 # A value was found that didn't have a variable for it to be set to
-	ERROR_IN_COMMAND       = 22 # An error was thrown during the execution of the command
-	OPEN_STRING            = 23 # A string was started but never ended
-	NO_GOOD_LEX            = 24 # The current tokens are not good to use, the lexer failed in some way
+	EXECUTE_SUCCESS        = 19 # Executing Success
+	COMMAND_DOESNT_EXIST   = 20 # Unable to find a command
+	NO_DEFAULT             = 21 # No default command exists
+	ONLY_DEFAULT_INVOKED   = 22 # Only the default command was called
+	VALUE_WITH_NO_VARIABLE = 23 # A value was found that didn't have a variable for it to be set to
+	ERROR_IN_COMMAND       = 24 # An error was thrown during the execution of the command
+	LEFT_OPEN_STRING       = 25 # A string was started but never ended
+	NO_GOOD_LEX            = 26 # The current tokens are not good to use, the lexer failed in some way
+	NO_GOOD_PARSE          = 27 # The current arguments/command to invoek are not good to use, parser failed in some way
+	BAD_ARGUMENTS          = 28 # The arguments made by the parser don't fit the command
 
 class Networking(Code): # 2 ^ 6
 	UNABLE_TO_REACH         = 33 # An address was unreachable
@@ -47,6 +49,7 @@ class Threading(Code): # 2 ^ 7
 	SINGLE_THREAD_ERROR  = 66 # An error was thrown in a single-call thread
 	JOIN_FROM_MAIN       = 67 # An attempt was made to join a thread from the main thread
 	FORCE_CLOSE          = 68 # SimpleClose was thrown so function should just return this because of the error was caught by mistake
+	MAIN_DEAD            = 69 # The main thread was killed or ended thus all other non-daemon threads need to be killed
 
 def Exit(code: int = None, info: str = None, log: bool = False):
 	if code is None or type(code) != int or code < 0 or code > 128:
