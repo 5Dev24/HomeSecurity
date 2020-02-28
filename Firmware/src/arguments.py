@@ -98,7 +98,6 @@ class Command:
 		sig = signature(callback, follow_wrapped=True)
 		params = sig.parameters
 
-		print("Args passed", len(arguments), "Sig passed", len(params))
 		assert len(arguments) == len(params), "Function didn't match number of arguments"
 
 		self.callback = callback
@@ -119,17 +118,28 @@ class Command:
 
 	def invoke(self): self()
 
+	@property
+	def required_args(self):
+		args = []
+		for arg in self.arguments.values():
+			if type(arg) == Argument:
+				args.append(arg)
+			elif type(arg) == BaseArgument and arg.required:
+				args.append(arg)
+		return args
+
 	def __call__(self):
 		if self.arguments_set:
 			args = []
 			for val in self.arguments.values():
-				args.append(val.value_object)
+				if type(val) == Argument:
+					args.append(val.value)
 			self.callback(*args)
 		else:
 			print("Cannot invoke as not all arguments have been set!")
 
 	def set_arguments(self, args: list):
-		if self.arguments_set or len(args) != len(self.arguments): return
+		if len(args) < len(self.required_args): return
 
 		mapped_args = self.mapped_arguments(*args)
 		if mapped_args is None: return
@@ -137,7 +147,7 @@ class Command:
 		out_map = {}
 
 		for arg in mapped_args.values():
-			if type(arg) is BaseArgument and arg.required: return
+			if type(arg) == BaseArgument and arg.required: return
 
 		for (name, passed) in mapped_args.items():
 			out_map[name] = passed
@@ -146,8 +156,8 @@ class Command:
 		self.set_event.set()
 
 	def mapped_arguments(self, *args: list):
-		if self.arguments_set or args is None or (type(args) != tuple and type(args) != list): return None
-		if len(args) != len(self.arguments): return None
+		if args is None or (type(args) != tuple and type(args) != list): return None
+		if len(args) < len(self.required_args): return None
 
 		owned_args = self.arguments
 
@@ -162,7 +172,7 @@ class Command:
 
 	@property
 	def arguments_set(self):
-		return self.set_event.is_set()
+		return (not len(self.required_args)) or self.set_event.is_set()
 
 	def __str__(self):
 		val =  "Command named " + self.name + " which takes " + str(len(self.arguments))
@@ -217,11 +227,12 @@ class Handler:
 		self._to_invoke = None
 
 		self._good = [True, False, False]
+		self._code = [_codes.Arguments.NOTHING,] * 3
 
 	def set_default_command(self, cmd: Command = None):
 		if cmd is None: return False
 
-		if len(cmd.arguments) != 0: return False
+		if len(cmd.required_args) != 0: return False
 
 		self.default = cmd
 		self.add_command(cmd, True)
@@ -297,22 +308,26 @@ class Handler:
 				self._tokens.append(Token(TokenOperation.VALUE, value=Value(arg)))
 
 		if in_string:
-			return _codes.Arguments.LEFT_OPEN_STRING
+			c = _codes.Arguments.LEFT_OPEN_STRING
+			self._code[0] = c
+			return c
 
 		self._good[0] = True
-		return _codes.Arguments.LEX_SUCCESS
+		c = _codes.Arguments.LEX_SUCCESS
+		self._code[0] = c
+		return c
 
 	def parse(self):
 		self._good[1] = False
 		if not self._good[0]:
-			return _codes.Arguments.NO_GOOD_LEX
+			c = _codes.Arguments.NO_GOOD_LEX
+			self._code[1] = c
+			return c
 
 		if self.default is None:
-			return _codes.Arguments.NO_DEFAULT
-
-		if not len(self._tokens):
-			self.default.invoke()
-			return _codes.Arguments.ONLY_DEFAULT_INVOKED
+			c = _codes.Arguments.NO_DEFAULT
+			self._code[1] = c
+			return c
 
 		current_index = 0
 		current = lambda: self._tokens[current_index] if current_index < len(self._tokens) else None
@@ -320,6 +335,14 @@ class Handler:
 
 		arguments = []
 		cmd_to_invoke = None
+
+		if not len(self._tokens):
+			self._args = arguments[:]
+			self._to_invoke = self.default
+			self._good[1] = True
+			c = _codes.Arguments.ONLY_DEFAULT
+			self._code[1] = c
+			return c
 
 		while current_index < len(self._tokens):
 			token = current()
@@ -333,7 +356,9 @@ class Handler:
 					cmd_to_invoke = self.commands[cmd_name]
 					current_index += 1
 				else:
-					return _codes.Arguments.COMMAND_DOESNT_EXIST
+					c = _codes.Arguments.COMMAND_DOESNT_EXIST
+					self._code[1] = c
+					return c
 
 			elif token_op is TokenOperation.ARGUMENT:
 				var_name = token.get("name").lower()
@@ -352,7 +377,9 @@ class Handler:
 				arguments.append(arg)
 
 			elif token_op is TokenOperation.VALUE:
-				return _codes.Arguments.VALUE_WITH_NO_VARIABLE
+				c = _codes.Arguments.VALUE_WITH_NO_VARIABLE
+				self._code[1] = c
+				return c
 
 		if cmd_to_invoke is None:
 			cmd_to_invoke = self.default
@@ -360,25 +387,39 @@ class Handler:
 		self._args = arguments[:]
 		self._to_invoke = cmd_to_invoke
 		self._good[1] = True
-		return _codes.Arguments.PARSER_SUCCESS
+		c = _codes.Arguments.PARSER_SUCCESS
+		self._code[1] = c
+		return c
 
 	def execute(self):
 		self._good[2] = False
 		if not self._good[1]:
-			return _codes.Arguments.NO_GOOD_PARSE
+			c = _codes.Arguments.NO_GOOD_PARSE
+			self._code[2] = c
+			return c
 
 		self._to_invoke.set_arguments(self._args)
 		if not self._to_invoke.arguments_set:
-			return _codes.Arguments.BAD_ARGUMENTS
+			c = _codes.Arguments.BAD_ARGUMENTS
+			self._code[2] = c
+			return c
 
 		try:
-			self._to_invoke.invoke()
 			self._good[2] = True
-			return _codes.Arguments.EXECUTE_SUCCESS
+			c = _codes.Arguments.EXECUTE_SUCCESS
+			self._code[2] = c
+
+			self._to_invoke.invoke()
+
+			return c
 		except Exception as e:
+			self._good[2] = False
+			c = _codes.Arguments.ERROR_IN_COMMAND
+
 			if type(e) is _threading.SimpleClose:
-				return _codes.Threading.FORCE_CLOSE
+				c = _codes.Threading.FORCE_CLOSE
 			elif type(e) is _threading.MainClose:
-				return _codes.Threading.MAIN_DEAD
-			else:
-				return _codes.Arguments.ERROR_IN_COMMAND
+				c = _codes.Threading.MAIN_DEAD
+
+			self._code[2] = c
+			return c

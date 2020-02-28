@@ -11,7 +11,7 @@ class SystemReserved(Code): # 2 ^ 1
 
 class General(Code): # 2 ^ 2
 	SUCCESS = 3 # Success
-	ERROR   = 4 # Failed, Terminated or Error
+	ERROR   = 4 # Failed, Terminated, or Error
 
 class Reserved(Code): # 2 ^ 3
 	WASNT_CODE      = 5 # An object that isn't a code was passed
@@ -31,13 +31,15 @@ class Arguments(Code): # 2 ^ 5
 	EXECUTE_SUCCESS        = 19 # Executing Success
 	COMMAND_DOESNT_EXIST   = 20 # Unable to find a command
 	NO_DEFAULT             = 21 # No default command exists
-	ONLY_DEFAULT_INVOKED   = 22 # Only the default command was called
+	ONLY_DEFAULT           = 22 # Only the default command should be run
 	VALUE_WITH_NO_VARIABLE = 23 # A value was found that didn't have a variable for it to be set to
 	ERROR_IN_COMMAND       = 24 # An error was thrown during the execution of the command
 	LEFT_OPEN_STRING       = 25 # A string was started but never ended
 	NO_GOOD_LEX            = 26 # The current tokens are not good to use, the lexer failed in some way
 	NO_GOOD_PARSE          = 27 # The current arguments/command to invoek are not good to use, parser failed in some way
-	BAD_ARGUMENTS          = 28 # The arguments made by the parser don't fit the command
+	BAD_EXECUTE            = 28 # The execution went badly
+	BAD_ARGUMENTS          = 29 # The arguments made by the parser don't fit the command
+	NOTHING                = 30 # Default code status, means that it hasn't been set
 
 class Networking(Code): # 2 ^ 6
 	UNABLE_TO_REACH         = 33 # An address was unreachable
@@ -60,7 +62,7 @@ def Exit(code: int = None, info: str = None, log: bool = False):
 		msg = " with no message"
 		if info is not None and type(info) == str and len(info):
 			msg = " with message: " + info
-		msg = "Terminating on " + trace + msg
+		msg = "Terminating with " + trace + msg
 		_logging.Log(_logging.LogType.Exit, msg).post()
 
 	_threading.SimpleThread.ReleaseThreads()
@@ -89,9 +91,9 @@ def _build_trace(code: int = -1):
 		return (None,)*3
 
 	def _parent_trace(base = None):
-		return ".".join([parent.__name__ for parent in base.__mro__ if parent != Code and parent != object][::-1])
+		return " -> ".join([parent.__name__ for parent in base.__mro__ if parent != Code and parent != object][::-1])
 
 	varName, varValue, varClass = _find_code(code)
 	if varName is not None:
-		return (_parent_trace(varClass) + "." + varName + "-" + str(varValue)).lower()
+		return (_parent_trace(varClass).upper() + " -> " + varName.upper() + " as " + str(varValue))
 	return "invalid"

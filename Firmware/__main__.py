@@ -6,18 +6,20 @@ from hashlib import sha256
 
 atexit.register(_logging.Finalize)
 
+handler = None
+
 def main(debugging: bool = False):
 	builtins.DEBUGGING = debugging
-	if debug:
+	print("Debugging:", debugging)
+	if debugging:
 		_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!").post()
 
-	if code == _codes.Parsing.SUCCESS or code == _codes.Parsing.NO_EXECUTION:
+	if handler and handler._good[2]:
 
 		deviceData = _readDeviceInfo()
 		if deviceData[0]:
 			devcMAC, devcServer, devcID = deviceData[1:]
 			_logging.Log(_logging.LogType.Info, "Device MAC is %s, device is a %s, and device id is %s" % (devcMAC, "server" if devcServer else "client", devcID)).post()
-			builtins.ISSERVER = devcServer
 			import src.networking.networkables as _networkables
 
 			net = None
@@ -31,16 +33,16 @@ def main(debugging: bool = False):
 			_logging.Log(_logging.LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").post()
 			_codes.Exit(_codes.Installation.HASNT_BEEN)
 	else:
-		_codes.Exit(code, "Unable to start")
+		_codes.Exit(handler._code[2], "Unable to start", True)
 	try:
-		if debug:
+		if debugging:
 			_logging.Log(_logging.LogType.Debug, "Holding main thread", False).post()
 		_threading.HoldMain()
 	finally:
 		if len(_threading.SimpleThread.__threads__) == 0:
-			_codes.Exit(_codes.General.SUCCESS, "All threads stopped")
+			_codes.Exit(_codes.General.SUCCESS, "All threads stopped", True)
 		else:
-			_codes.Exit(_codes.Reserved.FORCE_TERMINATE, "Force terminate")
+			_codes.Exit(_codes.Reserved.FORCE_TERMINATE, "Force terminate", True)
 
 def _readDeviceInfo():
 	exists = _file.File.Exists(_file.FileSystem, "deviceinfo.dat")
@@ -113,8 +115,6 @@ def logs():
 	_logging.Log(_logging.LogType.Debug, "End Logs").post()
 	_codes.Exit(_codes.General.SUCCESS)
 
-handler = None
-
 if __name__ == "__main__":
 	handler = _arguments.Handler()
 
@@ -134,9 +134,13 @@ if __name__ == "__main__":
 	handler.set_default_command(default_cmd)
 
 	handler.lex(sys.argv[1:])
-
 	if handler._good[0]:
 		handler.parse()
-
 		if handler._good[1]:
 			handler.execute()
+			if not handler._good[2]:
+				_codes.Exit(handler._code[2], None, True)
+		else:
+			_codes.Exit(handler._code[1], None, True)
+	else:
+		_codes.Exit(handler._code[0], None, True)
