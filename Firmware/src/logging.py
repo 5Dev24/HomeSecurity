@@ -4,7 +4,7 @@ from .file import LogFormat, FileSystem, File
 from colorama import init, Fore, Back, Style
 from queue import Queue
 from . import threading as _threading
-import time, sys
+import time, sys, builtins
 
 def Now(): return datetime.now()
 def Time(): return Now().strftime("%H:%H:%S")
@@ -13,11 +13,11 @@ def Date(): return Now().strftime("%d/%m/%Y")
 class LogType(Enum):
 
 	Info = (Fore.GREEN, Fore.WHITE, Back.BLACK)
-	Install = (Fore.CYAN, Fore.LIGHTBLUE_EX, Back.BLACK)
-	Warn = (Fore.LIGHTRED_EX, Fore.YELLOW, Back.BLACK)
-	Error = (Fore.LIGHTRED_EX, Fore.LIGHTRED_EX, Back.BLACK)
-	Debug = (Fore.LIGHTMAGENTA_EX, Fore.LIGHTGREEN_EX, Back.BLACK)
-	Exit = (Fore.LIGHTWHITE_EX, Fore.WHITE, Back.BLACK)
+	Install = (Fore.CYAN, Fore.WHITE, Back.BLACK)
+	Warn = (Fore.RED, Fore.YELLOW, Back.BLACK)
+	Error = (Fore.RED, Fore.RED, Back.BLACK)
+	Debug = (Fore.MAGENTA, Fore.WHITE, Back.BLACK)
+	Exit = (Fore.YELLOW, Fore.YELLOW, Back.BLACK)
 
 	@staticmethod
 	def fromString(string: str = ""):
@@ -34,6 +34,13 @@ class LogType(Enum):
 		return f"{self.name}"
 
 class Log:
+
+	@staticmethod
+	def ShouldLogDebug():
+		try:
+			return builtins.debug
+		except AttributeError:
+			return True
 
 	@staticmethod
 	def AllLogs():
@@ -75,10 +82,14 @@ class Log:
 		self.protected_info = info.replace("\a", "\\a").replace("\b", "\\b").replace("\t", "\\t").replace("\n", "\\n").replace("\v", "\\v").replace("\f", "\\f").replace("\r", "\\r")
 		self.date = Date()
 		self.time = Time()
+		self.with_time_info = False
 
 		if save: self.save()
 
-	def post(self):
+	def post(self, with_time_info: bool = False):
+		if self.logType == LogType.Debug and not Log.ShouldLogDebug():
+			return self
+		self.with_time_info = with_time_info
 		LoggingPrintQueue.put(self)
 		return self
 
@@ -94,13 +105,31 @@ class Log:
 	def raw_colored(self):
 		return self._colored(self.raw_info)
 
+	@property
+	def _without_time_info(self):
+		return f"[{self.logType.name}]: {self.protected_info}"
+
+	@property
+	def _with_time_info(self):
+		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}"
+
+	def enable_time_info(self):
+		self.with_time_info = True
+
+	def disable_time_info(self):
+		self.with_time_info = False
+
 	def _colored(self, text: str = ""):
 		colors = self.logType.value[:]
-		return f"{colors[2]}{Fore.WHITE}{Style.BRIGHT}[{colors[0]}{self.logType.name}{Fore.WHITE}] \
-{self.date} {self.time}{Fore.CYAN}: {colors[1]}{text}{Style.RESET_ALL}"
+
+		base = f"{colors[2]}{Fore.WHITE}{Style.BRIGHT}[{colors[0]}{self.logType.name}{Fore.WHITE}]"
+		if self.with_time_info:
+			base += f" {self.date} {self.time}"
+		base += f": {colors[1]}{text}{Style.RESET_ALL}"
+		return base
 
 	def __str__(self):
-		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}"
+		return self._with_time_info
 
 # Queue system
 LoggingSaveQueue = Queue(0)

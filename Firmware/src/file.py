@@ -317,8 +317,9 @@ class Utils:
 		if dictionary is None or type(dictionary) != dict: return None
 		out = []
 		for key, value in dictionary.items():
-			if type(value) in (int, str, float, bool):
-				out.append(f"{key}:{value}")
+			index = (int, str, float, bool).index(type(value))
+			if index != -1:
+				out.append(f"{index}:{key}:{value}")
 		return out
 
 	@staticmethod
@@ -328,29 +329,19 @@ class Utils:
 		for element in _list:
 			if type(element) == str and element.count(":") >= 1:
 				element_split = element.split(":")
-				element_name = element_split[0]
-				element_value = ":".join(element_split[1:])
+				element_type = element_split[0]
+				element_name = element_split[1]
+				element_value = ":".join(element_split[2:])
 
-				try:
-					if element_value.lower() in ("true", "false"):
-						element_value = element_value.lower() == "true"
-						out[element_name] = element_value
-						continue
-				except ValueError: pass
-
-				try:
-					element_value = int(element_value)
+				if element_type == '0':
+					out[element_name] = int(element_value)
+				elif element_type == '1':
 					out[element_name] = element_value
-					continue
-				except ValueError: pass
+				elif element_type == '2':
+					out[element_name] = float(element_value)
+				elif element_type == '3':
+					out[element_name] = element_name.lower() == "true"
 
-				try:
-					element_value = float(element_value)
-					out[element_name] = element_value
-					continue
-				except ValueError: pass
-
-				out[element_name] = element_value
 		return out
 
 class Folder:

@@ -1,9 +1,7 @@
-# All exit codes
-
 import sys
 from . import logging as _logging, threading as _threading
 
-class Code(): pass # Parent to get all subclasses from
+class Code(): pass
 
 class SystemReserved(Code): # 2 ^ 1
 	SUCESS = 0 # Sucess

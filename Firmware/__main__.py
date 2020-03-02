@@ -1,6 +1,6 @@
 #!usr/bin/python3
 
-import sys, builtins, re, atexit, random
+import sys, re, atexit, random
 import src.arguments as _arguments, src.codes as _codes, src.threading as _threading, src.logging as _logging, src.file as _file
 from hashlib import sha256
 
@@ -8,15 +8,10 @@ atexit.register(_logging.Finalize)
 
 handler = None
 
-def main(debugging: bool = False):
-	builtins.DEBUGGING = debugging
-	print("Debugging:", debugging)
-	if debugging:
-		_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!").post()
-
+def main():
 	if handler and handler._good[2]:
-
 		deviceData = _readDeviceInfo()
+
 		if deviceData[0]:
 			devcMAC, devcServer, devcID = deviceData[1:]
 			_logging.Log(_logging.LogType.Info, "Device MAC is %s, device is a %s, and device id is %s" % (devcMAC, "server" if devcServer else "client", devcID)).post()
@@ -27,20 +22,25 @@ def main(debugging: bool = False):
 				net = _networkables.Server()
 			else:
 				net = _networkables.Client()
+
 			_logging.Log(_logging.LogType.Info, "Device has been started, connecting").post()
 			_threading.SimpleThread(net.connect, False, (devcID,), {}).start()
+
 		else:
 			_logging.Log(_logging.LogType.Warn, "Device hasn't been setup yet, please do so with \"--install\"").post()
 			_codes.Exit(_codes.Installation.HASNT_BEEN)
+
 	else:
 		_codes.Exit(handler._code[2], "Unable to start", True)
+
 	try:
-		if debugging:
-			_logging.Log(_logging.LogType.Debug, "Holding main thread", False).post()
+		_logging.Log(_logging.LogType.Debug, "Holding main thread", False).post()
 		_threading.HoldMain()
+
 	finally:
 		if len(_threading.SimpleThread.__threads__) == 0:
 			_codes.Exit(_codes.General.SUCCESS, "All threads stopped", True)
+
 		else:
 			_codes.Exit(_codes.Reserved.FORCE_TERMINATE, "Force terminate", True)
 
@@ -69,7 +69,7 @@ def _randomID():
 	ran.shuffle(shuffle)
 	return "".join([random.choice(shuffle) for i in range(16)])
 
-def install(server: bool = True, mac: str = "", force: bool = True):
+def install(server: bool = True, mac: str = "", force: bool = False):
 	_logging.Log(_logging.LogType.Info, "Starting Install", False).post()
 
 	mac = re.sub(r"[:.-]", "", mac)
@@ -111,16 +111,18 @@ def install(server: bool = True, mac: str = "", force: bool = True):
 def logs():
 	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs").post()
 	for l in _logging.Log.AllLogs()[-100:]:
-		l.post()
+		l.post(True)
 	_logging.Log(_logging.LogType.Debug, "End Logs").post()
+	_codes.Exit(_codes.General.SUCCESS)
+
+def purgelogs():
+	_logging.Log(_logging.LogType.Debug, "Purging previous logs").post()
 	_codes.Exit(_codes.General.SUCCESS)
 
 if __name__ == "__main__":
 	handler = _arguments.Handler()
 
-	debugging = _arguments.BaseArgument("debug", _arguments.Type.BOOLEAN, False)
-
-	default_cmd = _arguments.Command("main", main, debugging)
+	default_cmd = _arguments.Command("main", main)
 	logs_cmd = _arguments.Command("logs", logs)
 
 	is_server = _arguments.BaseArgument("server", _arguments.Type.BOOLEAN)
@@ -137,6 +139,11 @@ if __name__ == "__main__":
 	if handler._good[0]:
 		handler.parse()
 		if handler._good[1]:
+			handler.debug_update()
+
+			if handler._debugging:
+				_logging.Log(_logging.LogType.Debug, "Device has entered debugging mode!").post()
+
 			handler.execute()
 			if not handler._good[2]:
 				_codes.Exit(handler._code[2], None, True)

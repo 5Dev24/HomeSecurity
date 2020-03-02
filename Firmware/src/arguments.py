@@ -130,13 +130,11 @@ class Command:
 
 	def __call__(self):
 		if self.arguments_set:
-			args = []
+			args = {}
 			for val in self.arguments.values():
 				if type(val) == Argument:
-					args.append(val.value)
-			self.callback(*args)
-		else:
-			print("Cannot invoke as not all arguments have been set!")
+					args[val.name] = val.value
+			self.callback(**args)
 
 	def set_arguments(self, args: list):
 		if len(args) < len(self.required_args): return
@@ -228,6 +226,11 @@ class Handler:
 
 		self._good = [True, False, False]
 		self._code = [_codes.Arguments.NOTHING,] * 3
+		self._debugging = False
+
+	def debug_update(self):
+		import builtins
+		builtins.debug = self._debugging
 
 	def set_default_command(self, cmd: Command = None):
 		if cmd is None: return False
@@ -367,12 +370,23 @@ class Handler:
 				if next_token is not None:
 					next_op = next_token.op
 					if next_op is TokenOperation.VALUE:
-						arg = Argument(var_name, next_token.get("value"))
 						current_index += 2
 
+						if var_name.lower() == "debug":
+							if next_token.get("value").value_type == Type.BOOLEAN:
+								self._debugging = next_token.get("value").value
+
+							continue
+
+						arg = Argument(var_name, next_token.get("value"))
+
 				if arg is None:
-					arg = Argument(var_name, Value(True))
 					current_index += 1
+					if var_name.lower() == "debug":
+						self._debugging = True
+						continue
+
+					arg = Argument(var_name, Value(True))
 
 				arguments.append(arg)
 
