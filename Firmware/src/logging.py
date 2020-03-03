@@ -40,7 +40,7 @@ class Log:
 		try:
 			return builtins.debug
 		except AttributeError:
-			return True
+			return False
 
 	@staticmethod
 	def AllLogs():
@@ -82,14 +82,12 @@ class Log:
 		self.protected_info = info.replace("\a", "\\a").replace("\b", "\\b").replace("\t", "\\t").replace("\n", "\\n").replace("\v", "\\v").replace("\f", "\\f").replace("\r", "\\r")
 		self.date = Date()
 		self.time = Time()
-		self.with_time_info = False
 
 		if save: self.save()
 
-	def post(self, with_time_info: bool = False):
+	def post(self):
 		if self.logType == LogType.Debug and not Log.ShouldLogDebug():
 			return self
-		self.with_time_info = with_time_info
 		LoggingPrintQueue.put(self)
 		return self
 
@@ -113,17 +111,11 @@ class Log:
 	def _with_time_info(self):
 		return f"[{self.logType.name}] {self.date} {self.time}: {self.protected_info}"
 
-	def enable_time_info(self):
-		self.with_time_info = True
-
-	def disable_time_info(self):
-		self.with_time_info = False
-
-	def _colored(self, text: str = ""):
+	def _colored(self, text: str = "", with_time_info: bool = False):
 		colors = self.logType.value[:]
 
 		base = f"{colors[2]}{Fore.WHITE}{Style.BRIGHT}[{colors[0]}{self.logType.name}{Fore.WHITE}]"
-		if self.with_time_info:
+		if with_time_info:
 			base += f" {self.date} {self.time}"
 		base += f": {colors[1]}{text}{Style.RESET_ALL}"
 		return base

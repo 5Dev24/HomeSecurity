@@ -111,7 +111,7 @@ def install(server: bool = True, mac: str = "", force: bool = False):
 def logs():
 	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs").post()
 	for l in _logging.Log.AllLogs()[-100:]:
-		l.post(True)
+		l.post()
 	_logging.Log(_logging.LogType.Debug, "End Logs").post()
 	_codes.Exit(_codes.General.SUCCESS)
 
