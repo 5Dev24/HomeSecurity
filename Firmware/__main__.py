@@ -47,18 +47,18 @@ def main():
 def _readDeviceInfo():
 	exists = _file.File.Exists(_file.FileSystem, "deviceinfo.dat")
 	if exists:
-		deviceInfoFile = _file.File.GetOrCreate(_file.FileSystem, "deviceinfo.dat")
-		deviceInfoFormat = _file.DeviceInfoFormat.loadFrom(deviceInfoFile)
+		diFile = _file.File.GetOrCreate(_file.FileSystem, "deviceinfo.dat")
+		diFormat = _file.DeviceInfoFormat.loadFrom(diFile)
 
-		devcMAC = deviceInfoFormat.mac
-		devcServer = deviceInfoFormat.server
-		devcID = deviceInfoFormat.id
+		mac = diFormat.mac
+		serv = diFormat.server
+		id = diFormat.id
 
-		if type(devcServer) != bool and devcServer is not None: devcServer = devcServer.lower() == "true"
-		if devcMAC is None or devcServer is None or devcID is None:
+		if type(serv) != bool and serv is not None: serv = serv.lower() == "true"
+		if mac is None or serv is None or id is None:
 			return (False,)
 		else:
-			return (True, devcMAC, devcServer, devcID)
+			return (True, mac, serv, id)
 	else:
 		return (False,)
 
@@ -109,7 +109,7 @@ def install(server: bool = True, mac: str = "", force: bool = False):
 		_codes.Exit(_codes.Installation.SUCCESS)
 
 def logs():
-	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs\nStart Logs").post()
+	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs").post()
 	for l in _logging.Log.AllLogs()[-100:]:
 		l.post()
 	_logging.Log(_logging.LogType.Debug, "End Logs").post()
@@ -117,6 +117,11 @@ def logs():
 
 def purgelogs():
 	_logging.Log(_logging.LogType.Debug, "Purging previous logs").post()
+
+	logs = _logging.Log.Logs()
+	logs.data = []
+	logs.write(_logging.Log.LogFile())
+
 	_codes.Exit(_codes.General.SUCCESS)
 
 if __name__ == "__main__":
@@ -124,6 +129,7 @@ if __name__ == "__main__":
 
 	default_cmd = _arguments.Command("main", main)
 	logs_cmd = _arguments.Command("logs", logs)
+	purge_logs_cmd = _arguments.Command("purgelogs", purgelogs)
 
 	is_server = _arguments.BaseArgument("server", _arguments.Type.BOOLEAN)
 	mac_address = _arguments.BaseArgument("mac", _arguments.Type.STRING)
@@ -131,7 +137,7 @@ if __name__ == "__main__":
 
 	install_cmd = _arguments.Command("install", install, is_server, mac_address, force)
 
-	handler.add_commands(logs_cmd, install_cmd)
+	handler.add_commands(logs_cmd, install_cmd, purge_logs_cmd)
 
 	handler.set_default_command(default_cmd)
 

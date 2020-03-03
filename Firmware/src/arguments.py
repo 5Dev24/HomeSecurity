@@ -260,10 +260,15 @@ class Handler:
 
 		def _is_num(value: str = ""):
 			integer_pattern = compile(r"\d+")
-			float_pattern_1 = compile(r"\d+\.\d+")
-			float_pattern_2 = compile(r"\.\d+")
+			if integer_pattern.fullmatch(value): return True
 
-			return integer_pattern.fullmatch(value) or float_pattern_1.fullmatch(value) or float_pattern_2.fullmatch(value)
+			float_pattern_1 = compile(r"\d+\.(\d+)?")
+			if float_pattern_1.fullmatch(value): return True
+
+			float_pattern_2 = compile(r"\.\d+")
+			if float_pattern_2.fullmatch(value): return True
+
+			return False
 
 		if args is None or (type(args) != tuple and type(args) != list): return
 

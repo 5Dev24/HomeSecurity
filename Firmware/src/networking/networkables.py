@@ -23,7 +23,7 @@ class Networkable:
 		client_time = time.time()
 		while not done:
 			if self.is_server:
-				_logging.Log(_logging.LogType.Debug, "Advertising!", False).post()
+				_logging.Log(_logging.LogType.Debug, "Advertising!").post()
 				try:
 					self.socket.bind(("", PORT_ANY))
 				except OSError:
@@ -31,17 +31,17 @@ class Networkable:
 					return
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket, id)
-				_logging.Log(_logging.LogType.Debug, "Advertising called!", False).post()
+				_logging.Log(_logging.LogType.Debug, "Advertising called!").post()
 				done = True
 			else:
-				_logging.Log(_logging.LogType.Debug, "Looking for valid devices", False).post()
+				_logging.Log(_logging.LogType.Debug, "Looking for valid devices").post()
 				found = _util.FindValidDevices(False)
-				_logging.Log(_logging.LogType.Debug, "Found " + str(len(found)) + " devices", False).post()
+				_logging.Log(_logging.LogType.Debug, "Found " + str(len(found)) + " devices").post()
 				if len(found) >= 1:
 					for address in found.keys():
 						try:
 							host, port = address.split("~")
-							_logging.Log(_logging.LogType.Debug, "Got host \"" + str(host) + "\" and port \"" + str(port) + '"', False).post()
+							_logging.Log(_logging.LogType.Debug, "Got host \"" + str(host) + "\" and port \"" + str(port) + '"').post()
 							self.socket.connect((host, int(port)))
 							self.last_connection = self.save_connection(self.socket, host)
 							done = True
@@ -53,10 +53,10 @@ class Networkable:
 					if client_time + client_rate_limit < time.time():
 						client_time = time.time()
 						_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
-		_logging.Log(_logging.LogType.Debug, "Socket is ready!", False).post()
+		_logging.Log(_logging.LogType.Debug, "Socket is ready!").post()
 		self.socket_is_ready = True
 		self.socket_invoke()
-		_logging.Log(_logging.LogType.Debug, "Socket has been started!", False).post()
+		_logging.Log(_logging.LogType.Debug, "Socket has been started!").post()
 
 	def socket_invoke(self): raise NotImplementedError()
 
@@ -119,7 +119,7 @@ class Networkable:
 
 	def get_sessions(self, addr: str = None):
 		if _file.File.Exists(SessionsFolder, addr):
-			file_format = _file.SessionIDFormat.loadFrom(_file.File.GetOrCreate(SessionsFolder, addr))
+			file_format = _file.SessionFormat.loadFrom(_file.File.GetOrCreate(SessionsFolder, addr))
 			return file_format.sessions
 		else:
 			return []
@@ -130,7 +130,7 @@ class Networkable:
 		self.save_sessions(addr, sessions)
 
 	def save_sessions(self, addr: str = None, sessions: list = None):
-		file_format = _file.SessionIDFormat(sessions)
+		file_format = _file.SessionFormat(sessions)
 		file_dest = _file.File.GetOrCreate(SessionsFolder, addr)
 		file_format.write(file_dest)
 
@@ -158,9 +158,9 @@ class Server(Networkable):
 
 	def accept(self):
 		if not self.socket_is_ready or self.socket is None: return
-		_logging.Log(_logging.LogType.Debug, "Accepting new connections", False).post()
+		_logging.Log(_logging.LogType.Debug, "Accepting new connections").post()
 		sock, addr = self.socket.accept()
-		_logging.Log(_logging.LogType.Debug, "Got a connection from " + str(addr), False).post()
+		_logging.Log(_logging.LogType.Debug, "Got a connection from " + str(addr)).post()
 		if not self.has_connection(addr):
 			self.save_connection(sock, addr)
 
@@ -174,10 +174,10 @@ class Client(Networkable):
 		self.start_thread("Initial_Contact")
 
 	def start_key_exchange(self):
-		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange", False).post()
+		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange").post()
 		proto = self.protoHandler.spawn_protocol(self.last_connection, None, _protocols.Key_Exchange, (0,), {})
 		proto.take_step()
-		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange", False).post()
+		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange").post()
 
 class Connection:
 
