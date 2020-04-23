@@ -4,13 +4,14 @@ from Crypto.Cipher import AES as _AES
 from Crypto.Cipher import PKCS1_OAEP as _PKCS
 from Crypto.PublicKey import RSA as _RSA
 from Crypto.Util.number import getPrime
+from Crypto.Util.Padding import pad, unpad
 from Crypto.Hash import SHA256 as _SHA256
 from hashlib import sha256
 from string import ascii_uppercase as Alph
 
 CONSTS = {
-	"SALT_LENGTH": 2 ** 8,
-	"AES_KEY_SIZE": 144,
+	"BLOCK_SIZE": 64,
+	"SALT_LENGTH": 2 ** 12,
 	"KEY_ITERNATIONS": 2 ** 16,
 	"CLIENT_RSA": 2 ** 10,
 	"SERVER_RSA": 2 ** 11,
@@ -39,24 +40,12 @@ class AES:
 		for i in range(CONSTS["KEY_ITERNATIONS"]): key = sha256(key).digest()
 		return [key, salt]
 
-	def _add_padding(self, msg: str = None):
-		if msg is None or not len(msg): return None
-
-		paddingBytes = len(msg) % CONSTS["AES_KEY_SIZE"]
-		paddingSize = CONSTS["AES_KEY_SIZE"] - paddingBytes
-		msg += chr(paddingSize) * paddingSize
-		return msg
-
-	def _remove_padding(self, msg: bytes = None):
-		if msg is None or len(msg) < CONSTS["SALT_LENGTH"]: return ""
-		return msg[:-msg[-1]]
-
 	def encrypt(self, msg: str = None):
 		if msg is None or not len(msg): return None
 
 		key, salt = self._generate_crypt(self._key, get_random_bytes(CONSTS["SALT_LENGTH"]))
 		aes = _AES.new(key, _AES.MODE_ECB)
-		encryptedText = aes.encrypt(bytes(self._add_padding(msg), "utf-8"))
+		encryptedText = aes.encrypt(pad(bytes(msg, "utf-8"), CONSTS["BLOCK_SIZE"]))
 		return (salt + encryptedText)
 
 	def decrypt(self, msg: str = None):
@@ -64,7 +53,7 @@ class AES:
 
 		key = self._generate_crypt(self._key, msg[:CONSTS["SALT_LENGTH"]])[0]
 		aes = _AES.new(key, _AES.MODE_ECB)
-		return self._remove_padding(aes.decrypt(msg[CONSTS["SALT_LENGTH"]:])).decode("utf-8")
+		return unpad(aes.decrypt(msg[CONSTS["SALT_LENGTH"]:]), CONSTS["BLOCK_SIZE"]).decode("utf-8")
 
 class RSA:
 
@@ -84,7 +73,7 @@ class RSA:
 
 	@staticmethod
 	def add_extra_detail_to_key(key: str = None, is_public: bool = True):
-		return "-----BEGIN " + ("PUBLIC" if is_public else "PRIVATE") + " KEY-----\n" + key + "\n-----END " + ("PUBLIC" if isPublic else "PRIVATE") + " KEY-----"
+		return "-----BEGIN " + ("PUBLIC" if is_public else "PRIVATE") + " KEY-----\n" + key + "\n-----END " + ("PUBLIC" if is_public else "PRIVATE") + " KEY-----"
 
 	def __init__(self, is_clients: bool = False, rsa: object = None):
 		if rsa is None: self._rsa = _RSA.generate(CONSTS["CLIENT_RSA"] if is_clients else CONSTS["SERVER_RSA"], e=getPrime(CONSTS["RSA_PRIME"]))
@@ -113,5 +102,5 @@ class RSA:
 
 		out = ""
 		for i in range(len(msg.encode("utf-8")) // 512):
-			out += self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512])).decode("utf-8", "blackslashreplace")
+			out += self._pkcs.decrypt(FormatBytes(msg[i*512:(i+1)*512])).decode("utf-8", "backslashreplace")
 		return out
