@@ -124,7 +124,7 @@ mkdir "$DataFolder"
 chmod +x "$StartFile"
 
 # Start start.sh
-$StartFile --install -mac \'$DeviceMAC\' -server $ServerInstall
+$StartFile --install -mac '$DeviceMAC' -server $ServerInstall
 
 # Restart system
 reboot

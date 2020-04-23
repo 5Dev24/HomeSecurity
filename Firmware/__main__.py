@@ -98,6 +98,7 @@ def install(server: bool = True, mac: str = "", force: bool = False):
 			_codes.Exit(_codes.Installation.SAME_MAC)
 
 		else: shouldInstall = True
+	else: shouldInstall = True
 
 	if shouldInstall or force:
 		_file.File.Delete(_file.FileSystem, "deviceinfo.dat")
@@ -111,6 +112,8 @@ def install(server: bool = True, mac: str = "", force: bool = False):
 		deviceInfoFormat.write(deviceInfoFile)
 		_logging.Log(_logging.LogType.Install, "Device information has been saved").post()
 		_codes.Exit(_codes.Installation.SUCCESS)
+	else:
+		_codes.Exit(_codes.Installation.FAILURE)
 
 def logs():
 	_logging.Log(_logging.LogType.Debug, "Dumping 100 logs").post()

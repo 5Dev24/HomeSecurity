@@ -22,6 +22,7 @@ class Installation(Code): # 2 ^ 4
 	SAME_MAC          = 11 # Device was already set up under the same id
 	INVALID_MAC       = 12 # An invalid device id was specified
 	HASNT_BEEN        = 13 # This device hasn't been installed yet
+	FAILURE           = 14 # The installation didn't occur
 
 class Arguments(Code): # 2 ^ 5
 	LEX_SUCCESS            = 17 # Lexing Success
