@@ -34,10 +34,9 @@ class Networkable:
 				_logging.Log(_logging.LogType.Debug, "Advertising called!").post()
 				done = True
 			else:
-				_logging.Log(_logging.LogType.Debug, "Looking for valid devices").post()
 				found = _util.FindValidDevices(False)
-				_logging.Log(_logging.LogType.Debug, "Found " + str(len(found)) + " devices").post()
 				if len(found) >= 1:
+					_logging.Log(_logging.LogType.Debug, "Found " + str(len(found)) + " devices").post()
 					for address in found.keys():
 						try:
 							host, port = address.split("~")

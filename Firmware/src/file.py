@@ -340,7 +340,7 @@ class Utils:
 				elif element_type == '2':
 					out[element_name] = float(element_value)
 				elif element_type == '3':
-					out[element_name] = element_name.lower() == "true"
+					out[element_name] = element_value.lower() == "true"
 
 		return out
 

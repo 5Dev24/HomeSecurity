@@ -2,7 +2,7 @@ from enum import Enum
 from threading import Event
 from inspect import signature
 from re import compile
-from . import codes as _codes, threading as _threading
+from . import codes as _codes, threading as _threading, logging as _logging
 
 class Type(Enum):
 	NONE    = 0
@@ -258,14 +258,14 @@ class Handler:
 		self._good[0] = False
 		self._tokens = []
 
+		# Precompile patterns so they don't need to be made every invoke
+		integer_pattern = compile(r"\d+")
+		float_pattern_1 = compile(r"\d+\.(\d+)?")
+		float_pattern_2 = compile(r"\.\d+")
+
 		def _is_num(value: str = ""):
-			integer_pattern = compile(r"\d+")
 			if integer_pattern.fullmatch(value): return True
-
-			float_pattern_1 = compile(r"\d+\.(\d+)?")
 			if float_pattern_1.fullmatch(value): return True
-
-			float_pattern_2 = compile(r"\.\d+")
 			if float_pattern_2.fullmatch(value): return True
 
 			return False
@@ -277,7 +277,7 @@ class Handler:
 		built_string = ""
 
 		started_with_string = lambda x: x.startswith('"') or x.startswith("'")
-		ended_with_string = lambda x: (x.endswith(started_with) and not x.endswith("\\" + started_with))
+		ended_with_string = lambda x: started_with != None and (x.endswith(started_with) and not x.endswith("\\" + started_with))
 
 		for arg in args:
 			arg = str(arg)
@@ -288,9 +288,9 @@ class Handler:
 				if ended_with_string(lowered):
 					started_with = None
 					self._tokens.append(Token(TokenOperation.VALUE, value=Value(arg[1:-1])))
-
-				in_string = True
-				built_string = arg[1:]
+				else:
+					in_string = True
+					built_string = arg[1:]
 
 			elif in_string:
 				if ended_with_string(lowered):
@@ -374,7 +374,7 @@ class Handler:
 				next_token = next()
 				if next_token is not None:
 					next_op = next_token.op
-					if next_op is TokenOperation.VALUE:
+					if next_op == TokenOperation.VALUE:
 						current_index += 2
 
 						if var_name.lower() == "debug":
@@ -435,9 +435,11 @@ class Handler:
 			self._good[2] = False
 			c = _codes.Arguments.ERROR_IN_COMMAND
 
-			if type(e) is _threading.SimpleClose:
+			_logging.Log(_logging.LogType.Debug, "Exception raised: " + type(e).__name__, False).post()
+
+			if type(e) == _threading.SimpleClose:
 				c = _codes.Threading.FORCE_CLOSE
-			elif type(e) is _threading.MainClose:
+			elif type(e) == _threading.MainClose:
 				c = _codes.Threading.MAIN_DEAD
 
 			self._code[2] = c

@@ -1,12 +1,18 @@
 import traceback, ctypes
 from threading import Thread, current_thread, main_thread, _active
-from . import codes as _codes
+from . import codes as _codes, logging as _logging
 
 def HoldMain():
-	while len(SimpleThread.__threads__) > 0:
-		for thread in SimpleThread.__threads__:
-			thread.join(5, True)
-	SimpleThread.__stop__ = True
+	try:
+		while len(SimpleThread.__threads__) > 0:
+			for thread in SimpleThread.__threads__:
+				_logging.Log(_logging.LogType.Debug, "Joining thread invoking " + thread._target.__name__, False).post()
+				thread.join(5, True)
+		_logging.Log(_logging.LogType.Debug, "No active threads found", False).post()
+	except BaseException as e:
+		_logging.Log(_logging.LogType.Debug, "Exception of type " + type(e).__name__ + " was raised", False).post()
+	finally:
+		SimpleThread.__stop__ = True
 
 def MainDead():
 	dead = not main_thread().is_alive()
@@ -49,7 +55,6 @@ class SimpleThread:
 		self._kwargs = {} if kwargs is None else kwargs
 		self._loop = loop
 		self._running = False
-		SimpleThread.__threads__.append(self)
 
 	def stop(self, main_dead: bool = False):
 		if not self._running: return
@@ -108,6 +113,7 @@ class SimpleThread:
 
 	def start(self):
 		if self._running: return self
+		SimpleThread.__threads__.append(self)
 		self._running = True
 		self._internalThread.start()
 		return self
@@ -116,6 +122,7 @@ class SimpleThread:
 		if current_thread() is main_thread() and not _holdMain:
 			_codes.LogCode(_codes.Threading.JOIN_FROM_MAIN)
 			return
+
 		if timeout is None or type(timeout) != int: timeout = 5
 		elif timeout > 300: timeout = 300
 		elif timeout < 0: timeout = 0

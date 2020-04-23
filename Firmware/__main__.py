@@ -38,10 +38,13 @@ def main():
 		_threading.HoldMain()
 
 	finally:
+		_logging.Log(_logging.LogType.Debug, "Hold Main stopped!", False).post()
 		if len(_threading.SimpleThread.__threads__) == 0:
 			_codes.Exit(_codes.General.SUCCESS, "All threads stopped", True)
 
 		else:
+			for thrd in _threading.SimpleThread.__threads__:
+				_logging.Log(_logging.LogType.Debug, "Thread invoking " + thrd._target.__name__ + " was still running", False).post()
 			_codes.Exit(_codes.Reserved.FORCE_TERMINATE, "Force terminate", True)
 
 def _readDeviceInfo():
@@ -49,6 +52,8 @@ def _readDeviceInfo():
 	if exists:
 		diFile = _file.File.GetOrCreate(_file.FileSystem, "deviceinfo.dat")
 		diFormat = _file.DeviceInfoFormat.loadFrom(diFile)
+
+		if diFormat is None: return (False,)
 
 		mac = diFormat.mac
 		serv = diFormat.server
@@ -67,7 +72,7 @@ def _randomID():
 	seed = sha256(str(ran.randint(-(2 ** 64), 2 ** 64)).encode("utf-8")).digest().hex()
 	shuffle = [c for c in seed]
 	ran.shuffle(shuffle)
-	return "".join([random.choice(shuffle) for i in range(16)])
+	return "".join([random.choice(shuffle) for i in range(32)])
 
 def install(server: bool = True, mac: str = "", force: bool = False):
 	_logging.Log(_logging.LogType.Info, "Starting Install", False).post()
@@ -93,7 +98,6 @@ def install(server: bool = True, mac: str = "", force: bool = False):
 			_codes.Exit(_codes.Installation.SAME_MAC)
 
 		else: shouldInstall = True
-	else: shouldInstall = True
 
 	if shouldInstall or force:
 		_file.File.Delete(_file.FileSystem, "deviceinfo.dat")

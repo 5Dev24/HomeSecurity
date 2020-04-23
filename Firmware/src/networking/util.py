@@ -1,6 +1,6 @@
 from uuid import getnode
 from bluetooth import find_service, advertise_service, stop_advertising, BluetoothSocket, SERIAL_PORT_CLASS, SERIAL_PORT_PROFILE
-from .. import logging as _logging
+from .. import logging as _logging, threading as _threading
 import string
 
 Characters = string.punctuation + string.digits + string.ascii_letters
@@ -20,11 +20,14 @@ def CleanedDeviceID():
 
 def FindValidDevices(clients: bool = True):
 	services_found = []
-	_logging.Log(_logging.LogType.Debug, "Searching for services", False).post()
 	try:
 		services_found = find_service()
 	except Exception as e:
-		_logging.Log(_logging.LogType.Debug, type(e).__name__ + " raised", False).post()
+		if type(e) != _threading.SimpleClose and type(e) != _threading.MainClose:
+			_logging.Log(_logging.LogType.Debug, type(e).__name__ + " raised", False).post()
+		else: raise e
+		return {}
+
 	services = {}
 	for service in services_found:
 		if service["name"] is None or service["host"] is None or service["port"] is None: continue
