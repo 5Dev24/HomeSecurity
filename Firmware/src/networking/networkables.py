@@ -180,10 +180,9 @@ class Client(Networkable):
 		proto = self.protoHandler.spawn_protocol(self.last_connection, None, _protocols.Key_Exchange, (0,), {})
 		output = proto.take_step()
 		code = output[0]
+		print("Output: ", output, ", Len: ", len(output) + ", Code: ", code, ", Data Length: ", max([len(output) - 3, 0]), sep = "")
 		if code == 1 or code == 2:
 			pkt = _packet.Packet(output[1], type(output[2]), output[2].current_step)
-			for data in output[2:]:
-				pkt.addData(data)
 			pkt.send(self.last_connection)
 		else:
 			_logging.Log(_logging.LogType.Debug, "Output code: " + str(code)).post()

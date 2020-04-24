@@ -45,7 +45,7 @@ class Packet:
 		self._data = []
 
 	def addData(self, data: object = None):
-		if data is None or len(data) == 0: return self
+		if data is None: return self
 		self._data.append(data)
 		return self
 
