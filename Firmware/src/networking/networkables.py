@@ -29,10 +29,12 @@ class Networkable:
 				except OSError:
 					_logging.Log(_logging.LogType.Error, "Unable to find/bind to bluetooth").post()
 					return
+
 				self.socket.listen(8)
 				_util.AdvertiseService(True, self.socket, id)
 				_logging.Log(_logging.LogType.Debug, "Advertising called!").post()
 				done = True
+
 			else:
 				found = _util.FindValidDevices(False)
 				if len(found) >= 1:
@@ -48,10 +50,11 @@ class Networkable:
 						except Exception as e:
 							if type(e) == _threading.SimpleClose: return
 							else: continue
-				else:
-					if client_time + client_rate_limit < time.time():
-						client_time = time.time()
-						_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
+
+				elif client_time + client_rate_limit < time.time():
+					client_time = time.time()
+					_logging.Log(_logging.LogType.Info, "Unable to find a server!", False).post()
+
 		_logging.Log(_logging.LogType.Debug, "Socket is ready!").post()
 		self.socket_is_ready = True
 		self.socket_invoke()
@@ -89,7 +92,7 @@ class Networkable:
 			del self._threads[name]
 			T.stop()
 			return True
-		else: return False
+		return False
 
 	def thread_exists(self, name: str = None):
 		return name in self._threads
@@ -175,8 +178,16 @@ class Client(Networkable):
 	def start_key_exchange(self):
 		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange").post()
 		proto = self.protoHandler.spawn_protocol(self.last_connection, None, _protocols.Key_Exchange, (0,), {})
-		proto.take_step()
-		_logging.Log(_logging.LogType.Debug, "Spawning Key_Exchange").post()
+		output = proto.take_step()
+		code = output[0]
+		if code == 1 or code == 2:
+			pkt = _packet.Packet(output[1], type(output[2]), output[2].current_step)
+			for data in output[2:]:
+				pkt.addData(data)
+			pkt.send(self.last_connection)
+		else:
+			_logging.Log(_logging.LogType.Debug, "Output code: " + str(code)).post()
+		_logging.Log(_logging.LogType.Debug, "Taken Key_Exchange Step").post()
 
 class Connection:
 

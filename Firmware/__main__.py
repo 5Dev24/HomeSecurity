@@ -34,17 +34,17 @@ def main():
 		_codes.Exit(handler._code[2], "Unable to start", True)
 
 	try:
-		_logging.Log(_logging.LogType.Debug, "Holding main thread", False).post()
+		_logging.Log(_logging.LogType.Debug, "Holding main thread").post()
 		_threading.HoldMain()
 
 	finally:
-		_logging.Log(_logging.LogType.Debug, "Hold Main stopped!", False).post()
+		_logging.Log(_logging.LogType.Debug, "Hold Main stopped!").post()
 		if len(_threading.SimpleThread.__threads__) == 0:
 			_codes.Exit(_codes.General.SUCCESS, "All threads stopped", True)
 
 		else:
 			for thrd in _threading.SimpleThread.__threads__:
-				_logging.Log(_logging.LogType.Debug, "Thread invoking " + thrd._target.__name__ + " was still running", False).post()
+				_logging.Log(_logging.LogType.Debug, "Thread invoking " + thrd._target.__name__ + " was still running").post()
 			_codes.Exit(_codes.Reserved.FORCE_TERMINATE, "Force terminate", True)
 
 def _readDeviceInfo():
@@ -89,8 +89,7 @@ def install(server: bool = True, mac: str = "", force: bool = False):
 		deviceMac, devcServer = deviceData[1:3]
 
 		if deviceMac == mac and devcServer == server:
-			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force true\" to overwrite install (this will wipe all data)!" % (deviceMac, "server" if devcServer else "client"), False).post()
-			_logging.Log(_logging.LogType.Install, "Device was already setup as %s as a %s" % (deviceMac, "server" if devcServer else "client"))
+			_logging.Log(_logging.LogType.Install, "Device appears to have already been setup previously as %s as a %s. Add \"-force\" to overwrite install (this will wipe all data)!" % (deviceMac, "server" if devcServer else "client"), False).post()
 			_codes.Exit(_codes.Installation.SAME_MAC_AND_TYPE)
 
 		elif deviceMac == mac:

@@ -6,11 +6,11 @@ def HoldMain():
 	try:
 		while len(SimpleThread.__threads__) > 0:
 			for thread in SimpleThread.__threads__:
-				_logging.Log(_logging.LogType.Debug, "Joining thread invoking " + thread._target.__name__, False).post()
+				_logging.Log(_logging.LogType.Debug, "Joining thread invoking " + thread._target.__name__).post()
 				thread.join(5, True)
-		_logging.Log(_logging.LogType.Debug, "No active threads found", False).post()
+		_logging.Log(_logging.LogType.Debug, "No active threads found").post()
 	except BaseException as e:
-		_logging.Log(_logging.LogType.Debug, "Exception of type " + type(e).__name__ + " was raised", False).post()
+		_logging.Log(_logging.LogType.Debug, "Exception of type " + type(e).__name__ + " was raised").post()
 	finally:
 		SimpleThread.__stop__ = True
 

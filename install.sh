@@ -126,5 +126,8 @@ chmod +x "$StartFile"
 # Start start.sh
 $StartFile --install -mac \'$DeviceMAC\' -server $ServerInstall
 
+# Wait so that exit code and message can be seen
+sleep 10s
+
 # Restart system
 reboot

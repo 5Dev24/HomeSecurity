@@ -24,7 +24,7 @@ def FindValidDevices(clients: bool = True):
 		services_found = find_service()
 	except Exception as e:
 		if type(e) != _threading.SimpleClose and type(e) != _threading.MainClose:
-			_logging.Log(_logging.LogType.Debug, type(e).__name__ + " raised", False).post()
+			_logging.Log(_logging.LogType.Debug, type(e).__name__ + " raised").post()
 		else: raise e
 		return {}
 

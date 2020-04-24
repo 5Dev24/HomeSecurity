@@ -435,7 +435,7 @@ class Handler:
 			self._good[2] = False
 			c = _codes.Arguments.ERROR_IN_COMMAND
 
-			_logging.Log(_logging.LogType.Debug, "Exception raised: " + type(e).__name__, False).post()
+			_logging.Log(_logging.LogType.Debug, "Exception raised: " + type(e).__name__).post()
 
 			if type(e) == _threading.SimpleClose:
 				c = _codes.Threading.FORCE_CLOSE
