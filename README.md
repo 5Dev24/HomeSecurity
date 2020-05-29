@@ -1,5 +1,11 @@
 # ISM Project 2019-2020 Year
 
+## Project Is Incomplete
+
+I do not know if I intend to return to development on this project.
+I may continue it as my next year project in ISM if the class still allows for it.
+If anyone wants to continue work and finish this project, either make a fork or just become a contributor.
+
 ### Introduction
 
 My project, that I came up with, was to create a simple to use, easy setup, no-hassle home security system.
