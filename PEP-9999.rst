@@ -1,0 +1,64 @@
+PEP: 9999
+Title: Prepend Operator
+Author: Jake T. Halaska <jakehalaska@gmail.com>
+Sponsor: TBD
+PEP-Delegate: TBD
+Discussions-To: TBD
+Status: Draft
+Type: Standards Track
+Content-Type: text/x-rst
+Created: 23-Jun-2021
+Post-History:
+
+Abstract
+========
+
+This PEP proposes a new operator, the prepend operator, which will use
+the notation expr =+ NAME.
+
+Rationale
+=========
+
+The logic behind adding the prepend operator is to allow for shorthand
+addition to append before the variable. If ``x += " more"`` is shorthand
+for ``x = x + " more"`` then ``"more " =+ x`` should become shorthand for
+``x = "more " + x``. This aims to give prepending a more pythonic style
+to prepending.
+
+References
+==========
+Perl discussion on a prepend operator: https://www.perlmonks.org/?node_id=525446
+
+Copyright
+=========
+
+This document is placed in the public domain or under the
+CC0-1.0-Universal license, whichever is more permissive.
+
+
+
+
+
+
+
+
+Precondition:
+This is Python and the variable `x` is of type `str`
+
+If:
+`x = x + " more"` is the same as `x += " more"`
+
+And can do:
+`x += " this" + " that"`
+
+Should:
+`x = "more " + x` be `x =+ "more "` or `"more " =+ x`
+
+And allow for:
+`x =+ "this " + "that "` or `"this " + "that " =+ x`
+
+Then allowing (if the second choice is your selection):
+`"this " + "that " =+ x += " another" + " case"`
+
+Allowing for __add_post__ and __add_pre__ instead of just __add__
+`Variable=+Any` will no longer be treated as `Variable` equals `unary positive Any`

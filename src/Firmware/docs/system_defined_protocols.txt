@@ -1,0 +1,49 @@
+ID | Name
+
+0 | End of Protocol (EOP)
+
+	This protocol isn't actually a protocol. It instead signals to
+	end the current protocol as the connected party has terminated
+	it's protocol or a problem occured that cannot be recovered from
+	and the protocol must be ended or restarted.
+
+16 | Simple Protocol (SP)
+
+	This protocol sends raw text as bytes unencrypted and the
+	receiving system should know how to understand any and all
+	commands sent. These are human readable commands and are
+	commonly just requests of bad sessions. Or that a malformed
+	packet was received thus making encryption impossible.
+
+17 | Key Exchange (KEv1)
+
+	This protocol sets up encryption and gain a session id so
+	that encrypted protocols can be used and a perminate device
+	can be added to the system.
+
+	Client asks for server public key by sending its public key.
+	Server sends back its public key, encrypts the AES key wtih the
+	clients public key and sends it, and trails the message with the
+	client's new session id.
+
+256 | End of Secure Protocol (EOSP)
+
+	This protocol isn't actually a protocol and is just a reserved
+	number to mimic EOP but for encrypted connections.
+
+272 | Secure Simple Protocol (SSP)
+
+	This protocol sends raw text as bytes encrypted and the
+	receiving system should know how to understand any and all
+	commands sent. These are human readable commands and are
+	commonly for notifications that sessions will expire soon or
+	for packets that are malformed but encryption is still possible
+	from them.
+
+273 | Secure Key Exchange (SKEv1)
+
+	This protocol sets up encryption and a session after devices
+	have already previously used KEv1 to create encryption keys.
+	This is to prevent a new device from acting as an existing
+	device by requiring the keys from the prior SKEv1 or from the
+	original KEv1.

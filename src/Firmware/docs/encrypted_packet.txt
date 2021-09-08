@@ -1,0 +1,38 @@
+1
+AAA
+BBB
+C...C
+DD
+EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+FFFFFFFFFFFFFFFF
+GGGGGGGGGGGGGGGG
+HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII
+JJ...J
+KKKK...KKKK (512 K's)
+
+Newlines are not present in the packet, they're only show to better split
+up the segments of the packet to make it more human readable. The 1 is the
+flag byte. The flag byte specifies if the packet is ecrypted and must be
+present in all packet types. Protocol id, session id, nonce, and mac tag
+all must be present as any other protocol can use this, the nonce and mac
+tag are needed to decrypt the payload, and the session id is needed to
+get the shared aes key.
+
+Max length = 66441 bytes (excluding leading flag byte)
+	66442 bytes including the flag byte
+
+A = Packet length, base 256 (3 bytes)
+B = Device version, major, minor, and patch as individual bytes (3 bytes)
+C = Protocol ID, first byte is the length, rest is the id in
+	base 256 (1 byte + 255 bytes = 256 bytes)
+D = Step, base 256, generated like step // 256 % 256, step % 256.
+	Never resets, only overflows, overflows at 65535, 65536 = 0 (2 bytes)
+E = Session ID (32 bytes)
+F = Nonce (16 bytes)
+G = Mac Tag (16 bytes)
+H = Previous Random (32 bytes)
+I = Next Random (32 bytes)
+J = Payload, first two bytes are length, in base 256, the rest is the
+	encrypted text (2 bytes + 65535 bytes = 65537 bytes)
+K = Signature, signature of the entire packet excluding itself and the flag bit (512 bytes)

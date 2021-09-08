@@ -1,7 +1,13 @@
-# ISM Project 2019-2020 Year
+# Home Security
 
-### Introduction
+## Setup
 
-My project, that I came up with, was to create a simple to use, easy setup, no-hassle home security system.
-The main system is comprised of a main unit that contains the main system, a raspberry pi, and a keypad.
-The reset of the system is comprised of wireless door sensors built from reed switches and raspberry pi 0 w's.
+#### Coming soon
+
+## Purpose
+
+This project was originally started for my sophmore year of high school as my ISM project
+for the year. Due to covid and delays due to the amount of research needed for this
+project, I couldn't complete it by the end of the school year. I've continued to work on
+HomeSecurity after my deadline as, to me, the project is interesting and I want to see
+it to its completion or to a state that I'm happy that I've learned a lot from the work.

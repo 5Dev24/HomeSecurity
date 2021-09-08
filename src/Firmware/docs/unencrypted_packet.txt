@@ -1,0 +1,22 @@
+0
+AAA
+BBB
+C
+DD...D
+
+Newlines are not present in the packet, they're only show to better split
+up the segments of the packet to make it more human readable. The 0 is the
+flag byte. The flag byte specifies if the packet is ecrypted and must be
+present in all packet types. There is no session id present as session ids
+only exist for encrypted traffic. This packet structure is only used in the
+Key Exchange protocol. No other protocol can use it due to is lacking the
+protocol id bytes, nonce, mac tag, step and randoms.
+
+Max length = 65544 bytes (excluding leading flag byte)
+	65545 bytes including the flag byte
+
+A = Packet length, base 256 (3 bytes)
+B = Device version, major, minor, and patch as individual bytes (3 bytes)
+C = Protocol ID, two bytes as this is only for Key Exchange versions (1 byte)
+D = Payload, first two bytes are length (base 256), the reset is the message
+	itself (2 bytes + 65535 bytes = 65537 bytes)
